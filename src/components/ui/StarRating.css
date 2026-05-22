@@ -1,0 +1,19 @@
+.star-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.star-rating--sm .star { font-size: 0.875rem; }
+.star-rating--md .star { font-size: 1rem; }
+.star-rating--lg .star { font-size: 1.25rem; }
+
+.star--filled  { color: var(--color-gold); }
+.star--partial { color: var(--color-gold-dim); }
+.star--empty   { color: var(--color-faint); }
+
+.star-rating__value {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  margin-left: 0.25rem;
+}

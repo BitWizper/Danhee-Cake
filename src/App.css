@@ -1,0 +1,11 @@
+/* App.css – limpieza de estilos default de Vite */
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+}
