@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const errorHandler = require('./middleware/errorHandler');
+const { askChatbot } = require('./controllers/chat.controller');
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use('/api/categories', require('./routes/categories.routes'));
 app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
+app.post('/api/chat', askChatbot);
 
 // Ruta base
 app.get('/', (req, res) => {

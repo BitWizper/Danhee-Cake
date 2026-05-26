@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import ChatBot from "./components/chatbot/ChatBot";
 
 // Layout
 import Navbar from './components/layout/Navbar';
@@ -79,6 +80,7 @@ const App = () => {
 
       {/* Footer en todas las páginas */}
       <Footer />
+      <ChatBot />
     </BrowserRouter>
     </AuthProvider>
   );
