@@ -1,3 +1,6 @@
+/* ==========================================================================
+   ESTILOS GENERALES DEL DASHBOARD
+   ========================================================================== */
 .dashboard-page {
   min-height: 100vh;
   padding-bottom: var(--space-20);
@@ -19,6 +22,246 @@
   gap: var(--space-8);
 }
 
+/* ==========================================================================
+   VISTAS Y REJILLAS PRINCIPALES (PROPORCIÓN OPTIMIZADA)
+   ========================================================================== */
+.profile-manager-view {
+  width: 100%;
+  max-width: 100%; /* Expande el contenedor al ancho completo de la pantalla */
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+.profile-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: var(--space-8);
+}
+
+.profile-manager-grid {
+  display: grid;
+  /* El formulario toma 3 partes del espacio disponible y la preview se mantiene en un ancho estilizado */
+  grid-template-columns: 3fr 340px; 
+  gap: var(--space-12); /* Espacio generoso entre el formulario y la barra lateral */
+  align-items: start;
+}
+
+.dashboard-main-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-8);
+}
+
+/* ==========================================================================
+   ZONA DE FORMULARIO DESENCLAVADA (ANULACIÓN TOTAL DE BORDES CONTENEDORES)
+   ========================================================================== */
+/* Forzamos la desaparición del recuadro exterior gigante que encierra el bloque izquierdo */
+.dashboard-section, 
+.dashboard-section form,
+.dashboard-section .v-form,
+.dashboard-section .v-card,
+.profile-manager-grid > div:first-child,
+.profile-manager-grid > form:first-child {
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  border: 0px solid transparent !important; /* Destrucción explícita de bordes fantasmas */
+  outline: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+/* Eliminación de bordes internos raros que dividen horizontalmente las secciones del layout */
+.dashboard-section div,
+.profile-manager-grid > div:first-child div {
+  border-color: transparent !important; /* Evita que divisores automáticos pinten el cuadro */
+}
+
+.form-section-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-gold);
+  margin-bottom: var(--space-10);    /* Más espacio abajo para que respire el título suuelto */
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid rgba(201, 169, 110, 0.15) !important; /* Forzamos ÚNICAMENTE esta línea divisoria fina */
+}
+
+/* Sub-rejilla para los inputs libres */
+.form-grid-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* Divide la sección en 2 columnas perfectas */
+  gap: var(--space-10) var(--space-8);  /* Espaciado más amplio para un look editorial */
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Rompemos el fondo de cualquier wrapper o celda interna generada por frameworks o temas */
+.form-grid-inputs > div,
+.form-grid-inputs .v-input,
+.form-grid-inputs .v-input__control,
+.form-grid-inputs .v-field {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Modificadores de tamaño para los campos del formulario */
+.form-group--full-width {
+  grid-column: span 2; /* Nombre de la pastelería ocupa todo el ancho */
+}
+
+.form-group--biography {
+  grid-column: span 2; /* Biografía ocupa todo el ancho */
+  margin-top: var(--space-4);
+}
+
+/* --- ETIQUETAS CON EFECTO DE BRILLO DINÁMICO --- */
+.form-label-custom {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-gold-dim);
+  margin-bottom: var(--space-3);
+  font-weight: 500;
+  cursor: pointer;
+  
+  /* Transición suave para el efecto de brillo y movimiento */
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Efecto 1: Al pasar el mouse directamente sobre la etiqueta suelta */
+.form-label-custom:hover {
+  color: var(--color-gold, #c9a96e);
+  transform: translateX(4px); /* Pequeño desplazamiento elegante */
+  text-shadow: 0 0 8px rgba(201, 169, 110, 0.6); /* Brillo dorado de alta fidelidad */
+}
+
+/* Efecto 2: Cuando el usuario hace foco en el input hermano/hijo */
+.form-grid-inputs > div:focus-within .form-label-custom {
+  color: var(--color-gold, #c9a96e);
+  text-shadow: 0 0 10px rgba(201, 169, 110, 0.8);
+  letter-spacing: 0.12em; /* Expande sutilmente el texto al escribir */
+}
+
+/* --- REESTRUCTURACIÓN ULTRA-MINIMALISTA: SÓLO LÍNEAS HORIZONTALES --- */
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: transparent !important;
+  border: none !important;
+}
+
+.input-icon {
+  position: absolute;
+  left: 0.2rem; /* Movido perfectamente al inicio de la línea base */
+  font-size: 1rem;
+  z-index: 2;
+}
+
+/* Eliminamos por completo fondos grises o negros de los inputs, volviéndolos líneas horizontales */
+.input-with-icon .premium-input,
+.form-group--biography textarea,
+.input-with-icon input {
+  width: 100%;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important; /* Elegante línea inferior */
+  border-radius: 0 !important; /* Cero esquinas redondeadas */
+  padding: var(--space-3) var(--space-2) var(--space-3) 2.2rem !important;
+  color: var(--color-cream, #f5f0e6);
+  font-size: 0.95rem;
+  box-shadow: none !important;
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+}
+
+/* Ajuste específico para el cuadro de texto de Biografía */
+.form-group--biography textarea {
+  padding-left: 0.5rem !important; /* Sin icono, alineado con el texto general */
+  min-height: 140px;
+  resize: vertical;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Iluminación dorada de la línea cuando se hace click o se escribe */
+.input-with-icon:focus-within .premium-input,
+.input-with-icon:focus-within input,
+.form-group--biography textarea:focus {
+  outline: none !important;
+  border: none !important;
+  border-bottom: 1px solid var(--color-gold, #c9a96e) !important; 
+  box-shadow: 0 1px 0 var(--color-gold, #c9a96e) !important; /* Resalta la línea sutilmente */
+}
+
+/* ==========================================================================
+   BARRA LATERAL DE VISTA PREVIA (PREVIEW SIDEBAR)
+   ========================================================================== */
+.profile-preview-sidebar {
+  padding: var(--space-2);
+  height: fit-content;
+  position: sticky;
+  top: 100px;
+}
+
+.preview-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(8px);
+}
+
+.preview-card__avatar {
+  width: 90px;
+  height: 90px;
+  background: var(--color-gold);
+  border-radius: 50%;
+  margin: 0 auto var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  color: var(--color-bg);
+  font-family: var(--font-serif);
+}
+
+.preview-card__info h4 {
+  color: var(--color-cream);
+  margin-bottom: 6px;
+  font-size: 1.25rem;
+}
+
+.preview-card__info p {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  margin-bottom: var(--space-6);
+}
+
+.preview-card__rating {
+  font-size: 0.75rem;
+  color: var(--color-gold-dim);
+}
+
+.preview-help {
+  margin-top: var(--space-6);
+  font-size: 0.8rem;
+  color: var(--color-faint);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ==========================================================================
+   COMPONENTES ADICIONALES DEL DASHBOARD (Banners, Stats, Tabs, Cards)
+   ========================================================================== */
 .error-banner {
   padding: var(--space-6);
   border: 1px solid #ff4444;
@@ -72,18 +315,6 @@
   text-transform: uppercase;
   font-size: 0.7rem;
   letter-spacing: 0.1em;
-}
-
-.dashboard-main-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: var(--space-8);
-}
-
-.dashboard-section {
-  padding: var(--space-10);
-  border-radius: var(--radius-2xl);
-  border: 1px solid var(--color-border);
 }
 
 .section-title {
@@ -141,28 +372,123 @@
   gap: var(--space-4);
 }
 
-/* Tabs */
+/* --- SECCIÓN DE PESTAÑAS (TABS) RECONFIGURADA --- */
 .dashboard-tabs {
   display: flex;
   gap: var(--space-4);
   margin-top: var(--space-6);
 }
 
+/* Estilo base para elementos inactivos: legibles, discretos y en gris premium */
+.dashboard-tabs a,
+.dashboard-tabs button,
 .tab-btn {
-  background: transparent;
+  font-family: var(--font-sans, 'Inter', sans-serif);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.45) !important; /* Visible pero sin opacar al activo */
+  background: transparent !important;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--color-muted);
-  padding: var(--space-2) 0;
+  padding: var(--space-2) var(--space-1);
   cursor: pointer;
-  font-family: var(--font-serif);
-  font-size: 1.1rem;
-  transition: all 0.3s;
+  
+  /* Transición fluida para color, escala y efectos */
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transform-origin: center;
 }
 
-.tab-btn--active {
-  color: var(--color-gold);
-  border-bottom-color: var(--color-gold);
+/* Efecto Hover: Cambio a blanco limpio, escala mínima de 1% y reflejo digital */
+.dashboard-tabs a:hover,
+.dashboard-tabs button:hover,
+.tab-btn:hover {
+  color: #ffffff !important;
+  transform: scale(1.02); /* Escala sutilísima para que no empuje componentes */
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.25);
+}
+
+/* Pestaña Activa: Dorado dominante sin micro-escala */
+.tab-btn--active,
+.dashboard-tabs .active,
+.dashboard-tabs [aria-selected="true"] {
+  color: var(--color-gold) !important;
+  border-bottom: 2px solid var(--color-gold) !important;
+  font-weight: 600;
+  transform: scale(1) !important;
+  text-shadow: none !important;
+}
+
+/* ==========================================================================
+   BOTÓN "VER MI PERFIL PÚBLICO" - ESTILO ULTRA-PREMIUM
+   ========================================================================== */
+.btn-view-public {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  
+  /* Tipografía y Espaciado */
+  font-family: var(--font-sans, 'Inter', sans-serif);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--color-gold, #c9a96e);
+  
+  /* Estructura y Fondo */
+  padding: var(--space-4) var(--space-6);
+  background: rgba(201, 169, 110, 0.03);
+  border: 1px solid rgba(201, 169, 110, 0.3);
+  border-radius: var(--radius-md, 6px);
+  cursor: pointer;
+  overflow: hidden;
+  
+  /* Transición suave */
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-view-public:hover {
+  color: var(--color-bg, #0d0a08);
+  background: var(--color-gold, #c9a96e);
+  border-color: var(--color-gold, #c9a96e);
+  transform: translateY(-3px);
+  letter-spacing: 0.18em;
+  box-shadow: 
+    0 0 20px rgba(201, 169, 110, 0.4), 
+    0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.btn-view-public:active {
+  transform: translateY(-1px);
+  box-shadow: 
+    0 0 10px rgba(201, 169, 110, 0.3), 
+    0 5px 15px rgba(0, 0, 0, 0.4);
+}
+
+.btn-view-public::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.2), 
+    transparent
+  );
+  transform: skewX(-20px);
+  transition: none;
+}
+
+.btn-view-public:hover::after {
+  left: 150%;
+  transition: all 0.6s ease-in-out;
 }
 
 /* Portfolio Manager */
@@ -267,108 +593,27 @@
   border-color: #ff4444;
 }
 
-/* Profile Manager View */
-.profile-manager-view {
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.profile-manager-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: var(--space-8);
-}
-
-.profile-manager-grid {
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: var(--space-8);
-}
-
-.form-section-title {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--color-gold);
-  margin-bottom: var(--space-6);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid rgba(201, 169, 110, 0.2);
-}
-
-.input-with-icon {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.input-icon {
-  position: absolute;
-  left: 1rem;
-  font-size: 1rem;
-}
-
-.input-with-icon .premium-input {
-  padding-left: 2.8rem !important;
-}
-
-/* Preview Sidebar */
-.profile-preview-sidebar {
-  padding: var(--space-8);
-  height: fit-content;
-  position: sticky;
-  top: 100px;
-}
-
-.preview-card {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: var(--radius-xl);
-  padding: var(--space-6);
-  text-align: center;
-  border: 1px solid var(--color-border);
-}
-
-.preview-card__avatar {
-  width: 80px;
-  height: 80px;
-  background: var(--color-gold);
-  border-radius: 50%;
-  margin: 0 auto var(--space-4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  color: var(--color-bg);
-  font-family: var(--font-serif);
-}
-
-.preview-card__info h4 {
-  color: var(--color-cream);
-  margin-bottom: 4px;
-}
-
-.preview-card__info p {
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-  margin-bottom: var(--space-4);
-}
-
-.preview-card__rating {
-  font-size: 0.75rem;
-  color: var(--color-gold-dim);
-}
-
-.preview-help {
-  margin-top: var(--space-6);
-  font-size: 0.8rem;
-  color: var(--color-faint);
-  line-height: 1.5;
-  text-align: center;
+/* ==========================================================================
+   RESPONSIVE (Media Queries de Control)
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .profile-manager-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-8);
+  }
+  
+  .form-grid-inputs {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-group--full-width,
+  .form-group--biography {
+    grid-column: span 1;
+  }
 }
 
 @media (max-width: 900px) {
   .stats-grid { grid-template-columns: 1fr; }
   .dashboard-main-grid { grid-template-columns: 1fr; }
-  .profile-manager-grid { grid-template-columns: 1fr; }
   .profile-manager-header { flex-direction: column; align-items: flex-start; gap: var(--space-4); }
 }
