@@ -5,6 +5,8 @@ const path = require('path');
 require('dotenv').config();
 const errorHandler = require('./middleware/errorHandler');
 const { askChatbot } = require('./controllers/chat.controller');
+const chatRoutes = require('./routes/chat.routes');
+
 
 const app = express();
 
