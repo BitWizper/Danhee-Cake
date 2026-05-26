@@ -1,33 +1,35 @@
-const { execFile } = require('child_process');
-
 const askChatbot = async (req, res) => {
   const { message } = req.body;
 
-  execFile(
-    "python",
-    ["rag/app.py", message],
-    {
-      cwd: process.cwd(),
-      maxBuffer: 1024 * 1024,
-      env: {
-        ...process.env,
-        PYTHONIOENCODING: "utf-8",
+  if (!message || message.trim() === "") {
+    return res.status(400).json({ error: "El mensaje no puede estar vacío" });
+  }
+
+  try {
+    const response = await fetch("http://127.0.0.1:5005/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    },
-    (error, stdout, stderr) => {
-      if (error) {
-        console.error(stderr || error.message);
+      body: JSON.stringify({ message }),
+    });
 
-        return res.status(500).json({
-          error: "Error al ejecutar IA"
-        });
-      }
-
-      res.json({
-        response: stdout.replace(/�/g, "").trim()
-      });
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("[Node Server] Error del servicio RAG Python:", errText);
+      return res.status(500).json({ error: "Error en el servicio RAG" });
     }
-  );
+
+    const data = await response.json();
+    return res.json({
+      response: (data.response || "").trim(),
+    });
+  } catch (error) {
+    console.error("[Node Server] No se pudo conectar con el servicio RAG Python:", error.message);
+    return res.status(500).json({
+      error: "El asistente de IA se está iniciando. Por favor, intenta de nuevo en unos segundos."
+    });
+  }
 };
 
 module.exports = { askChatbot };
