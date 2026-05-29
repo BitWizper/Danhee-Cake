@@ -1,12 +1,50 @@
 const db = require('../config/db');
 
 /**
+ * Obtener todos los reposteros (PÚBLICO - sin autenticación)
+ * GET /api/bakers
+ */
+exports.getAllPublic = async (req, res, next) => {
+  try {
+    const [bakers] = await db.execute(`
+      SELECT 
+        bp.id,
+        bp.business_name,
+        bp.location,
+        bp.specialty,
+        bp.bio,
+        bp.portfolio_url,
+        bp.is_verified,
+        bp.rating_avg,
+        bp.total_reviews,
+        u.name as owner_name,
+        u.avatar_url,
+        u.phone,
+        u.email
+      FROM baker_profiles bp
+      JOIN users u ON bp.user_id = u.id
+      WHERE u.is_active = 1
+      ORDER BY bp.rating_avg DESC, bp.is_verified DESC
+    `);
+
+    res.json({
+      success: true,
+      data: bakers,
+      total: bakers.length
+    });
+  } catch (err) {
+    console.error('[Bakers] Error en getAllPublic:', err);
+    next(err);
+  }
+};
+
+/**
  * Obtener estadísticas del repostero logueado.
  */
 exports.getStats = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    
+
     // Obtener ID del perfil de repostero
     const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
     if (profiles.length === 0) {
@@ -16,10 +54,10 @@ exports.getStats = async (req, res, next) => {
 
     // Contar pasteles
     const [cakesCount] = await db.execute('SELECT COUNT(*) as total FROM cakes WHERE baker_id = ?', [bakerId]);
-    
+
     // Contar citas pendientes
     const [appCount] = await db.execute('SELECT COUNT(*) as total FROM appointments WHERE baker_id = ? AND status = "pending"', [bakerId]);
-    
+
     // Obtener rating
     const [ratingData] = await db.execute('SELECT rating_avg FROM baker_profiles WHERE id = ?', [bakerId]);
 
@@ -42,7 +80,7 @@ exports.getStats = async (req, res, next) => {
 exports.getAppointments = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    
+
     const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
     if (profiles.length === 0) return res.status(404).json({ success: false, message: 'Perfil no encontrado.' });
     const bakerId = profiles[0].id;
@@ -69,7 +107,7 @@ exports.getAppointments = async (req, res, next) => {
  */
 exports.addCake = async (req, res, next) => {
   const { name, description, price, category_id, is_featured } = req.body;
-  
+
   try {
     const userId = req.user.id;
     const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);

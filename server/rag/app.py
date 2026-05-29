@@ -3,6 +3,16 @@ import json
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.request
+import decimal
+from datetime import date, datetime
+
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 # Configurar encoding a UTF-8 para consola Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -20,13 +30,18 @@ except ImportError as e:
     print(f"Error al importar librerías: {e}", file=sys.stderr)
     sys.exit(1)
 
-# Módulo de acceso a datos vía Node REST API
-from db_config import _http_get, _http_post
+# Módulo de acceso a datos directo a MySQL
+from db_config import (
+    get_cakes, get_bakers, get_baker_by_id, 
+    get_appointments_by_baker_date, insert_appointment, 
+    insert_guest_appointment, get_categories, get_user_by_id
+)
 
 base_dir = Path(__file__).resolve().parent
 
 # Variable global para almacenar client_id del usuario actual (por turno)
 _current_client_id = None
+# (Refresco del linter)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECCIÓN 1: FUNCIONES LOCALES DE DANHEE CAKE (10 herramientas)
@@ -37,11 +52,7 @@ def consultar_catalogo_pasteles(categoria: str = "") -> dict:
     Consulta el catálogo de pasteles disponibles en Danhee Cake.
     Puede filtrar por categoría: XV Años, Boda, Baby Shower, Cumpleaños, etc.
     """
-    data = _http_get("/cakes")
-    if data is None:
-        return {"error": "No se pudo obtener el catálogo de Danhee Cake. Intenta más tarde."}
-    
-    pasteles = data if isinstance(data, list) else data.get("data", data.get("cakes", []))
+    pasteles = get_cakes()
     
     if categoria and categoria.strip():
         categoria_lower = categoria.lower()
@@ -58,8 +69,8 @@ def consultar_catalogo_pasteles(categoria: str = "") -> dict:
         {
             "id": p.get("id"),
             "nombre": p.get("name"),
-            "precio": p.get("price"),
-            "calificacion": p.get("rating"),
+            "precio": float(p.get("price", 0)) if p.get("price") else 0.0,
+            "calificacion": p.get("rating", 0),
             "categoria": p.get("category_name", "Sin categoría"),
         }
         for p in pasteles[:10]
@@ -69,18 +80,14 @@ def consultar_catalogo_pasteles(categoria: str = "") -> dict:
 
 def consultar_reposteros_disponibles() -> dict:
     """Lista todos los reposteros verificados de Danhee Cake."""
-    data = _http_get("/bakers")
-    if data is None:
-        return {"error": "No se pudo obtener la lista de reposteros de Danhee Cake."}
-    
-    reposteros = data if isinstance(data, list) else data.get("data", data.get("bakers", []))
+    reposteros = get_bakers()
     
     resultado = [
         {
             "id": r.get("id"),
             "nombre_negocio": r.get("business_name"),
             "especialidad": r.get("specialty"),
-            "calificacion": r.get("rating_avg"),
+            "calificacion": float(r.get("rating_avg", 0)) if r.get("rating_avg") else 0.0,
             "ubicacion": r.get("location"),
             "verificado": bool(r.get("is_verified")),
         }
@@ -91,16 +98,8 @@ def consultar_reposteros_disponibles() -> dict:
 
 def verificar_disponibilidad_repostero(baker_id: int, fecha: str) -> dict:
     """Verifica si un repostero de Danhee Cake tiene disponibilidad en una fecha específica."""
-    data = _http_get(f"/appointments/baker/{baker_id}/date/{fecha}")
-    if data is None:
-        return {
-            "baker_id": baker_id,
-            "fecha": fecha,
-            "disponible": True,
-            "mensaje": f"El repostero #{baker_id} de Danhee Cake tiene disponibilidad para {fecha}."
-        }
+    citas = get_appointments_by_baker_date(baker_id, fecha)
     
-    citas = data if isinstance(data, list) else data.get("data", [])
     disponible = len(citas) < 5
     
     return {
@@ -114,11 +113,7 @@ def verificar_disponibilidad_repostero(baker_id: int, fecha: str) -> dict:
 
 def obtener_precios_por_categoria(categoria: str) -> dict:
     """Obtiene el rango de precios de los pasteles de Danhee Cake por categoría."""
-    data = _http_get("/cakes")
-    if data is None:
-        return {"error": "No se pudo consultar los precios de Danhee Cake."}
-    
-    todos = data if isinstance(data, list) else data.get("data", data.get("cakes", []))
+    todos = get_cakes()
     
     filtrados = [
         p for p in todos
@@ -153,29 +148,18 @@ def registrar_solicitud_cita(
     
     print(f"[RAG Tools] Registrando cita en Danhee Cake: {client_name}, baker={baker_id}, {fecha} {hora}", file=sys.stderr)
     
+    notas_final = f"Cliente: {client_name}. {notas}".strip()
+    
     if _current_client_id:
-        payload = {
-            "client_id": _current_client_id,
-            "baker_id": baker_id,
-            "date": fecha,
-            "time_slot": hora,
-            "notes": f"Cliente: {client_name}. {notas}".strip()
-        }
-        result = _http_post("/appointments/internal", payload)
-        if result and result.get("success"):
+        exito = insert_appointment(_current_client_id, baker_id, fecha, hora, notas_final)
+        if exito:
             return {
                 "exito": True,
                 "mensaje": f"✅ ¡Cita registrada en Danhee Cake! {client_name}, tu cita con el repostero #{baker_id} está agendada para el {fecha} a las {hora}. 🎉"
             }
     else:
-        payload = {
-            "baker_id": baker_id,
-            "date": fecha,
-            "time_slot": hora,
-            "notes": f"Solicitud de {client_name}. {notas}".strip()
-        }
-        result = _http_post("/appointments/guest", payload)
-        if result and result.get("success"):
+        exito = insert_guest_appointment(baker_id, fecha, hora, notas_final)
+        if exito:
             return {
                 "exito": True,
                 "mensaje": f"✅ ¡Solicitud recibida en Danhee Cake! {client_name}, pronto recibirás confirmación para tu cita del {fecha} a las {hora}. 🎂"
@@ -183,14 +167,14 @@ def registrar_solicitud_cita(
     
     return {
         "exito": False,
-        "mensaje": f"📋 Tu solicitud fue recibida en Danhee Cake para {client_name} con el repostero #{baker_id} el {fecha} a las {hora}. Un asesor te contactará para confirmar."
+        "mensaje": f"📋 Hubo un problema al registrar la cita para {client_name} en Danhee Cake. Por favor intenta más tarde."
     }
 
 
 def consultar_categorias() -> dict:
     """Lista todas las categorías de pasteles disponibles en Danhee Cake."""
-    data = _http_get("/categories")
-    if data is None:
+    cats = get_categories()
+    if not cats:
         return {"categorias": [
             {"nombre": "XV Años", "icono": "👑", "descripcion": "Pasteles elegantes para XV años"},
             {"nombre": "Boda", "icono": "💍", "descripcion": "Pasteles nupciales de lujo"},
@@ -199,17 +183,12 @@ def consultar_categorias() -> dict:
             {"nombre": "Aniversario", "icono": "💑", "descripcion": "Pasteles románticos para aniversarios"},
             {"nombre": "Graduación", "icono": "🎓", "descripcion": "Celebra tu graduación con estilo"},
         ]}
-    cats = data if isinstance(data, list) else data.get("data", data.get("categories", []))
-    return {"categorias": [{"nombre": c.get("name"), "icono": c.get("icon")} for c in cats if c.get("is_active", 1)]}
+    return {"categorias": [{"nombre": c.get("name"), "icono": c.get("icon")} for c in cats]}
 
 
 def buscar_pastel_por_nombre(nombre: str) -> dict:
     """Busca pasteles en el catálogo de Danhee Cake por nombre parcial."""
-    data = _http_get("/cakes")
-    if data is None:
-        return {"error": "No se pudo buscar en Danhee Cake."}
-    
-    todos = data if isinstance(data, list) else data.get("data", data.get("cakes", []))
+    todos = get_cakes()
     
     encontrados = [
         p for p in todos
@@ -221,7 +200,7 @@ def buscar_pastel_por_nombre(nombre: str) -> dict:
     
     return {
         "encontrados": [
-            {"id": p.get("id"), "nombre": p.get("name"), "precio": p.get("price")}
+            {"id": p.get("id"), "nombre": p.get("name"), "precio": float(p.get("price", 0)) if p.get("price") else 0.0}
             for p in encontrados[:5]
         ],
         "cantidad": len(encontrados)
@@ -230,18 +209,16 @@ def buscar_pastel_por_nombre(nombre: str) -> dict:
 
 def obtener_info_repostero(baker_id: int) -> dict:
     """Obtiene información completa de un repostero de Danhee Cake."""
-    data = _http_get(f"/bakers/{baker_id}")
-    if data is None:
+    repostero = get_baker_by_id(baker_id)
+    if not repostero:
         return {"error": f"No se encontró el repostero de Danhee Cake con ID {baker_id}."}
-    
-    repostero = data if isinstance(data, dict) else data.get("data", data)
     
     return {
         "id": repostero.get("id"),
         "nombre_negocio": repostero.get("business_name"),
         "especialidad": repostero.get("specialty"),
         "bio": repostero.get("bio"),
-        "calificacion": repostero.get("rating_avg"),
+        "calificacion": float(repostero.get("rating_avg", 0)) if repostero.get("rating_avg") else 0.0,
         "ubicacion": repostero.get("location"),
         "verificado": bool(repostero.get("is_verified")),
     }
@@ -621,6 +598,15 @@ def generate_response_with_tools(question: str, client_id: int = None) -> str:
         except Exception as e:
             print(f"[RAG] Error en búsqueda: {e}", file=sys.stderr)
     
+    # Identificar al usuario autenticado usando DB para que Ollama sepa su nombre y rol
+    identidad_usuario = "visitante"
+    if client_id:
+        user_info = get_user_by_id(client_id)
+        if user_info:
+            identidad_usuario = f"autenticado (Nombre: {user_info.get('name')}, Rol: {user_info.get('role')})"
+        else:
+            identidad_usuario = "autenticado"
+
     # System prompt ESTRICTAMENTE para Danhee Cake
     system_prompt = f"""ERES EL ASISTENTE EXCLUSIVO DE DANHEE CAKE.
 
@@ -631,9 +617,9 @@ REGLAS OBLIGATORIAS:
 2. NUNCA menciones Danganronpa, anime, manga, Hajime Hinata o cualquier cosa externa.
 3. Si el usuario pregunta algo NO relacionado con Danhee Cake, responde: "Lo siento, solo puedo ayudarte con temas relacionados a Danhee Cake, nuestra plataforma de repostería personalizada."
 4. SIEMPRE usa las herramientas disponibles para responder.
-5. Responde en español, cálido y profesional.
+5. Responde en español, cálido y profesional. Si el usuario está autenticado, llámalo por su nombre.
 
-Usuario: {"autenticado" if client_id else "visitante"}
+Usuario: {identidad_usuario}
 {chr(10) + "Contexto: " + rag_context if rag_context else ""}"""
     
     messages = [
@@ -694,7 +680,7 @@ Usuario: {"autenticado" if client_id else "visitante"}
             
             messages.append({
                 "role": "tool",
-                "content": json.dumps(result, ensure_ascii=False)
+                "content": json.dumps(result, ensure_ascii=False, default=json_serial)
             })
         
         # ── PASO 4: Re-invocar LLM con resultados ─────────────────────────────
@@ -727,7 +713,7 @@ Usuario: {"autenticado" if client_id else "visitante"}
                 elif "recomendacion" in last_tool_result:
                     return last_tool_result["recomendacion"]
                 else:
-                    return f"📋 Danhee Cake: {json.dumps(last_tool_result, ensure_ascii=False)[:500]}"
+                    return f"📋 Danhee Cake: {json.dumps(last_tool_result, ensure_ascii=False, default=json_serial)[:500]}"
                     
         except Exception as e:
             print(f"[RAG] Error en re-invocación: {e}", file=sys.stderr)
