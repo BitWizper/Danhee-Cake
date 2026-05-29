@@ -48,28 +48,45 @@ base_dir = Path(__file__).resolve().parent
 _current_client_id = None
 # Variable para mantener contexto de conversación
 _conversation_context = {}
+# Variable para almacenar el último resultado de búsqueda
+_last_search_result = {}
+# Cache para contenido de PDFs
+_pdf_cache = {}
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECCIÓN 1: FUNCIONES LOCALES DE DANHEE CAKE (13 herramientas)
+# SECCIÓN 1: FUNCIONES LOCALES DE DANHEE CAKE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def consultar_catalogo_pasteles(categoria: str = "") -> dict:
+def consultar_catalogo_pasteles(categoria: str = "", contexto_anterior: str = "") -> dict:
     """
     Consulta el catálogo de pasteles disponibles en Danhee Cake.
     Puede filtrar por categoría: XV Años, Boda, Baby Shower, Cumpleaños, etc.
     """
+    global _last_search_result
     pasteles = get_cakes()
+    print(f"[DEBUG] Total pasteles en BD: {len(pasteles)}", file=sys.stderr)
     
     if categoria and categoria.strip():
         categoria_lower = categoria.lower()
+        categoria_normalizada = quitar_acentos(categoria_lower)
+        
         pasteles = [
             p for p in pasteles
-            if categoria_lower in str(p.get("category_name", "")).lower()
+            if categoria_normalizada in quitar_acentos(str(p.get("category_name", "")).lower())
             or categoria_lower in str(p.get("name", "")).lower()
         ]
+        print(f"[DEBUG] Pasteles filtrados por '{categoria}': {len(pasteles)}", file=sys.stderr)
+    elif contexto_anterior:
+        contexto_normalizado = quitar_acentos(contexto_anterior.lower())
+        pasteles = [
+            p for p in pasteles
+            if contexto_normalizado in quitar_acentos(str(p.get("category_name", "")).lower())
+            or contexto_normalizado in quitar_acentos(str(p.get("name", "")).lower())
+        ]
+        print(f"[DEBUG] Pasteles filtrados por contexto '{contexto_anterior}': {len(pasteles)}", file=sys.stderr)
     
     if not pasteles:
-        return {"mensaje": f"No encontré pasteles en Danhee Cake para la categoría '{categoria}'."}
+        return {"mensaje": f"No encontré pasteles en Danhee Cake para la categoría '{categoria if categoria else contexto_anterior}'."}
     
     resultado = [
         {
@@ -78,10 +95,15 @@ def consultar_catalogo_pasteles(categoria: str = "") -> dict:
             "precio": float(p.get("price", 0)) if p.get("price") else 0.0,
             "calificacion": p.get("rating", 0),
             "categoria": p.get("category_name", "Sin categoría"),
+            "empresa": p.get("business_name", "Danhee Cake"),
+            "repostero": p.get("baker_name", "No especificado"),
         }
-        for p in pasteles[:20]  # Mostrar más pasteles
+        for p in pasteles[:20]
     ]
-    return {"pasteles": resultado, "total": len(resultado), "categoria_filtro": categoria if categoria else "todos"}
+    
+    _last_search_result = {"pasteles": resultado, "categoria": categoria if categoria else contexto_anterior}
+    
+    return {"pasteles": resultado, "total": len(resultado), "categoria_filtro": categoria if categoria else contexto_anterior if contexto_anterior else "todos"}
 
 
 def consultar_todos_los_pasteles() -> dict:
@@ -99,6 +121,8 @@ def consultar_todos_los_pasteles() -> dict:
             "calificacion": p.get("rating", 0),
             "categoria": p.get("category_name", "Sin categoría"),
             "descripcion": p.get("description", ""),
+            "empresa": p.get("business_name", "Danhee Cake"),
+            "repostero": p.get("baker_name", "No especificado"),
         }
         for p in pasteles
     ]
@@ -138,28 +162,40 @@ def verificar_disponibilidad_repostero(baker_id: int, fecha: str) -> dict:
     }
 
 
-def obtener_precios_por_categoria(categoria: str) -> dict:
+def obtener_precios_por_categoria(categoria: str = "", contexto_anterior: str = "") -> dict:
     """Obtiene el rango de precios de los pasteles de Danhee Cake por categoría."""
     todos = get_cakes()
     
+    # Usar contexto si no hay categoría
+    categoria_buscar = categoria if categoria else contexto_anterior
+    
+    if not categoria_buscar:
+        return {"mensaje": "Por favor especifica una categoría para consultar precios."}
+    
     filtrados = [
         p for p in todos
-        if categoria.lower() in str(p.get("category_name", "")).lower()
+        if categoria_buscar.lower() in str(p.get("category_name", "")).lower()
+        or categoria_buscar.lower() in str(p.get("name", "")).lower()
     ]
     
     if not filtrados:
-        return {"mensaje": f"No encontré pasteles en Danhee Cake para la categoría '{categoria}'."}
+        return {"mensaje": f"No encontré pasteles en Danhee Cake para '{categoria_buscar}'. Los pasteles disponibles son: " + ", ".join([p.get("name") for p in todos[:5]])}
     
     precios = [float(p.get("price", 0)) for p in filtrados if p.get("price")]
     if not precios:
-        return {"mensaje": f"No hay precios registrados en Danhee Cake para '{categoria}'."}
+        return {"mensaje": f"No hay precios registrados en Danhee Cake para '{categoria_buscar}'."}
+    
+    # Listar pasteles con sus precios
+    lista_pasteles = "\n".join([f"• {p.get('name')} - ${float(p.get('price', 0))} MXN" for p in filtrados[:10]])
     
     return {
-        "categoria": categoria,
+        "categoria": categoria_buscar,
         "precio_min": min(precios),
         "precio_max": max(precios),
         "precio_promedio": round(sum(precios) / len(precios), 2),
-        "cantidad_pasteles": len(filtrados)
+        "cantidad_pasteles": len(filtrados),
+        "pasteles": [{"nombre": p.get("name"), "precio": float(p.get("price", 0))} for p in filtrados[:10]],
+        "mensaje": f"🍰 Pasteles en la categoría '{categoria_buscar}':\n{lista_pasteles}\n\n💰 Rango de precios: ${min(precios)} - ${max(precios)} MXN"
     }
 
 
@@ -198,18 +234,30 @@ def registrar_solicitud_cita(
     }
 
 
-def consultar_categorias() -> dict:
+def consultar_categorias(contexto_anterior: str = "") -> dict:
     """Lista todas las categorías de pasteles disponibles en Danhee Cake."""
     cats = get_categories()
     if not cats:
-        return {"categorias": [
+        categorias_info = [
             {"nombre": "XV Años", "icono": "👑", "descripcion": "Pasteles elegantes para XV años"},
             {"nombre": "Boda", "icono": "💍", "descripcion": "Pasteles nupciales de lujo"},
             {"nombre": "Baby Shower", "icono": "🍼", "descripcion": "Diseños tiernos para baby shower"},
             {"nombre": "Cumpleaños", "icono": "🎂", "descripcion": "Pasteles personalizados para cumpleaños"},
             {"nombre": "Aniversario", "icono": "💑", "descripcion": "Pasteles románticos para aniversarios"},
             {"nombre": "Graduación", "icono": "🎓", "descripcion": "Celebra tu graduación con estilo"},
-        ]}
+        ]
+        
+        if contexto_anterior:
+            contexto_norm = quitar_acentos(contexto_anterior.lower())
+            categorias_filtradas = [
+                c for c in categorias_info 
+                if contexto_norm in quitar_acentos(c["nombre"].lower())
+            ]
+            if categorias_filtradas:
+                return {"categorias": categorias_filtradas}
+        
+        return {"categorias": categorias_info}
+    
     return {"categorias": [{"nombre": c.get("name"), "icono": c.get("icon")} for c in cats]}
 
 
@@ -226,7 +274,6 @@ def buscar_pastel_por_nombre(nombre: str, contexto_anterior: str = "") -> dict:
         if nombre_limpio in quitar_acentos(str(p.get("name", ""))).lower()
     ]
     
-    # Si no encuentra y hay contexto anterior, intentar con el último pastel mencionado
     if not encontrados and contexto_anterior:
         contexto_limpio = quitar_acentos(contexto_anterior).lower()
         encontrados = [
@@ -246,7 +293,8 @@ def buscar_pastel_por_nombre(nombre: str, contexto_anterior: str = "") -> dict:
                 "precio": float(p.get("price", 0)) if p.get("price") else 0.0,
                 "categoria": p.get("category_name", "Sin categoría"),
                 "empresa": p.get("business_name", "Danhee Cake"),
-                "mensaje": f"El pastel '{p.get('name')}' tiene un precio de ${float(p.get('price', 0)) if p.get('price') else 0.0} MXN y pertenece a la categoría {p.get('category_name', 'general')}."
+                "repostero": p.get("baker_name", "No especificado"),
+                "mensaje": f"El pastel '{p.get('name')}' tiene un precio de ${float(p.get('price', 0)) if p.get('price') else 0.0} MXN, es elaborado por {p.get('business_name', 'Danhee Cake')} y pertenece a la categoría {p.get('category_name', 'general')}."
             }
             for p in encontrados[:5]
         ],
@@ -260,6 +308,17 @@ def obtener_info_repostero(baker_id: int) -> dict:
     if not repostero:
         return {"error": f"No se encontró el repostero de Danhee Cake con ID {baker_id}."}
     
+    todos_pasteles = get_cakes()
+    pasteles_repostero = [
+        {
+            "nombre": p.get("name"),
+            "precio": float(p.get("price", 0)) if p.get("price") else 0.0,
+            "categoria": p.get("category_name", "Sin categoría")
+        }
+        for p in todos_pasteles
+        if p.get("baker_id") == baker_id
+    ]
+    
     return {
         "id": repostero.get("id"),
         "nombre_negocio": repostero.get("business_name"),
@@ -268,6 +327,8 @@ def obtener_info_repostero(baker_id: int) -> dict:
         "calificacion": float(repostero.get("rating_avg", 0)) if repostero.get("rating_avg") else 0.0,
         "ubicacion": repostero.get("location"),
         "verificado": bool(repostero.get("is_verified")),
+        "pasteles": pasteles_repostero,
+        "total_pasteles": len(pasteles_repostero)
     }
 
 
@@ -313,105 +374,248 @@ def consultar_politicas_pasteleria(tema: str) -> dict:
         "general": {
             "tema": "Información General - Danhee Cake",
             "info": "🎂 Danhee Cake es una plataforma web especializada en repostería personalizada que conecta clientes con reposteros profesionales."
+        },
+        "danhee": {
+            "tema": "¿Qué es Danhee Cake?",
+            "info": "🎂 Danhee Cake es una plataforma web especializada en repostería personalizada que conecta clientes con reposteros profesionales. Ofrecemos pasteles personalizados para toda ocasión: XV años, bodas, cumpleaños, baby showers y más. Contamos con reposteros verificados y diseños únicos."
         }
     }
     tema_key = tema.lower().strip()
     return politicas.get(tema_key, politicas["general"])
 
 
-def recomendar_pastel(ocasion: str, presupuesto: str = "", estilo: str = "") -> dict:
+def recomendar_pastel(ocasion: str, presupuesto: str = "", estilo: str = "", contexto_anterior: str = "") -> dict:
     """Recomienda pasteles de Danhee Cake según ocasión, presupuesto y estilo."""
-    recomendaciones = {
-        "boda": "🎂 Para bodas en Danhee Cake recomendamos pasteles elegantes de múltiples niveles. Estilos: vintage o minimalista.",
-        "cumpleaños infantil": "🎈 Para cumpleaños infantiles recomendamos colores vivos y temáticas animadas. Estilo infantil.",
-        "estilo aesthetic": "✨ Para estilo aesthetic recomendamos pasteles coreanos y minimalistas con colores pastel.",
-        "presupuesto bajo": "💰 Para presupuesto ajustado recomendamos diseños sencillos de tamaño pequeño o mediano.",
-        "evento formal": "🎩 Para eventos formales recomendamos estilos minimalistas o vintage con decoración elegante.",
-        "xv años": "👑 Para XV años recomendamos pasteles elegantes de múltiples niveles con decoración sofisticada.",
-        "baby shower": "🍼 Para baby shower recomendamos diseños tiernos y coloridos en tonos pastel.",
-        "aniversario": "💑 Para aniversarios recomendamos pasteles románticos de estilo vintage o coreano.",
-        "graduacion": "🎓 Para graduación recomendamos pasteles temáticos que celebren el logro académico."
+    todos_pasteles = get_cakes()
+    
+    # Si no hay ocasión pero hay contexto, usar el contexto
+    ocasion_buscar = ocasion if ocasion else contexto_anterior
+    
+    if not ocasion_buscar:
+        return {"mensaje": "Por favor especifica qué tipo de pastel te gustaría que te recomiende (cumpleaños, boda, etc.)"}
+    
+    ocasion_lower = ocasion_buscar.lower()
+    ocasion_normalizada = quitar_acentos(ocasion_lower)
+    
+    pasteles_filtrados = [
+        p for p in todos_pasteles
+        if ocasion_normalizada in quitar_acentos(str(p.get("category_name", "")).lower())
+        or ocasion_lower in str(p.get("name", "")).lower()
+    ]
+    
+    if presupuesto and pasteles_filtrados:
+        if "bajo" in presupuesto.lower():
+            pasteles_filtrados = [p for p in pasteles_filtrados if float(p.get("price", 0)) < 500]
+        elif "medio" in presupuesto.lower():
+            pasteles_filtrados = [p for p in pasteles_filtrados if 500 <= float(p.get("price", 0)) <= 800]
+        elif "alto" in presupuesto.lower():
+            pasteles_filtrados = [p for p in pasteles_filtrados if float(p.get("price", 0)) > 800]
+    
+    if pasteles_filtrados:
+        recomendaciones_reales = [
+            {
+                "nombre": p.get("name"),
+                "precio": float(p.get("price", 0)),
+                "empresa": p.get("business_name", "Danhee Cake"),
+                "repostero": p.get("baker_name", "No especificado"),
+                "categoria": p.get("category_name")
+            }
+            for p in pasteles_filtrados[:5]
+        ]
+        lista = "\n".join([f"• {r['nombre']} - ${r['precio']} MXN (Empresa: {r['empresa']})" for r in recomendaciones_reales])
+        return {
+            "recomendacion": f"🎂 Para {ocasion_buscar}, te recomiendo estos pasteles de Danhee Cake:\n{lista}\n\n¿Te gustaría saber más detalles de alguno?",
+            "pasteles": recomendaciones_reales,
+            "plataforma": "Danhee Cake"
+        }
+    
+    # Si hay pasteles en la base de datos pero no coinciden con la ocasión
+    if todos_pasteles:
+        pasteles_disponibles = "\n".join([f"• {p.get('name')} - ${p.get('price')} MXN" for p in todos_pasteles[:5]])
+        return {
+            "recomendacion": f"No encontré pasteles específicos para '{ocasion_buscar}', pero estos son algunos pasteles disponibles en Danhee Cake:\n{pasteles_disponibles}\n\n¿Te gustaría que te muestre más opciones?",
+            "plataforma": "Danhee Cake"
+        }
+    
+    return {
+        "recomendacion": f"En Danhee Cake tenemos pasteles para todas las ocasiones. Para {ocasion_buscar}, podemos ayudarte a diseñar un pastel personalizado. ¿Te gustaría agendar una cita con uno de nuestros reposteros?",
+        "plataforma": "Danhee Cake"
     }
-    
-    ocasion_lower = ocasion.lower()
-    for key, mensaje in recomendaciones.items():
-        if key in ocasion_lower:
-            return {"recomendacion": mensaje, "plataforma": "Danhee Cake"}
-    
-    return {"recomendacion": "En Danhee Cake tenemos pasteles para todas las ocasiones. ¿Qué tipo de evento planeas?", "plataforma": "Danhee Cake"}
 
 
-def consultar_origen_pastel(nombre_pastel: str) -> dict:
-    """Obtiene a qué empresa, repostero, categoría y precio pertenece un pastel en Danhee Cake."""
+def consultar_origen_pastel(nombre_pastel: str, contexto_anterior: str = "") -> dict:
+    """
+    Obtiene a qué empresa, repostero, categoría y precio pertenece un pastel en Danhee Cake.
+    También permite buscar por nombre de empresa/pastelería.
+    """
     todos = get_cakes()
     
-    nombre_limpio = quitar_acentos(nombre_pastel).lower()
+    # Si no hay nombre_pastel pero hay contexto, usar el contexto
+    nombre_buscar = nombre_pastel if nombre_pastel else contexto_anterior
+    
+    if not nombre_buscar:
+        return {"mensaje": "Por favor especifica el nombre del pastel o la pastelería que quieres consultar."}
+    
+    nombre_limpio = quitar_acentos(nombre_buscar).lower()
+    
+    # Buscar por nombre de pastel
     encontrados = [
         p for p in todos
         if nombre_limpio in quitar_acentos(str(p.get("name", ""))).lower()
     ]
     
+    # Si no se encontró por nombre de pastel, buscar por nombre de empresa
     if not encontrados:
-        return {"mensaje": f"No encontré ningún pastel llamado '{nombre_pastel}' en Danhee Cake."}
+        encontrados = [
+            p for p in todos
+            if nombre_limpio in quitar_acentos(str(p.get("business_name", ""))).lower()
+        ]
     
+    if not encontrados:
+        return {"mensaje": f"No encontré ningún pastel o pastelería llamada '{nombre_buscar}' en Danhee Cake. Los pasteles disponibles son: " + ", ".join([p.get("name") for p in todos[:5]])}
+    
+    # Si hay múltiples resultados, mostrar todos
+    if len(encontrados) > 1:
+        resultados = []
+        for p in encontrados[:5]:
+            baker_id = p.get("baker_id")
+            business_name = p.get("business_name", "Empresa no especificada")
+            precio = float(p.get("price", 0)) if p.get("price") else 0.0
+            
+            baker_name = "Repostero no especificado"
+            if baker_id:
+                repostero_info = get_baker_by_id(baker_id)
+                if repostero_info:
+                    baker_name = repostero_info.get("name", baker_name)
+            
+            resultados.append(f"• {p.get('name')} - ${precio} MXN (Empresa: {business_name}, Repostero: {baker_name})")
+        
+        return {
+            "mensaje": f"Encontré varios resultados para '{nombre_buscar}':\n" + "\n".join(resultados),
+            "resultados": encontrados[:5]
+        }
+    
+    # Un solo resultado
     pastel = encontrados[0]
     baker_id = pastel.get("baker_id")
-    business_name = pastel.get("business_name")
-    if not business_name:
-        business_name = "Empresa no especificada"
-        
-    category_name = pastel.get("category_name")
-    if not category_name:
-        category_name = "Categoría no especificada"
-        
+    business_name = pastel.get("business_name", "Empresa no especificada")
+    category_name = pastel.get("category_name", "Categoría no especificada")
     precio = float(pastel.get("price", 0)) if pastel.get("price") else 0.0
 
     baker_name = "Repostero no especificado"
+    repostero_info = {}
     if baker_id:
-        repostero_info = get_baker_by_id(baker_id)
-        if repostero_info:
-            baker_name = repostero_info.get("name", baker_name)
-            
+        repostero = get_baker_by_id(baker_id)
+        if repostero:
+            baker_name = repostero.get("name", baker_name)
+            repostero_info = {
+                "nombre": repostero.get("name"),
+                "nombre_negocio": repostero.get("business_name"),
+                "especialidad": repostero.get("specialty"),
+                "ubicacion": repostero.get("location")
+            }
+    
+    mensaje = f"🍰 El pastel '{pastel.get('name')}':\n"
+    mensaje += f"📋 Categoría: {category_name}\n"
+    mensaje += f"💰 Precio: ${precio} MXN\n"
+    mensaje += f"🏢 Empresa/Pastelería: {business_name}\n"
+    mensaje += f"👨‍🍳 Repostero: {baker_name}"
+    
+    if repostero_info.get("ubicacion"):
+        mensaje += f"\n📍 Ubicación: {repostero_info['ubicacion']}"
+    if repostero_info.get("especialidad"):
+        mensaje += f"\n🎯 Especialidad: {repostero_info['especialidad']}"
+    
     return {
         "pastel": pastel.get("name"),
         "empresa": business_name,
         "repostero": baker_name,
         "categoria": category_name,
         "precio": precio,
-        "mensaje": f"El pastel '{pastel.get('name')}' pertenece a la categoría '{category_name}', tiene un precio de ${precio} MXN, y es elaborado por la empresa '{business_name}' del repostero '{baker_name}'."
+        "ubicacion": repostero_info.get("ubicacion", "No especificada"),
+        "especialidad": repostero_info.get("especialidad", "No especificada"),
+        "mensaje": mensaje
     }
 
 
 def extraer_texto_pdf(nombre_archivo: str) -> dict:
     """Extrae y lee el contenido de un archivo PDF ubicado en la carpeta de datos de Danhee Cake."""
+    global _pdf_cache
+    
+    # Verificar caché
+    if nombre_archivo in _pdf_cache:
+        return _pdf_cache[nombre_archivo]
+    
     from langchain_community.document_loaders import PyPDFLoader
     
-    # Asegurar que busque en la carpeta 'data'
+    # Buscar en la carpeta 'data'
     ruta_pdf = base_dir / "data" / nombre_archivo
     if not ruta_pdf.exists():
         if not nombre_archivo.lower().endswith('.pdf'):
             ruta_pdf = base_dir / "data" / f"{nombre_archivo}.pdf"
-            
+    
+    # Si no existe, buscar por nombre parcial
+    if not ruta_pdf.exists():
+        data_dir = base_dir / "data"
+        if data_dir.exists():
+            for pdf_file in data_dir.glob("*.pdf"):
+                if nombre_archivo.lower() in pdf_file.stem.lower():
+                    ruta_pdf = pdf_file
+                    break
+    
     if not ruta_pdf.exists():
         return {"mensaje": f"No se encontró el PDF '{nombre_archivo}' en la carpeta de datos."}
-        
+    
     try:
         loader = PyPDFLoader(str(ruta_pdf))
         docs = loader.load()
-        texto = "\n".join([doc.page_content for doc in docs])
-        if len(texto) > 3000:
-            texto = texto[:3000] + "\n... [Contenido truncado]"
+        texto_completo = "\n".join([doc.page_content for doc in docs])
+        
+        # Para FAQ, extraer preguntas y respuestas
+        if "faq" in ruta_pdf.stem.lower():
+            lineas = texto_completo.split('\n')
+            preguntas = []
+            respuestas = []
+            for i, linea in enumerate(lineas):
+                linea_clean = linea.strip()
+                if linea_clean.endswith('?') or linea_clean.startswith('¿'):
+                    preguntas.append(linea_clean)
+                    if i + 1 < len(lineas):
+                        respuestas.append(lineas[i+1].strip())
             
-        return {
+            if preguntas:
+                faq_texto = "📚 PREGUNTAS FRECUENTES (FAQ):\n\n"
+                for q, r in zip(preguntas[:10], respuestas[:10]):
+                    faq_texto += f"❓ {q}\n💡 {r}\n\n"
+                
+                resultado = {
+                    "archivo": ruta_pdf.name,
+                    "paginas": len(docs),
+                    "contenido": texto_completo[:3000],
+                    "faq": faq_texto,
+                    "mensaje": faq_texto
+                }
+                _pdf_cache[nombre_archivo] = resultado
+                return resultado
+        
+        # Limitar longitud
+        if len(texto_completo) > 3000:
+            texto_completo = texto_completo[:3000] + "\n... [Contenido truncado]"
+        
+        resultado = {
             "archivo": ruta_pdf.name,
             "paginas": len(docs),
-            "contenido": texto
+            "contenido": texto_completo,
+            "mensaje": f"📄 Contenido de '{ruta_pdf.name}':\n\n{texto_completo}"
         }
+        _pdf_cache[nombre_archivo] = resultado
+        return resultado
+        
     except Exception as e:
         return {"error": f"Error al leer el PDF: {e}"}
 
 
-def buscar_pasteles_por_rango_precio(precio: float, condicion: str) -> dict:
+def buscar_pasteles_por_rango_precio(precio: float, condicion: str, contexto_anterior: str = "") -> dict:
     """
     Busca pasteles que tengan un precio menor o mayor al indicado.
     condicion debe ser 'menor', 'mayor', 'abajo', 'arriba', 'menos', 'mas'
@@ -420,17 +624,17 @@ def buscar_pasteles_por_rango_precio(precio: float, condicion: str) -> dict:
     
     try:
         precio_limite = float(precio)
-    except ValueError:
+    except (ValueError, TypeError):
         return {"mensaje": "El precio debe ser un número válido."}
         
     condicion = condicion.lower().strip()
     
     # Normalizar condiciones
-    if condicion in ["menor", "menos", "abajo", "debajo", "inferior"]:
+    if condicion in ["menor", "menos", "abajo", "debajo", "inferior", "menor a", "menos de"]:
         filtrados = [p for p in todos if p.get("price") is not None and float(p.get("price")) < precio_limite]
         mensaje_condicion = f"menor a ${precio_limite}"
         orden_ascendente = True
-    elif condicion in ["mayor", "mas", "arriba", "superior", "encima"]:
+    elif condicion in ["mayor", "mas", "arriba", "superior", "encima", "mayor a", "mas de"]:
         filtrados = [p for p in todos if p.get("price") is not None and float(p.get("price")) > precio_limite]
         mensaje_condicion = f"mayor a ${precio_limite}"
         orden_ascendente = False
@@ -440,10 +644,8 @@ def buscar_pasteles_por_rango_precio(precio: float, condicion: str) -> dict:
     if not filtrados:
         return {"mensaje": f"No encontré pasteles con un precio {mensaje_condicion} en Danhee Cake."}
     
-    # Ordenar por precio
     filtrados.sort(key=lambda x: float(x.get("price")), reverse=not orden_ascendente)
     
-    # Mostrar hasta 15 pasteles
     pasteles_mostrados = []
     for p in filtrados[:15]:
         precio_actual = float(p.get("price"))
@@ -453,48 +655,87 @@ def buscar_pasteles_por_rango_precio(precio: float, condicion: str) -> dict:
             "precio": precio_actual,
             "ocasion": p.get("category_name", "Sin categoría especificada"),
             "empresa": p.get("business_name", "Danhee Cake"),
-            "mensaje": f"Pastel '{p.get('name')}' - ${precio_actual} MXN - Ideal para {p.get('category_name', 'cualquier ocasión')}"
+            "repostero": p.get("baker_name", "No especificado"),
         })
+    
+    lista = "\n".join([f"• {p['nombre']} - ${p['precio']} MXN (Empresa: {p['empresa']})" for p in pasteles_mostrados[:10]])
     
     return {
         "condicion": condicion,
         "precio_limite": precio_limite,
         "encontrados": pasteles_mostrados,
         "cantidad": len(filtrados),
-        "mensaje_resumen": f"Encontré {len(filtrados)} pasteles con precio {mensaje_condicion} en Danhee Cake."
+        "mensaje": f"Encontré {len(filtrados)} pasteles con precio {mensaje_condicion} en Danhee Cake:\n{lista}"
     }
 
 
-def consultar_pasteles_por_ocasion(ocasion: str) -> dict:
+def consultar_pasteles_por_categoria(categoria: str = "", contexto_anterior: str = "") -> dict:
     """
-    Consulta qué pasteles están disponibles para una ocasión específica.
+    Consulta qué pasteles están disponibles para una categoría específica.
     Retorna los pasteles junto con la empresa y repostero que los elabora.
     """
+    global _last_search_result
     todos = get_cakes()
+    print(f"[DEBUG] consultar_pasteles_por_categoria: '{categoria}'", file=sys.stderr)
+    print(f"[DEBUG] Total pasteles en BD: {len(todos)}", file=sys.stderr)
     
-    ocasion_lower = ocasion.lower().strip()
+    categoria_buscar = categoria if categoria else contexto_anterior
     
-    # Buscar por categoría
-    filtrados = [
-        p for p in todos
-        if ocasion_lower in quitar_acentos(str(p.get("category_name", ""))).lower()
-        or ocasion_lower in quitar_acentos(str(p.get("name", ""))).lower()
-    ]
+    if not categoria_buscar:
+        return {
+            "mensaje": "Por favor especifica qué categoría de pasteles quieres ver (cumpleaños, boda, xv años, etc.)",
+            "encontrados": [],
+            "cantidad": 0
+        }
+    
+    categoria_normalizada = quitar_acentos(categoria_buscar.lower().strip())
+    
+    sinonimos = {
+        "cumpleaños": ["cumpleaños", "birthday", "feliz cumpleaños", "happy birthday", "cumple"],
+        "xv años": ["xv", "quince", "quince años", "xv años", "15 años"],
+        "boda": ["boda", "wedding", "matrimonio", "nupcial"],
+        "baby shower": ["baby shower", "bebe", "baby", "shower"],
+        "aniversario": ["aniversario", "anniversary"],
+        "graduacion": ["graduacion", "graduation", "ceremonia"]
+    }
+    
+    busqueda_terminos = [categoria_normalizada]
+    for key, terminos in sinonimos.items():
+        if categoria_normalizada in key or any(termino in categoria_normalizada for termino in terminos):
+            busqueda_terminos.extend(terminos)
+            break
+    
+    filtrados = []
+    for p in todos:
+        category_name = p.get("category_name", "")
+        if category_name:
+            category_normalizada = quitar_acentos(category_name.lower())
+            for termino in busqueda_terminos:
+                if termino in category_normalizada or category_normalizada in termino:
+                    filtrados.append(p)
+                    break
+    
+    print(f"[DEBUG] Pasteles filtrados para '{categoria_buscar}': {len(filtrados)}", file=sys.stderr)
     
     if not filtrados:
-        return {"mensaje": f"No encontré pasteles en Danhee Cake para la ocasión '{ocasion}'.", "ocasion": ocasion, "encontrados": []}
+        return {
+            "mensaje": f"No encontré pasteles en Danhee Cake para '{categoria_buscar}'. ¿Te gustaría ver otras categorías?",
+            "ocasion": categoria_buscar,
+            "encontrados": [],
+            "cantidad": 0
+        }
     
-    # Agrupar por empresa/repostero para mostrar mejor la información
     resultado = []
     for p in filtrados[:15]:
         baker_id = p.get("baker_id")
         business_name = p.get("business_name", "Danhee Cake")
         
-        baker_name = "Repostero no especificado"
-        if baker_id:
-            repostero_info = get_baker_by_id(baker_id)
-            if repostero_info:
-                baker_name = repostero_info.get("name", baker_name)
+        baker_name = p.get("baker_name", "Repostero no especificado")
+        if not baker_name or baker_name == "Repostero no especificado":
+            if baker_id:
+                repostero_info = get_baker_by_id(baker_id)
+                if repostero_info:
+                    baker_name = repostero_info.get("name", repostero_info.get("business_name", baker_name))
         
         resultado.append({
             "id": p.get("id"),
@@ -502,15 +743,198 @@ def consultar_pasteles_por_ocasion(ocasion: str) -> dict:
             "precio": float(p.get("price", 0)) if p.get("price") else 0.0,
             "empresa": business_name,
             "repostero": baker_name,
-            "descripcion": f"Pastel '{p.get('name')}' elaborado por {business_name} (Repostero: {baker_name}) - ${float(p.get('price', 0)) if p.get('price') else 0.0} MXN"
+            "categoria": p.get("category_name", "Sin categoría"),
         })
     
+    _last_search_result = {"encontrados": resultado, "categoria": categoria_buscar}
+    
+    lista = "\n".join([f"• **{p['nombre']}** - ${p['precio']} MXN\n  🏢 Empresa: {p['empresa']}\n  👨‍🍳 Repostero: {p['repostero']}" for p in resultado[:10]])
+    
     return {
-        "ocasion": ocasion,
+        "categoria": categoria_buscar,
         "encontrados": resultado,
         "cantidad": len(filtrados),
-        "mensaje": f"🍰 Para {ocasion}, tenemos {len(filtrados)} pasteles disponibles en Danhee Cake:"
+        "mensaje": f"🍰 Para {categoria_buscar}, tenemos {len(filtrados)} pasteles disponibles en Danhee Cake:\n\n{lista}"
     }
+
+
+def consultar_tamanos_pasteles() -> dict:
+    """Consulta los tamaños disponibles de pasteles en Danhee Cake."""
+    try:
+        from langchain_community.document_loaders import PyPDFLoader
+        ruta_pdf = base_dir / "data" / "politicas_danhee.pdf"
+        if ruta_pdf.exists():
+            loader = PyPDFLoader(str(ruta_pdf))
+            docs = loader.load()
+            texto_completo = "\n".join([doc.page_content for doc in docs])
+            
+            if "tamaño" in texto_completo.lower() or "tamaños" in texto_completo.lower():
+                lineas = texto_completo.split('\n')
+                tamanos_info = []
+                capturando = False
+                for linea in lineas:
+                    if "tamaño" in linea.lower() and ("pequeño" in linea.lower() or "mediano" in linea.lower() or "grande" in linea.lower()):
+                        capturando = True
+                    if capturando and linea.strip():
+                        tamanos_info.append(linea.strip())
+                    if capturando and len(tamanos_info) > 10:
+                        break
+                
+                if tamanos_info:
+                    return {
+                        "tamanos": tamanos_info,
+                        "fuente": "PDF de políticas",
+                        "mensaje": "📏 Tamaños de pasteles disponibles en Danhee Cake:\n" + "\n".join(tamanos_info)
+                    }
+    except Exception as e:
+        print(f"Error leyendo PDF: {e}", file=sys.stderr)
+    
+    return {
+        "mensaje": "📏 En Danhee Cake ofrecemos pasteles en los siguientes tamaños:\n\n• Pequeño: 6-8 personas (desde $350 MXN)\n• Mediano: 10-15 personas (desde $550 MXN)\n• Grande: 20-30 personas (desde $850 MXN)\n• Múltiples niveles: 40+ personas (cotizar)"
+    }
+
+
+def recomendar_por_tamanio(tamanio_deseado: str) -> dict:
+    """Recomienda pasteles según el tamaño deseado (pequeño, mediano, grande)."""
+    todos = get_cakes()
+    
+    tamanio_lower = tamanio_deseado.lower()
+    
+    rangos_tamanios = {
+        "pequeño": (0, 450),
+        "mediano": (451, 700),
+        "grande": (701, 10000)
+    }
+    
+    rango = rangos_tamanios.get(tamanio_lower, (0, 10000))
+    
+    filtrados = [
+        p for p in todos
+        if p.get("price") and rango[0] <= float(p.get("price")) <= rango[1]
+    ]
+    
+    if not filtrados:
+        return {"mensaje": f"No encontré pasteles de tamaño {tamanio_deseado} en Danhee Cake actualmente."}
+    
+    resultado = [
+        {
+            "nombre": p.get("name"),
+            "precio": float(p.get("price")),
+            "empresa": p.get("business_name", "Danhee Cake"),
+            "repostero": p.get("baker_name", "No especificado"),
+            "ocasion": p.get("category_name", "General")
+        }
+        for p in filtrados[:10]
+    ]
+    
+    lista = "\n".join([f"• {r['nombre']} - ${r['precio']} MXN (Empresa: {r['empresa']})" for r in resultado])
+    
+    return {
+        "tamanio": tamanio_deseado,
+        "recomendaciones": resultado,
+        "mensaje": f"🎂 Para un pastel {tamanio_deseado}, te recomiendo estos pasteles de Danhee Cake:\n{lista}"
+    }
+
+
+def consultar_detalle_pastel_por_id(pastel_id: int, contexto_anterior: str = "") -> dict:
+    """
+    Consulta el detalle completo de un pastel específico por su ID o nombre.
+    """
+    todos = get_cakes()
+    
+    # Si no hay ID válido, intentar buscar por contexto
+    if not pastel_id or pastel_id == "<insertir ID del pastel de red velvet 2 pisos>":
+        if contexto_anterior:
+            for p in todos:
+                if "pastel de flores" in p.get("name", "").lower():
+                    pastel_id = p.get("id")
+                    break
+                elif "red velvet" in p.get("name", "").lower():
+                    pastel_id = p.get("id")
+                    break
+    
+    pastel = None
+    if pastel_id and isinstance(pastel_id, int):
+        for p in todos:
+            if p.get("id") == pastel_id:
+                pastel = p
+                break
+    
+    # Si no se encontró por ID, buscar por nombre en contexto
+    if not pastel and contexto_anterior:
+        nombre_buscar = "pastel de flores" if "flores" in contexto_anterior.lower() else "red velvet"
+        for p in todos:
+            if nombre_buscar in p.get("name", "").lower():
+                pastel = p
+                break
+    
+    if not pastel:
+        return {"mensaje": f"No encontré el pastel solicitado en Danhee Cake. Los pasteles disponibles son: " + ", ".join([p.get("name") for p in todos[:5]])}
+    
+    baker_id = pastel.get("baker_id")
+    business_name = pastel.get("business_name", "Danhee Cake")
+    
+    repostero_info = {}
+    if baker_id:
+        repostero = get_baker_by_id(baker_id)
+        if repostero:
+            repostero_info = {
+                "nombre": repostero.get("name"),
+                "nombre_negocio": repostero.get("business_name"),
+                "especialidad": repostero.get("specialty"),
+                "ubicacion": repostero.get("location"),
+                "calificacion": float(repostero.get("rating_avg", 0)) if repostero.get("rating_avg") else 0.0,
+                "verificado": bool(repostero.get("is_verified"))
+            }
+    
+    precio = float(pastel.get("price", 0)) if pastel.get("price") else 0.0
+    repostero_nombre = repostero_info.get('nombre', 'No especificado') if repostero_info else 'No especificado'
+    
+    return {
+        "pastel": {
+            "id": pastel.get("id"),
+            "nombre": pastel.get("name"),
+            "precio": precio,
+            "descripcion": pastel.get("description", "Sin descripción disponible"),
+            "calificacion": pastel.get("rating", 0),
+            "categoria": pastel.get("category_name", "Sin categoría"),
+        },
+        "empresa": {
+            "nombre": business_name,
+            "repostero": repostero_info
+        },
+        "mensaje": f"🍰 {pastel.get('name')}\n💰 Precio: ${precio} MXN\n📋 Categoría: {pastel.get('category_name', 'No especificada')}\n🏢 Empresa: {business_name}\n👨‍🍳 Repostero: {repostero_nombre}"
+    }
+
+
+def mostrar_opciones(contexto: str = "", contexto_anterior: str = "") -> dict:
+    """Muestra las opciones de pasteles disponibles según el contexto de la conversación."""
+    global _last_search_result
+    
+    # Usar contexto_anterior si no hay contexto
+    contexto_buscar = contexto if contexto else contexto_anterior
+    
+    if _last_search_result and _last_search_result.get("encontrados"):
+        lista = "\n".join([
+            f"• **{p['nombre']}** - ${p['precio']} MXN (Empresa: {p['empresa']})"
+            for p in _last_search_result["encontrados"][:10]
+        ])
+        return {
+            "mensaje": f"Aquí están las opciones que tenemos disponibles para {_last_search_result.get('categoria', 'tu búsqueda')}:\n\n{lista}",
+            "opciones": _last_search_result["encontrados"],
+            "categoria": _last_search_result.get("categoria", "seleccionada")
+        }
+    
+    if contexto_buscar:
+        return consultar_pasteles_por_categoria(categoria=contexto_buscar)
+    
+    categorias = consultar_categorias()
+    lista_cats = "\n".join([f"• {c['nombre']} {c.get('icono', '')}" for c in categorias.get("categorias", [])])
+    return {
+        "mensaje": f"Estas son las categorías de pasteles disponibles en Danhee Cake:\n{lista_cats}\n\n💡 ¿Te gustaría que te muestre los pasteles de alguna categoría específica?",
+        "categorias": categorias.get("categorias", [])
+    }
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECCIÓN 2: MAPA DE FUNCIONES
@@ -532,7 +956,11 @@ FUNCTIONS_MAP = {
     "consultar_origen_pastel": consultar_origen_pastel,
     "extraer_texto_pdf": extraer_texto_pdf,
     "buscar_pasteles_por_rango_precio": buscar_pasteles_por_rango_precio,
-    "consultar_pasteles_por_ocasion": consultar_pasteles_por_ocasion,
+    "consultar_pasteles_por_categoria": consultar_pasteles_por_categoria,
+    "consultar_tamanos_pasteles": consultar_tamanos_pasteles,
+    "recomendar_por_tamanio": recomendar_por_tamanio,
+    "consultar_detalle_pastel_por_id": consultar_detalle_pastel_por_id,
+    "mostrar_opciones": mostrar_opciones,
 }
 
 
@@ -544,12 +972,135 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "consultar_catalogo_pasteles",
-            "description": "Consulta el catálogo de pasteles disponibles en Danhee Cake. Puede filtrar por categoría.",
+            "name": "recomendar_pastel",
+            "description": "Recomienda pasteles según ocasión (cumpleaños, boda, xv años, baby shower).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "categoria": {"type": "string", "description": "Categoría a filtrar: Boda, XV Años, Cumpleaños, etc."}
+                    "ocasion": {"type": "string"},
+                    "presupuesto": {"type": "string"},
+                    "estilo": {"type": "string"},
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": ["ocasion"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_pasteles_por_categoria",
+            "description": "Consulta qué pasteles están disponibles para una categoría específica.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "categoria": {"type": "string"},
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_origen_pastel",
+            "description": "Obtiene a qué empresa, pastelería o repostero pertenece un pastel.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nombre_pastel": {"type": "string"},
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "mostrar_opciones",
+            "description": "Muestra las opciones de pasteles disponibles según el contexto.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "contexto": {"type": "string"},
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "extraer_texto_pdf",
+            "description": "Extrae y lee el contenido de un archivo PDF como FAQ.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nombre_archivo": {"type": "string"}
+                },
+                "required": ["nombre_archivo"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_detalle_pastel_por_id",
+            "description": "Consulta el detalle completo de un pastel específico.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pastel_id": {"type": "integer"},
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "obtener_precios_por_categoria",
+            "description": "Obtiene el rango de precios de los pasteles por categoría.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "categoria": {"type": "string"},
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "buscar_pasteles_por_rango_precio",
+            "description": "Busca pasteles con precio menor o mayor a una cantidad.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "precio": {"type": "number"},
+                    "condicion": {"type": "string"},
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": ["precio", "condicion"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_catalogo_pasteles",
+            "description": "Consulta el catálogo de pasteles disponibles.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "categoria": {"type": "string"},
+                    "contexto_anterior": {"type": "string"}
                 },
                 "required": []
             }
@@ -559,7 +1110,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "consultar_todos_los_pasteles",
-            "description": "Muestra el catálogo completo de todos los pasteles disponibles en Danhee Cake.",
+            "description": "Muestra el catálogo completo de todos los pasteles.",
             "parameters": {"type": "object", "properties": {}, "required": []}
         }
     },
@@ -567,7 +1118,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "consultar_reposteros_disponibles",
-            "description": "Lista todos los reposteros verificados de Danhee Cake con especialidad y calificación.",
+            "description": "Lista todos los reposteros verificados.",
             "parameters": {"type": "object", "properties": {}, "required": []}
         }
     },
@@ -575,12 +1126,12 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "verificar_disponibilidad_repostero",
-            "description": "Verifica si un repostero de Danhee Cake tiene disponibilidad en una fecha específica.",
+            "description": "Verifica disponibilidad de un repostero en una fecha.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "baker_id": {"type": "integer", "description": "ID del repostero"},
-                    "fecha": {"type": "string", "description": "Fecha en formato YYYY-MM-DD"}
+                    "baker_id": {"type": "integer"},
+                    "fecha": {"type": "string"}
                 },
                 "required": ["baker_id", "fecha"]
             }
@@ -589,30 +1140,16 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "obtener_precios_por_categoria",
-            "description": "Obtiene el rango de precios de los pasteles de Danhee Cake por categoría.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "categoria": {"type": "string", "description": "Nombre de la categoría"}
-                },
-                "required": ["categoria"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "registrar_solicitud_cita",
-            "description": "Registra una cita con un repostero de Danhee Cake.",
+            "description": "Registra una cita con un repostero.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "client_name": {"type": "string", "description": "Nombre completo del cliente"},
-                    "baker_id": {"type": "integer", "description": "ID del repostero"},
-                    "fecha": {"type": "string", "description": "Fecha YYYY-MM-DD"},
-                    "hora": {"type": "string", "description": "Hora HH:MM"},
-                    "notas": {"type": "string", "description": "Notas adicionales"}
+                    "client_name": {"type": "string"},
+                    "baker_id": {"type": "integer"},
+                    "fecha": {"type": "string"},
+                    "hora": {"type": "string"},
+                    "notas": {"type": "string"}
                 },
                 "required": ["client_name", "baker_id", "fecha", "hora"]
             }
@@ -622,20 +1159,26 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "consultar_categorias",
-            "description": "Lista todas las categorías de pasteles disponibles en Danhee Cake.",
-            "parameters": {"type": "object", "properties": {}, "required": []}
+            "description": "Lista todas las categorías de pasteles disponibles.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": []
+            }
         }
     },
     {
         "type": "function",
         "function": {
             "name": "buscar_pastel_por_nombre",
-            "description": "Busca pasteles en Danhee Cake por nombre parcial. Útil para consultar el precio exacto y real de un pastel. Mantiene contexto de conversación.",
+            "description": "Busca pasteles por nombre parcial.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "nombre": {"type": "string", "description": "Nombre del pastel a buscar"},
-                    "contexto_anterior": {"type": "string", "description": "Contexto de la conversación anterior (opcional)"}
+                    "nombre": {"type": "string"},
+                    "contexto_anterior": {"type": "string"}
                 },
                 "required": ["nombre"]
             }
@@ -645,11 +1188,11 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "obtener_info_repostero",
-            "description": "Obtiene información detallada de un repostero de Danhee Cake.",
+            "description": "Obtiene información completa de un repostero.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "baker_id": {"type": "integer", "description": "ID del repostero"}
+                    "baker_id": {"type": "integer"}
                 },
                 "required": ["baker_id"]
             }
@@ -659,13 +1202,13 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "calcular_precio_personalizado",
-            "description": "Calcula el precio estimado de un pastel personalizado en Danhee Cake.",
+            "description": "Calcula precio estimado de pastel personalizado.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "tamanio": {"type": "string", "description": "pequeño/mediano/grande"},
-                    "relleno": {"type": "string", "description": "vainilla/chocolate/fresas/dulce de leche"},
-                    "decoracion": {"type": "string", "description": "fondant/buttercream/flores/minimalista"}
+                    "tamanio": {"type": "string"},
+                    "relleno": {"type": "string"},
+                    "decoracion": {"type": "string"}
                 },
                 "required": ["tamanio", "relleno", "decoracion"]
             }
@@ -675,11 +1218,11 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "consultar_politicas_pasteleria",
-            "description": "Proporciona las políticas de Danhee Cake (entregas, pagos, cancelaciones).",
+            "description": "Proporciona las políticas de Danhee Cake.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "tema": {"type": "string", "description": "entrega/pago/cancelacion/personalizacion/general"}
+                    "tema": {"type": "string"}
                 },
                 "required": ["tema"]
             }
@@ -688,73 +1231,22 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "recomendar_pastel",
-            "description": "Recomienda pasteles de Danhee Cake según ocasión, presupuesto o estilo.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "ocasion": {"type": "string", "description": "boda, cumpleaños infantil, xv años, baby shower, etc."},
-                    "presupuesto": {"type": "string", "description": "bajo, medio, alto (opcional)"},
-                    "estilo": {"type": "string", "description": "vintage, minimalista, coreano, infantil (opcional)"}
-                },
-                "required": ["ocasion"]
-            }
+            "name": "consultar_tamanos_pasteles",
+            "description": "Consulta los tamaños disponibles de pasteles.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
         }
     },
     {
         "type": "function",
         "function": {
-            "name": "consultar_origen_pastel",
-            "description": "Obtiene a qué empresa, repostero, categoría y precio exacto pertenece un pastel específico en Danhee Cake.",
+            "name": "recomendar_por_tamanio",
+            "description": "Recomienda pasteles según el tamaño deseado.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "nombre_pastel": {"type": "string", "description": "Nombre parcial o completo del pastel"}
+                    "tamanio_deseado": {"type": "string"}
                 },
-                "required": ["nombre_pastel"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "extraer_texto_pdf",
-            "description": "Extrae y lee el contenido de un archivo PDF desde la carpeta de datos de Danhee Cake.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "nombre_archivo": {"type": "string", "description": "Nombre del archivo PDF a leer"}
-                },
-                "required": ["nombre_archivo"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "buscar_pasteles_por_rango_precio",
-            "description": "Busca pasteles que tengan un precio menor o mayor a una cantidad indicada. Retorna los pasteles, su precio y su ocasión (categoría).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "precio": {"type": "number", "description": "El precio límite para buscar"},
-                    "condicion": {"type": "string", "description": "Debe ser 'menor', 'abajo' para precios inferiores, o 'mayor', 'arriba' para precios superiores"}
-                },
-                "required": ["precio", "condicion"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "consultar_pasteles_por_ocasion",
-            "description": "Consulta qué pasteles están disponibles para una ocasión específica como cumpleaños, boda, XV años, etc. Retorna los pasteles junto con la empresa y repostero que los elabora.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "ocasion": {"type": "string", "description": "La ocasión o tipo de evento: cumpleaños, boda, xv años, baby shower, aniversario, graduación, etc."}
-                },
-                "required": ["ocasion"]
+                "required": ["tamanio_deseado"]
             }
         }
     }
@@ -765,7 +1257,6 @@ TOOLS_SCHEMA = [
 # SECCIÓN 4: INICIALIZACIÓN
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Información completa de Danhee Cake para el system prompt
 DANHEE_INFO = """
 DANHEE CAKE - INFORMACIÓN OFICIAL:
 
@@ -778,48 +1269,6 @@ SERVICIOS PARA CLIENTES:
 • Visualizar perfiles de reposteros
 • Reservar citas con reposteros
 • Solicitar pasteles personalizados
-
-SERVICIOS PARA REPOSTEROS:
-• Administrar su perfil profesional
-• Subir imágenes de pasteles
-• Gestionar citas con clientes
-• Mostrar especialidades y portafolio
-
-CARACTERÍSTICAS DE LA PLATAFORMA:
-• Sistema de autenticación de usuarios
-• Exploración de pasteles por categorías
-• Perfiles detallados de reposteros
-• Sistema de citas en línea
-• Panel administrativo
-
-ESTILOS DE PASTELES DISPONIBLES:
-• Vintage: bordes decorativos, colores suaves, estilo retro
-• Minimalista: diseño limpio, líneas simples, elegancia
-• Coreano: colores pastel, diseño minimalista, decoración sencilla
-• Infantil: colores intensos, personajes animados, decoraciones llamativas
-• Boda: elegantes, múltiples niveles, decoración sofisticada
-• Temático: personalizados según ocasión especial
-
-TAMAÑOS DE PASTELES:
-• Pequeño: 6 a 8 personas
-• Mediano: 10 a 15 personas
-• Grande: 20 a 30 personas
-• Múltiples niveles: 40 personas o más
-
-RECOMENDACIONES POR OCASIÓN:
-• Boda: pasteles elegantes de múltiples niveles
-• Cumpleaños infantil: colores vivos y temáticas animadas
-• Estilo aesthetic: pasteles coreanos y minimalistas
-• Presupuesto bajo: diseños sencillos de tamaño pequeño/mediano
-• Evento formal: estilos minimalistas o vintage
-
-POLÍTICAS IMPORTANTES:
-• Pedidos estándar: 5 días de anticipación
-• Pasteles de boda/XV: 15 días de anticipación
-• Anticipo del 50% para confirmar pedido
-• Cancelación +7 días: reembolso 80%
-• Cancelación 3-7 días: reembolso 50%
-• Cancelación -72 horas: sin reembolso
 
 ¡SOLO RESPONDE SOBRE DANHEE CAKE! NO HABLES DE OTRAS COSAS.
 """
@@ -862,27 +1311,21 @@ print(f"[RAG Server] 🤖 Usando modelo con soporte de tools: {llm_model}", file
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECCIÓN 5: ORQUESTADOR CON FUNCTION CALLING (4 PASOS)
+# SECCIÓN 5: ORQUESTADOR CON FUNCTION CALLING
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generate_response_with_tools(question: str, client_id: int = None) -> str:
     """
     Orquestador con Function Calling nativo de Ollama para Danhee Cake.
-    
-    PASO 1: Búsqueda RAG en Chroma
-    PASO 2: Llamada a Ollama con tools[]
-    PASO 3: Ejecutar función local si hay tool_calls
-    PASO 4: Re-invocar LLM con resultado
     """
     global _current_client_id, _conversation_context
     _current_client_id = client_id
     
-    # Guardar pregunta para contexto
     ultima_pregunta = _conversation_context.get("ultima_pregunta", "")
     _conversation_context["ultima_pregunta"] = question
     _conversation_context["ultimo_cliente"] = client_id
     
-    # ── PASO 1: Búsqueda RAG ────────────────────────────────────────────────
+    # Búsqueda RAG
     rag_context = ""
     if db is not None:
         try:
@@ -892,27 +1335,21 @@ def generate_response_with_tools(question: str, client_id: int = None) -> str:
         except Exception as e:
             print(f"[RAG] Error en búsqueda: {e}", file=sys.stderr)
     
-    # Identificar al usuario autenticado usando DB para que Ollama sepa su nombre y rol
     identidad_usuario = "visitante"
     if client_id:
         user_info = get_user_by_id(client_id)
         if user_info:
-            identidad_usuario = f"autenticado (Nombre: {user_info.get('name')}, Rol: {user_info.get('role')})"
-        else:
-            identidad_usuario = "autenticado"
+            identidad_usuario = f"autenticado (Nombre: {user_info.get('name')})"
 
-    # System prompt ESTRICTAMENTE para Danhee Cake
     system_prompt = f"""ERES EL ASISTENTE EXCLUSIVO DE DANHEE CAKE.
 
 {DANHEE_INFO}
 
 REGLAS OBLIGATORIAS:
 1. SOLO hablas sobre Danhee Cake y sus servicios.
-2. NUNCA menciones Danganronpa, anime, manga, Hajime Hinata o cualquier cosa externa.
-3. Si el usuario pregunta algo NO relacionado con Danhee Cake, responde: "Lo siento, solo puedo ayudarte con temas relacionados a Danhee Cake, nuestra plataforma de repostería personalizada."
-4. SIEMPRE usa las herramientas disponibles para responder.
-5. Responde en español, cálido y profesional. Si el usuario está autenticado, llámalo por su nombre.
-6. Para mantener la conversación fluida: si el usuario pregunta "y el de X?" después de haber preguntado por otro pastel, usa el contexto de la conversación para entender que se refiere a otro pastel similar.
+2. SIEMPRE usa las herramientas disponibles para responder.
+3. Responde en español, cálido y profesional.
+4. Para preguntas sobre recomendaciones de pasteles (como "qué pastel me recomiendas para cumpleaños"), usa la herramienta recomendar_pastel.
 
 Usuario: {identidad_usuario}
 Pregunta actual: {question}
@@ -924,7 +1361,6 @@ Pregunta actual: {question}
         {"role": "user", "content": question}
     ]
     
-    # ── PASO 2: Llamada al LLM con Tools ─────────────────────────────────────
     print(f"[RAG] Llamando a Ollama ({llm_model}) con {len(TOOLS_SCHEMA)} herramientas...", file=sys.stderr)
     
     try:
@@ -940,9 +1376,8 @@ Pregunta actual: {question}
     assistant_message = response.get("message", {})
     tool_calls = assistant_message.get("tool_calls", [])
     
-    # ── PASO 3: Si hay tool_calls, ejecutar ──────────────────────────────────
     if tool_calls:
-        print(f"[RAG] 🔧 Ejecutando {len(tool_calls)} herramienta(s) de Danhee Cake...", file=sys.stderr)
+        print(f"[RAG] 🔧 Ejecutando {len(tool_calls)} herramienta(s)...", file=sys.stderr)
         
         messages.append({
             "role": "assistant",
@@ -962,11 +1397,8 @@ Pregunta actual: {question}
             else:
                 args = raw_args
             
-            # Añadir contexto de conversación a la búsqueda de pasteles
-            if func_name == "buscar_pastel_por_nombre" and "contexto_anterior" not in args:
-                # Si la pregunta empieza con "y el..." o similar, usar el último pastel mencionado
-                if question.lower().startswith(("y el", "y la", "y los")):
-                    args["contexto_anterior"] = ultima_pregunta if ultima_pregunta else question
+            if "contexto_anterior" not in args and ultima_pregunta:
+                args["contexto_anterior"] = ultima_pregunta
             
             print(f"[RAG]   ▶ {func_name}({args})", file=sys.stderr)
             
@@ -975,10 +1407,10 @@ Pregunta actual: {question}
                     result = FUNCTIONS_MAP[func_name](**args)
                     print(f"[RAG]   ✅ Resultado obtenido", file=sys.stderr)
                 except Exception as e:
-                    result = {"error": f"Error en Danhee Cake: {str(e)}"}
+                    result = {"error": f"Error: {str(e)}"}
                     print(f"[RAG]   ❌ Error: {e}", file=sys.stderr)
             else:
-                result = {"error": f"Herramienta '{func_name}' no encontrada en Danhee Cake"}
+                result = {"error": f"Herramienta '{func_name}' no encontrada"}
                 print(f"[RAG]   ❌ Herramienta no encontrada", file=sys.stderr)
             
             messages.append({
@@ -986,7 +1418,6 @@ Pregunta actual: {question}
                 "content": json.dumps(result, ensure_ascii=False, default=json_serial)
             })
         
-        # ── PASO 4: Re-invocar LLM con resultados ─────────────────────────────
         print(f"[RAG] Re-invocando LLM con resultados...", file=sys.stderr)
         try:
             final_response = ollama_sdk.chat(
@@ -996,33 +1427,16 @@ Pregunta actual: {question}
             final_content = final_response.get("message", {}).get("content", "").strip()
             
             if final_content:
-                # Verificar que no hable de cosas externas
-                forbidden = ["danganronpa", "hajime", "anime", "manga", "japones"]
-                if any(word in final_content.lower() for word in forbidden):
-                    return "🎂 Danhee Cake es nuestra plataforma de repostería personalizada. ¿En qué puedo ayudarte con tus pasteles?"
                 return final_content
             else:
                 last_tool_result = json.loads(messages[-1]["content"])
-                if "pasteles" in last_tool_result:
-                    pasteles = last_tool_result["pasteles"][:10]
-                    lista = "\n".join([f"• **{p['nombre']}** - ${p['precio']} ★{p['calificacion']} - {p['categoria']}" for p in pasteles])
-                    return f"🍰 Estos son los pasteles disponibles en Danhee Cake:\n{lista}"
-                elif "reposteros" in last_tool_result:
-                    reposteros = last_tool_result["reposteros"][:5]
-                    lista = "\n".join([f"• **{r['nombre_negocio']}** - {r['especialidad']} ★{r['calificacion']}" for r in reposteros])
-                    return f"👩‍🍳 Estos son los reposteros de Danhee Cake:\n{lista}"
-                elif "encontrados" in last_tool_result:
-                    if last_tool_result["encontrados"]:
-                        if "mensaje_resumen" in last_tool_result:
-                            lista = "\n".join([p["mensaje"] for p in last_tool_result["encontrados"][:10]])
-                            return f"{last_tool_result['mensaje_resumen']}\n\n{lista}"
-                        else:
-                            lista = "\n".join([p.get("mensaje", f"• {p.get('nombre')} - ${p.get('precio')} MXN") for p in last_tool_result["encontrados"][:10]])
-                            return f"🍰 {last_tool_result.get('mensaje', 'Encontré estos pasteles:')}\n{lista}"
+                
+                if "recomendacion" in last_tool_result:
+                    return last_tool_result["recomendacion"]
                 elif "mensaje" in last_tool_result:
                     return last_tool_result["mensaje"]
-                elif "recomendacion" in last_tool_result:
-                    return last_tool_result["recomendacion"]
+                elif "error" in last_tool_result:
+                    return f"📋 {last_tool_result['error']}"
                 else:
                     return f"📋 Danhee Cake: {json.dumps(last_tool_result, ensure_ascii=False, default=json_serial)[:500]}"
                     
@@ -1030,20 +1444,14 @@ Pregunta actual: {question}
             print(f"[RAG] Error en re-invocación: {e}", file=sys.stderr)
             return "Procesé tu solicitud en Danhee Cake. ¿Necesitas algo más? 🎂"
     
-    # ── Sin tool_calls: respuesta directa ─────────────────────────────────────
     else:
         direct_content = assistant_message.get("content", "").strip()
         print(f"[RAG] Respuesta directa del LLM", file=sys.stderr)
         
-        # Verificar que no hable de cosas externas
-        forbidden = ["danganronpa", "hajime", "anime", "manga", "japones"]
-        if direct_content and any(word in direct_content.lower() for word in forbidden):
-            return "🎂 ¡Hola! Soy el asistente de Danhee Cake, tu plataforma de repostería personalizada. ¿En qué puedo ayudarte hoy?"
-        
         if direct_content:
             return direct_content
         else:
-            return "🎂 ¡Bienvenido a Danhee Cake! Soy tu asistente virtual. ¿Te gustaría explorar nuestros pasteles, conocer a nuestros reposteros o agendar una cita?"
+            return "🎂 ¡Bienvenido a Danhee Cake! Soy tu asistente virtual. ¿En qué puedo ayudarte?"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
