@@ -5,6 +5,11 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.request
 import decimal
 from datetime import date, datetime
+import unicodedata
+
+def quitar_acentos(texto: str) -> str:
+    if not texto: return ""
+    return unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('utf-8')
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -187,12 +192,13 @@ def consultar_categorias() -> dict:
 
 
 def buscar_pastel_por_nombre(nombre: str) -> dict:
-    """Busca pasteles en el catálogo de Danhee Cake por nombre parcial."""
+    """Busca pasteles en el catálogo de Danhee Cake por nombre parcial para obtener su precio y detalles."""
     todos = get_cakes()
     
+    nombre_limpio = quitar_acentos(nombre).lower()
     encontrados = [
         p for p in todos
-        if nombre.lower() in str(p.get("name", "")).lower()
+        if nombre_limpio in quitar_acentos(str(p.get("name", ""))).lower()
     ]
     
     if not encontrados:
@@ -200,7 +206,12 @@ def buscar_pastel_por_nombre(nombre: str) -> dict:
     
     return {
         "encontrados": [
-            {"id": p.get("id"), "nombre": p.get("name"), "precio": float(p.get("price", 0)) if p.get("price") else 0.0}
+            {
+                "id": p.get("id"),
+                "nombre": p.get("name"),
+                "precio": float(p.get("price", 0)) if p.get("price") else 0.0,
+                "mensaje": f"El pastel '{p.get('name')}' tiene un precio exacto de ${float(p.get('price', 0)) if p.get('price') else 0.0} MXN"
+            }
             for p in encontrados[:5]
         ],
         "cantidad": len(encontrados)
@@ -294,6 +305,121 @@ def recomendar_pastel(ocasion: str, presupuesto: str = "", estilo: str = "") -> 
     return {"recomendacion": "En Danhee Cake tenemos pasteles para todas las ocasiones. ¿Qué tipo de evento planeas?", "plataforma": "Danhee Cake"}
 
 
+def consultar_origen_pastel(nombre_pastel: str) -> dict:
+    """Obtiene a qué empresa, repostero, categoría y precio pertenece un pastel en Danhee Cake."""
+    todos = get_cakes()
+    
+    nombre_limpio = quitar_acentos(nombre_pastel).lower()
+    encontrados = [
+        p for p in todos
+        if nombre_limpio in quitar_acentos(str(p.get("name", ""))).lower()
+    ]
+    
+    if not encontrados:
+        return {"mensaje": f"No encontré ningún pastel llamado '{nombre_pastel}' en Danhee Cake."}
+    
+    pastel = encontrados[0]
+    baker_id = pastel.get("baker_id")
+    business_name = pastel.get("business_name")
+    if not business_name:
+        business_name = "Empresa no especificada"
+        
+    category_name = pastel.get("category_name")
+    if not category_name:
+        category_name = "Categoría no especificada"
+        
+    precio = float(pastel.get("price", 0)) if pastel.get("price") else 0.0
+
+    baker_name = "Repostero no especificado"
+    if baker_id:
+        repostero_info = get_baker_by_id(baker_id)
+        if repostero_info:
+            baker_name = repostero_info.get("name", baker_name)
+            
+    return {
+        "pastel": pastel.get("name"),
+        "empresa": business_name,
+        "repostero": baker_name,
+        "categoria": category_name,
+        "precio": precio,
+        "mensaje": f"El pastel '{pastel.get('name')}' pertenece a la categoría '{category_name}', tiene un precio de ${precio} MXN, y es elaborado por la empresa '{business_name}' del repostero '{baker_name}'."
+    }
+
+
+def extraer_texto_pdf(nombre_archivo: str) -> dict:
+    """Extrae y lee el contenido de un archivo PDF ubicado en la carpeta de datos de Danhee Cake."""
+    from langchain_community.document_loaders import PyPDFLoader
+    
+    # Asegurar que busque en la carpeta 'data'
+    ruta_pdf = base_dir / "data" / nombre_archivo
+    if not ruta_pdf.exists():
+        if not nombre_archivo.lower().endswith('.pdf'):
+            ruta_pdf = base_dir / "data" / f"{nombre_archivo}.pdf"
+            
+    if not ruta_pdf.exists():
+        return {"mensaje": f"No se encontró el PDF '{nombre_archivo}' en la carpeta de datos."}
+        
+    try:
+        loader = PyPDFLoader(str(ruta_pdf))
+        docs = loader.load()
+        texto = "\n".join([doc.page_content for doc in docs])
+        if len(texto) > 3000:
+            texto = texto[:3000] + "\n... [Contenido truncado]"
+            
+        return {
+            "archivo": ruta_pdf.name,
+            "paginas": len(docs),
+            "contenido": texto
+        }
+    except Exception as e:
+        return {"error": f"Error al leer el PDF: {e}"}
+
+
+
+def buscar_pasteles_por_rango_precio(precio: float, condicion: str) -> dict:
+    """
+    Busca pasteles que tengan un precio menor o mayor al indicado.
+    condicion debe ser 'menor' o 'mayor'.
+    """
+    todos = get_cakes()
+    
+    try:
+        precio_limite = float(precio)
+    except ValueError:
+        return {"mensaje": "El precio debe ser un número válido."}
+        
+    condicion = condicion.lower().strip()
+    
+    if condicion == "menor":
+        filtrados = [p for p in todos if p.get("price") is not None and float(p.get("price")) < precio_limite]
+        mensaje_condicion = f"menor a ${precio_limite}"
+    elif condicion == "mayor":
+        filtrados = [p for p in todos if p.get("price") is not None and float(p.get("price")) > precio_limite]
+        mensaje_condicion = f"mayor a ${precio_limite}"
+    else:
+        return {"mensaje": "La condición debe ser 'menor' o 'mayor'."}
+        
+    if not filtrados:
+        return {"mensaje": f"No encontré pasteles con un precio {mensaje_condicion} en Danhee Cake."}
+        
+    filtrados.sort(key=lambda x: float(x.get("price")), reverse=(condicion=="mayor"))
+    
+    return {
+        "condicion": condicion,
+        "precio_limite": precio_limite,
+        "encontrados": [
+            {
+                "id": p.get("id"),
+                "nombre": p.get("name"),
+                "precio": float(p.get("price")),
+                "ocasion": p.get("category_name", "Sin categoría especificada"),
+                "mensaje": f"Pastel '{p.get('name')}' ideal para {p.get('category_name', 'cualquier ocasión')}, cuesta ${float(p.get('price'))} MXN."
+            }
+            for p in filtrados[:10]
+        ],
+        "cantidad": len(filtrados)
+    }
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SECCIÓN 2: MAPA DE FUNCIONES
 # ─────────────────────────────────────────────────────────────────────────────
@@ -310,6 +436,9 @@ FUNCTIONS_MAP = {
     "calcular_precio_personalizado": calcular_precio_personalizado,
     "consultar_politicas_pasteleria": consultar_politicas_pasteleria,
     "recomendar_pastel": recomendar_pastel,
+    "consultar_origen_pastel": consultar_origen_pastel,
+    "extraer_texto_pdf": extraer_texto_pdf,
+    "buscar_pasteles_por_rango_precio": buscar_pasteles_por_rango_precio,
 }
 
 
@@ -399,7 +528,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "buscar_pastel_por_nombre",
-            "description": "Busca pasteles en Danhee Cake por nombre parcial.",
+            "description": "Busca pasteles en Danhee Cake por nombre parcial. Útil para consultar el precio exacto y real de un pastel.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -466,6 +595,49 @@ TOOLS_SCHEMA = [
                     "estilo": {"type": "string", "description": "vintage, minimalista, coreano, infantil (opcional)"}
                 },
                 "required": ["ocasion"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_origen_pastel",
+            "description": "Obtiene a qué empresa, repostero, categoría y precio exacto pertenece un pastel específico en Danhee Cake.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nombre_pastel": {"type": "string", "description": "Nombre parcial o completo del pastel"}
+                },
+                "required": ["nombre_pastel"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "extraer_texto_pdf",
+            "description": "Extrae y lee el contenido de un archivo PDF desde la carpeta de datos de Danhee Cake.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nombre_archivo": {"type": "string", "description": "Nombre del archivo PDF a leer"}
+                },
+                "required": ["nombre_archivo"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "buscar_pasteles_por_rango_precio",
+            "description": "Busca pasteles que tengan un precio menor o mayor a una cantidad indicada. Retorna los pasteles, su precio y su ocasión (categoría).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "precio": {"type": "number", "description": "El precio límite para buscar"},
+                    "condicion": {"type": "string", "description": "Debe ser 'menor' o 'mayor'"}
+                },
+                "required": ["precio", "condicion"]
             }
         }
     }
