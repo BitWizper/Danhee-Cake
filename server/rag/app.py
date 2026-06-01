@@ -46,8 +46,8 @@ base_dir = Path(__file__).resolve().parent
 
 # Variable global para almacenar client_id del usuario actual (por turno)
 _current_client_id = None
-# Variable para mantener contexto de conversación
-_conversation_context = {}
+# Diccionario para mantener el historial de conversación por cliente (clave: client_id o "guest")
+conversation_histories = {}
 # Variable para almacenar el último resultado de búsqueda
 _last_search_result = {}
 # Cache para contenido de PDFs
@@ -106,7 +106,7 @@ def consultar_catalogo_pasteles(categoria: str = "", contexto_anterior: str = ""
     return {"pasteles": resultado, "total": len(resultado), "categoria_filtro": categoria if categoria else contexto_anterior if contexto_anterior else "todos"}
 
 
-def consultar_todos_los_pasteles() -> dict:
+def consultar_todos_los_pasteles(contexto_anterior: str = "") -> dict:
     """Muestra el catálogo completo de todos los pasteles disponibles en Danhee Cake."""
     pasteles = get_cakes()
     
@@ -129,7 +129,7 @@ def consultar_todos_los_pasteles() -> dict:
     return {"pasteles": resultado, "total": len(resultado), "mensaje": f"🍰 Catálogo completo de Danhee Cake: {len(resultado)} pasteles disponibles."}
 
 
-def consultar_reposteros_disponibles() -> dict:
+def consultar_reposteros_disponibles(contexto_anterior: str = "") -> dict:
     """Lista todos los reposteros verificados de Danhee Cake."""
     reposteros = get_bakers()
     
@@ -758,39 +758,50 @@ def consultar_pasteles_por_categoria(categoria: str = "", contexto_anterior: str
     }
 
 
-def consultar_tamanos_pasteles() -> dict:
-    """Consulta los tamaños disponibles de pasteles en Danhee Cake."""
-    try:
-        from langchain_community.document_loaders import PyPDFLoader
-        ruta_pdf = base_dir / "data" / "politicas_danhee.pdf"
-        if ruta_pdf.exists():
+def consultar_tamanos_pasteles(contexto_anterior: str = "") -> dict:
+    """
+    Consulta los tamaños disponibles de pasteles en Danhee Cake.
+    Lee el contenido del archivo cake_sizes.pdf y devuelve su información.
+    """
+    # Intentar leer cake_sizes.pdf
+    ruta_pdf = base_dir / "data" / "cake_sizes.pdf"
+    print(f"[DEBUG] Buscando PDF en: {ruta_pdf}", file=sys.stderr)
+    if ruta_pdf.exists():
+        try:
+            from langchain_community.document_loaders import PyPDFLoader
             loader = PyPDFLoader(str(ruta_pdf))
             docs = loader.load()
             texto_completo = "\n".join([doc.page_content for doc in docs])
-            
-            if "tamaño" in texto_completo.lower() or "tamaños" in texto_completo.lower():
-                lineas = texto_completo.split('\n')
-                tamanos_info = []
-                capturando = False
-                for linea in lineas:
-                    if "tamaño" in linea.lower() and ("pequeño" in linea.lower() or "mediano" in linea.lower() or "grande" in linea.lower()):
-                        capturando = True
-                    if capturando and linea.strip():
-                        tamanos_info.append(linea.strip())
-                    if capturando and len(tamanos_info) > 10:
-                        break
-                
-                if tamanos_info:
+            if texto_completo.strip():
+                print(f"[DEBUG] PDF leído correctamente, {len(texto_completo)} caracteres", file=sys.stderr)
+                # Limitar a 2000 caracteres para no saturar
+                texto_resumido = texto_completo[:2000]
+                return {
+                    "mensaje": f"📏 Información de tamaños de pasteles (desde cake_sizes.pdf):\n\n{texto_resumido}",
+                    "fuente": "cake_sizes.pdf"
+                }
+            else:
+                print("[DEBUG] El PDF está vacío o no contiene texto extraíble", file=sys.stderr)
+        except Exception as e:
+            print(f"[DEBUG] Error leyendo cake_sizes.pdf con PyPDFLoader: {e}", file=sys.stderr)
+            # Intentar con pypdf como fallback
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(str(ruta_pdf))
+                texto_completo = ""
+                for page in reader.pages:
+                    texto_completo += page.extract_text() + "\n"
+                if texto_completo.strip():
                     return {
-                        "tamanos": tamanos_info,
-                        "fuente": "PDF de políticas",
-                        "mensaje": "📏 Tamaños de pasteles disponibles en Danhee Cake:\n" + "\n".join(tamanos_info)
+                        "mensaje": f"📏 Información de tamaños de pasteles (desde cake_sizes.pdf):\n\n{texto_completo[:2000]}",
+                        "fuente": "cake_sizes.pdf"
                     }
-    except Exception as e:
-        print(f"Error leyendo PDF: {e}", file=sys.stderr)
+            except Exception as e2:
+                print(f"[DEBUG] Error con pypdf: {e2}", file=sys.stderr)
     
+    # Fallback a información por defecto si no existe el PDF o no se pudo leer
     return {
-        "mensaje": "📏 En Danhee Cake ofrecemos pasteles en los siguientes tamaños:\n\n• Pequeño: 6-8 personas (desde $350 MXN)\n• Mediano: 10-15 personas (desde $550 MXN)\n• Grande: 20-30 personas (desde $850 MXN)\n• Múltiples niveles: 40+ personas (cotizar)"
+        "mensaje": "📏 En Danhee Cake ofrecemos pasteles en los siguientes tamaños:\n\n• Pequeño: 6-8 personas (desde $350 MXN)\n• Mediano: 10-15 personas (desde $550 MXN)\n• Grande: 20-30 personas (desde $850 MXN)\n• Múltiples niveles: 40+ personas (cotizar)\n\nSi deseas información más detallada, por favor consulta nuestro documento de tamaños."
     }
 
 
@@ -1111,7 +1122,13 @@ TOOLS_SCHEMA = [
         "function": {
             "name": "consultar_todos_los_pasteles",
             "description": "Muestra el catálogo completo de todos los pasteles.",
-            "parameters": {"type": "object", "properties": {}, "required": []}
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": []
+            }
         }
     },
     {
@@ -1119,7 +1136,13 @@ TOOLS_SCHEMA = [
         "function": {
             "name": "consultar_reposteros_disponibles",
             "description": "Lista todos los reposteros verificados.",
-            "parameters": {"type": "object", "properties": {}, "required": []}
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": []
+            }
         }
     },
     {
@@ -1233,7 +1256,13 @@ TOOLS_SCHEMA = [
         "function": {
             "name": "consultar_tamanos_pasteles",
             "description": "Consulta los tamaños disponibles de pasteles.",
-            "parameters": {"type": "object", "properties": {}, "required": []}
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": []
+            }
         }
     },
     {
@@ -1273,6 +1302,17 @@ SERVICIOS PARA CLIENTES:
 ¡SOLO RESPONDE SOBRE DANHEE CAKE! NO HABLES DE OTRAS COSAS.
 """
 
+SYSTEM_PROMPT = f"""ERES EL ASISTENTE EXCLUSIVO DE DANHEE CAKE.
+
+{DANHEE_INFO}
+
+REGLAS OBLIGATORIAS:
+1. SOLO hablas sobre Danhee Cake y sus servicios.
+2. SIEMPRE usa las herramientas disponibles para responder.
+3. Responde en español, cálido y profesional.
+4. Para preguntas sobre recomendaciones de pasteles (como "qué pastel me recomiendas para cumpleaños"), usa la herramienta recomendar_pastel.
+5. Para preguntas sobre tamaños de pasteles, usa la herramienta consultar_tamanos_pasteles.
+"""
 
 def get_tools_model() -> str:
     """Detecta el mejor modelo con soporte de tools en Ollama."""
@@ -1311,55 +1351,44 @@ print(f"[RAG Server] 🤖 Usando modelo con soporte de tools: {llm_model}", file
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECCIÓN 5: ORQUESTADOR CON FUNCTION CALLING
+# SECCIÓN 5: ORQUESTADOR CON FUNCTION CALLING Y MEMORIA
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generate_response_with_tools(question: str, client_id: int = None) -> str:
     """
-    Orquestador con Function Calling nativo de Ollama para Danhee Cake.
+    Orquestador con Function Calling nativo de Ollama y memoria de conversación.
+    Mantiene un historial completo por cliente.
     """
-    global _current_client_id, _conversation_context
+    global _current_client_id, conversation_histories
     _current_client_id = client_id
     
-    ultima_pregunta = _conversation_context.get("ultima_pregunta", "")
-    _conversation_context["ultima_pregunta"] = question
-    _conversation_context["ultimo_cliente"] = client_id
+    # Determinar clave de historial (para invitados usamos "guest")
+    history_key = client_id if client_id is not None else "guest"
     
-    # Búsqueda RAG
+    # Inicializar historial si no existe (con el mensaje de sistema)
+    if history_key not in conversation_histories:
+        conversation_histories[history_key] = [
+            {"role": "system", "content": SYSTEM_PROMPT}
+        ]
+    
+    # Obtener el historial actual
+    messages = conversation_histories[history_key].copy()
+    
+    # Agregar el nuevo mensaje del usuario
+    messages.append({"role": "user", "content": question})
+    
+    # Búsqueda RAG (opcional, se puede inyectar como un mensaje de sistema adicional)
     rag_context = ""
     if db is not None:
         try:
             docs = db.similarity_search(question, k=3)
             rag_context = "\n".join([doc.page_content for doc in docs])
             print(f"[RAG] Contexto recuperado ({len(docs)} fragmentos)", file=sys.stderr)
+            # Inyectar contexto como un mensaje del sistema (solo para esta consulta)
+            if rag_context:
+                messages.append({"role": "system", "content": f"Contexto adicional: {rag_context}"})
         except Exception as e:
             print(f"[RAG] Error en búsqueda: {e}", file=sys.stderr)
-    
-    identidad_usuario = "visitante"
-    if client_id:
-        user_info = get_user_by_id(client_id)
-        if user_info:
-            identidad_usuario = f"autenticado (Nombre: {user_info.get('name')})"
-
-    system_prompt = f"""ERES EL ASISTENTE EXCLUSIVO DE DANHEE CAKE.
-
-{DANHEE_INFO}
-
-REGLAS OBLIGATORIAS:
-1. SOLO hablas sobre Danhee Cake y sus servicios.
-2. SIEMPRE usa las herramientas disponibles para responder.
-3. Responde en español, cálido y profesional.
-4. Para preguntas sobre recomendaciones de pasteles (como "qué pastel me recomiendas para cumpleaños"), usa la herramienta recomendar_pastel.
-
-Usuario: {identidad_usuario}
-Pregunta actual: {question}
-Última pregunta anterior: {ultima_pregunta if ultima_pregunta else "Ninguna"}
-{chr(10) + "Contexto: " + rag_context if rag_context else ""}"""
-    
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": question}
-    ]
     
     print(f"[RAG] Llamando a Ollama ({llm_model}) con {len(TOOLS_SCHEMA)} herramientas...", file=sys.stderr)
     
@@ -1379,6 +1408,7 @@ Pregunta actual: {question}
     if tool_calls:
         print(f"[RAG] 🔧 Ejecutando {len(tool_calls)} herramienta(s)...", file=sys.stderr)
         
+        # Agregar el mensaje del asistente con las tool_calls al historial temporal
         messages.append({
             "role": "assistant",
             "content": assistant_message.get("content", ""),
@@ -1397,6 +1427,13 @@ Pregunta actual: {question}
             else:
                 args = raw_args
             
+            # Pasar contexto anterior si la función lo espera y no se proporcionó
+            # Extraer la última pregunta del usuario del historial (la penúltima)
+            ultima_pregunta = ""
+            for m in reversed(messages):
+                if m.get("role") == "user" and m.get("content") != question:
+                    ultima_pregunta = m.get("content", "")
+                    break
             if "contexto_anterior" not in args and ultima_pregunta:
                 args["contexto_anterior"] = ultima_pregunta
             
@@ -1426,19 +1463,32 @@ Pregunta actual: {question}
             )
             final_content = final_response.get("message", {}).get("content", "").strip()
             
+            # Agregar la respuesta final del asistente al historial
             if final_content:
-                return final_content
+                messages.append({"role": "assistant", "content": final_content})
             else:
+                # Si no generó contenido, tomar el último resultado de la herramienta
                 last_tool_result = json.loads(messages[-1]["content"])
-                
-                if "recomendacion" in last_tool_result:
-                    return last_tool_result["recomendacion"]
-                elif "mensaje" in last_tool_result:
-                    return last_tool_result["mensaje"]
-                elif "error" in last_tool_result:
-                    return f"📋 {last_tool_result['error']}"
+                if "mensaje" in last_tool_result:
+                    final_content = last_tool_result["mensaje"]
+                elif "recomendacion" in last_tool_result:
+                    final_content = last_tool_result["recomendacion"]
                 else:
-                    return f"📋 Danhee Cake: {json.dumps(last_tool_result, ensure_ascii=False, default=json_serial)[:500]}"
+                    final_content = "Procesé tu solicitud en Danhee Cake. ¿Necesitas algo más? 🎂"
+                messages.append({"role": "assistant", "content": final_content})
+            
+            # Actualizar el historial permanente (eliminando el mensaje de contexto RAG si se inyectó)
+            # Para simplificar, guardamos todos los mensajes, pero evitamos duplicar el system prompt.
+            # El primer mensaje debe ser el system original. Si se añadió un system extra (RAG), lo removemos.
+            # Si se inyectó contexto RAG, estaba al final de los messages (como system). Lo quitamos si está.
+            cleaned_messages = []
+            for m in messages:
+                if m.get("role") == "system" and m.get("content", "").startswith("Contexto adicional:"):
+                    continue
+                cleaned_messages.append(m)
+            conversation_histories[history_key] = cleaned_messages
+            
+            return final_content
                     
         except Exception as e:
             print(f"[RAG] Error en re-invocación: {e}", file=sys.stderr)
@@ -1448,10 +1498,20 @@ Pregunta actual: {question}
         direct_content = assistant_message.get("content", "").strip()
         print(f"[RAG] Respuesta directa del LLM", file=sys.stderr)
         
-        if direct_content:
-            return direct_content
-        else:
-            return "🎂 ¡Bienvenido a Danhee Cake! Soy tu asistente virtual. ¿En qué puedo ayudarte?"
+        if not direct_content:
+            direct_content = "🎂 ¡Bienvenido a Danhee Cake! Soy tu asistente virtual. ¿En qué puedo ayudarte?"
+        
+        # Agregar la respuesta directa al historial
+        messages.append({"role": "assistant", "content": direct_content})
+        # Eliminar posible mensaje de contexto RAG inyectado
+        cleaned_messages = []
+        for m in messages:
+            if m.get("role") == "system" and m.get("content", "").startswith("Contexto adicional:"):
+                continue
+            cleaned_messages.append(m)
+        conversation_histories[history_key] = cleaned_messages
+        
+        return direct_content
 
 
 # ─────────────────────────────────────────────────────────────────────────────
