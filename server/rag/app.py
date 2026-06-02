@@ -380,6 +380,15 @@ def calcular_precio_personalizado(tamanio: str, relleno: str, decoracion: str) -
 
 def consultar_politicas_pasteleria(tema: str) -> dict:
     """Proporciona las políticas oficiales de Danhee Cake."""
+    # Si el tema es "danhee", leer el PDF danhee_knowledge_base.pdf
+    tema_key = tema.lower().strip()
+    if tema_key == "danhee":
+        resultado_pdf = extraer_texto_pdf("danhee_knowledge_base.pdf")
+        if "mensaje" in resultado_pdf:
+            return {"tema": "Información de Danhee Cake", "info": resultado_pdf["mensaje"]}
+        else:
+            return {"tema": "Información de Danhee Cake", "info": "🎂 Danhee Cake es una plataforma web especializada en repostería personalizada que conecta clientes con reposteros profesionales. Ofrecemos pasteles personalizados para toda ocasión: XV años, bodas, cumpleaños, baby showers y más. Contamos con reposteros verificados y diseños únicos."}
+    
     politicas = {
         "entrega": {
             "tema": "Política de Entrega - Danhee Cake",
@@ -400,13 +409,8 @@ def consultar_politicas_pasteleria(tema: str) -> dict:
         "general": {
             "tema": "Información General - Danhee Cake",
             "info": "🎂 Danhee Cake es una plataforma web especializada en repostería personalizada que conecta clientes con reposteros profesionales."
-        },
-        "danhee": {
-            "tema": "¿Qué es Danhee Cake?",
-            "info": "🎂 Danhee Cake es una plataforma web especializada en repostería personalizada que conecta clientes con reposteros profesionales. Ofrecemos pasteles personalizados para toda ocasión: XV años, bodas, cumpleaños, baby showers y más. Contamos con reposteros verificados y diseños únicos."
         }
     }
-    tema_key = tema.lower().strip()
     return politicas.get(tema_key, politicas["general"])
 
 
@@ -1369,7 +1373,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "consultar_politicas_pasteleria",
-            "description": "Proporciona las políticas de Danhee Cake.",
+            "description": "Proporciona las políticas de Danhee Cake. Para información general de Danhee, usa el tema 'danhee'.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1473,7 +1477,7 @@ REGLAS OBLIGATORIAS:
 6. Para preguntas frecuentes (políticas, envíos, pagos, personalización, etc.), usa la herramienta extraer_texto_pdf con nombre_archivo='faq.pdf'.
 7. Para preguntas como "qué empresas hay en [ubicación]" usa consultar_empresas_por_ubicacion.
 8. Para preguntas como "qué pasteles tiene [empresa]" usa consultar_pasteles_por_empresa.
-9. Para preguntas sobre "qué es Danhee Cake" o "información de Danhee", usa extraer_texto_pdf con nombre_archivo='danhee_knowledge_base.pdf'.
+9. Para preguntas sobre "qué es Danhee Cake" o "información de Danhee", usa la herramienta consultar_politicas_pasteleria con tema='danhee'. Esto leerá el archivo danhee_knowledge_base.pdf.
 10. Para preguntas como "qué pasteles hay de [sabor/nombre]" usa buscar_pastel_por_nombre.
 11. Cuando el usuario pida detalles de un pastel específico (ej. "cuéntame del pastel Red velvet", "quiero saber sobre el pastel de fresa", "detalles del caramelo especial"), DEBES usar la herramienta consultar_detalle_pastel_por_id con el nombre del pastel en el parámetro pastel_id (como string). No uses contexto_anterior para el nombre, envíalo directamente en pastel_id.
 12. Mantén el contexto de la conversación: si el usuario pregunta "y el de red velvet?" después de hablar de una empresa, debes inferir que se refiere al pastel de esa empresa o al último pastel mencionado.
