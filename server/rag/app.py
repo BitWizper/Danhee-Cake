@@ -663,16 +663,16 @@ def buscar_pasteles_por_rango_precio(precio: float, condicion: str, contexto_ant
     condicion = condicion.lower().strip()
     
     # Normalizar condiciones
-    if condicion in ["menor", "menos", "abajo", "debajo", "inferior", "menor a", "menos de"]:
+    if any(c in condicion for c in ["menor", "menos", "abajo", "debajo", "inferior", "<"]):
         filtrados = [p for p in todos if p.get("price") is not None and float(p.get("price")) < precio_limite]
         mensaje_condicion = f"menor a ${precio_limite}"
         orden_ascendente = True
-    elif condicion in ["mayor", "mas", "arriba", "superior", "encima", "mayor a", "mas de"]:
+    elif any(c in condicion for c in ["mayor", "mas", "arriba", "superior", "encima", ">"]):
         filtrados = [p for p in todos if p.get("price") is not None and float(p.get("price")) > precio_limite]
         mensaje_condicion = f"mayor a ${precio_limite}"
         orden_ascendente = False
     else:
-        return {"mensaje": "La condición debe ser 'menor' o 'mayor'."}
+        return {"mensaje": "La condición debe ser 'menor' o 'mayor', por ejemplo '<', '>', 'menor a', 'mayor a'."}
         
     if not filtrados:
         return {"mensaje": f"No encontré pasteles con un precio {mensaje_condicion} en Danhee Cake."}
@@ -1299,7 +1299,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "registrar_solicitud_cita",
-            "description": "Registra una cita con un repostero.",
+            "description": "Registra una cita con un repostero. ÚSALA SOLO SI el usuario proporciona explícitamente todos los datos (nombre, id del repostero, fecha, hora). Si solo pregunta cómo agendar, NO USES esta herramienta.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1484,7 +1484,8 @@ REGLAS OBLIGATORIAS:
 10. Para preguntas como "qué pasteles hay de [sabor/nombre]" usa buscar_pastel_por_nombre.
 11. Cuando el usuario pida detalles de un pastel específico (ej. "cuéntame del pastel Red velvet", "quiero saber sobre el pastel de fresa", "detalles del caramelo especial"), DEBES usar la herramienta consultar_detalle_pastel_por_id con el nombre del pastel en el parámetro pastel_id (como string). No uses contexto_anterior para el nombre, envíalo directamente en pastel_id.
 12. Mantén el contexto de la conversación: si el usuario pregunta "y el de red velvet?" después de hablar de una empresa, debes inferir que se refiere al pastel de esa empresa o al último pastel mencionado.
-13. Si el usuario pregunta cómo diseñar su pastel, diseñar un pastel 3D o sobre diseño personalizado, responde EXACTAMENTE: "Tienes que ir al apartado de 'Diseña tu pastel' para ahi elegir pisos de pastel, bizcocho, relleno, decoracion, tamaño, y ya hay dos botones uno que dice 'Solicitar diseño' y el otro 'Agendar cita para degustacion'." No uses herramientas para esto.
+13. EXCEPCIÓN IMPORTANTE PARA PASTELES 3D: Si el usuario pregunta o menciona "pasteles 3D" o "diseñar mi pastel 3D", NO USES ninguna herramienta (especialmente NO uses consultar_detalle_pastel_por_id). Simplemente responde directamente y de manera profesional indicándole que debe dirigirse al apartado de "Diseña tu pastel" en la plataforma, ya que los pasteles 3D requieren un diseño completamente personalizado.
+14. EXCEPCIÓN IMPORTANTE PARA AGENDAR CITAS: Si el usuario te pregunta "¿Cómo puedo agendar una cita?" o similar (de manera general, sin darte datos específicos de fecha/hora para reservar), NO USES la herramienta registrar_solicitud_cita. Simplemente explícale los pasos: dile que debe buscar el pastel que mejor se adapte a sus necesidades según la categoría que busque, luego entrar a ver el perfil de ese pastel o repostero, y ahí aparecerá la opción para agendar cita.
 """
 
 def get_tools_model() -> str:
@@ -1607,22 +1608,34 @@ def generate_response_with_tools(question: str, client_id: int = None) -> str:
                 if m.get("role") == "user" and m.get("content") != question:
                     ultima_pregunta = m.get("content", "")
                     break
-            # Solo añadir contexto_anterior si la función lo requiere y no está presente
-            if func_name in FUNCTIONS_MAP and "contexto_anterior" not in args and ultima_pregunta:
-                # Evitar enviar strings no válidos como '<nil>'
-                if ultima_pregunta not in ('<nil>', 'null', 'None'):
-                    args["contexto_anterior"] = ultima_pregunta
-            
-            print(f"[RAG]   ▶ {func_name}({args})", file=sys.stderr)
             
             if func_name in FUNCTIONS_MAP:
+                import inspect
+                sig = inspect.signature(FUNCTIONS_MAP[func_name])
+                valid_keys = [
+                    k for k, v in sig.parameters.items()
+                    if v.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+                ]
+                
+                # Solo añadir contexto_anterior si la función lo requiere y no está presente
+                if "contexto_anterior" not in args and "contexto_anterior" in valid_keys and ultima_pregunta:
+                    # Evitar enviar strings no válidos como '<nil>'
+                    if ultima_pregunta not in ('<nil>', 'null', 'None'):
+                        args["contexto_anterior"] = ultima_pregunta
+                
+                # Filtrar argumentos para evitar errores por parámetros inventados por el LLM (alucinaciones)
+                filtered_args = {k: v for k, v in args.items() if k in valid_keys}
+                
+                print(f"[RAG]   ▶ {func_name}({filtered_args})", file=sys.stderr)
+                
                 try:
-                    result = FUNCTIONS_MAP[func_name](**args)
+                    result = FUNCTIONS_MAP[func_name](**filtered_args)
                     print(f"[RAG]   ✅ Resultado obtenido", file=sys.stderr)
                 except Exception as e:
                     result = {"error": f"Error: {str(e)}"}
                     print(f"[RAG]   ❌ Error: {e}", file=sys.stderr)
             else:
+                print(f"[RAG]   ▶ {func_name}({args})", file=sys.stderr)
                 result = {"error": f"Herramienta '{func_name}' no encontrada"}
                 print(f"[RAG]   ❌ Herramienta no encontrada", file=sys.stderr)
             
