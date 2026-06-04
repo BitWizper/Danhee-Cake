@@ -498,7 +498,10 @@ def consultar_origen_pastel(nombre_pastel: str, contexto_anterior: str = "") -> 
     if not encontrados:
         encontrados = [
             p for p in todos
-            if nombre_limpio in quitar_acentos(str(p.get("business_name", ""))).lower()
+            if p.get("business_name") and (
+                (nombre_limpio in quitar_acentos(str(p.get("business_name"))).lower()) or 
+                (quitar_acentos(str(p.get("business_name"))).lower() in nombre_limpio)
+            )
         ]
     
     if not encontrados:
@@ -1481,6 +1484,7 @@ REGLAS OBLIGATORIAS:
 10. Para preguntas como "qué pasteles hay de [sabor/nombre]" usa buscar_pastel_por_nombre.
 11. Cuando el usuario pida detalles de un pastel específico (ej. "cuéntame del pastel Red velvet", "quiero saber sobre el pastel de fresa", "detalles del caramelo especial"), DEBES usar la herramienta consultar_detalle_pastel_por_id con el nombre del pastel en el parámetro pastel_id (como string). No uses contexto_anterior para el nombre, envíalo directamente en pastel_id.
 12. Mantén el contexto de la conversación: si el usuario pregunta "y el de red velvet?" después de hablar de una empresa, debes inferir que se refiere al pastel de esa empresa o al último pastel mencionado.
+13. Si el usuario pregunta cómo diseñar su pastel, diseñar un pastel 3D o sobre diseño personalizado, responde EXACTAMENTE: "Tienes que ir al apartado de 'Diseña tu pastel' para ahi elegir pisos de pastel, bizcocho, relleno, decoracion, tamaño, y ya hay dos botones uno que dice 'Solicitar diseño' y el otro 'Agendar cita para degustacion'." No uses herramientas para esto.
 """
 
 def get_tools_model() -> str:

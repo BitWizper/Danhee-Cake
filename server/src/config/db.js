@@ -10,6 +10,8 @@ const pool = mysql2.createPool({
   waitForConnections: true,
   connectionLimit: 1,
   queueLimit: 0,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
   ssl: { rejectUnauthorized: false }, // Clever Cloud requiere SSL
 });
 
