@@ -14,6 +14,7 @@ import BakerProfilePage from './pages/BakerProfilePage';
 import CakeDesignerPage from './pages/CakeDesignerPage';
 import AppointmentPage from './pages/AppointmentPage';
 import BakerDashboardPage from './pages/BakerDashboardPage';
+import UIWedding from './pages/wedding/UI_wedding';
 
 import { AuthProvider } from './context/AuthContext';
 import CursorGlow from './components/ui/CursorGlow';
@@ -49,6 +50,8 @@ const App = () => {
 
         {/* RQF04.3 – Diseñador de pastel personalizado */}
         <Route path="/diseñador" element={<CakeDesignerPage />} />
+
+        <Route path="/wedding" element={<UIWedding />} />
 
         {/* RQF04.2 – Agendar cita con repostero */}
         <Route path="/agenda/:id" element={<AppointmentPage />} />

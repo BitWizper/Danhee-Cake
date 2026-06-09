@@ -1,0 +1,217 @@
+.wedding-page {
+  min-height: 100vh;
+  padding-bottom: var(--space-20);
+}
+
+.wedding-page__header {
+  padding-top: calc(var(--navbar-height) + var(--space-12));
+  padding-bottom: var(--space-12);
+  background: var(--color-bg-alt);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-12);
+}
+
+.wedding-page__label {
+  display: block;
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+  margin-bottom: var(--space-3);
+}
+
+.wedding-page__title {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 300;
+  color: var(--color-cream);
+  margin-bottom: var(--space-3);
+}
+
+.wedding-page__subtitle {
+  font-size: var(--text-base);
+  color: var(--color-muted);
+  margin-bottom: var(--space-8);
+}
+
+/* Filtros */
+.wedding-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 800px;
+}
+
+.wedding-filters__main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.wedding-filters__input {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-cream);
+  padding: 0.75rem 1.25rem;
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color var(--transition-base);
+  width: 100%;
+}
+
+.wedding-filters__input:focus {
+  border-color: rgba(201,169,110,0.4);
+}
+
+.wedding-filters__input::placeholder { 
+  color: var(--color-faint); 
+}
+
+/* Grid de Pasteles de Boda */
+.wedding-page__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+}
+
+.wedding-page__empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--color-muted);
+  padding: var(--space-16);
+}
+
+.wedding-page__error {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-md);
+  color: #f87171;
+}
+
+/* Tarjeta de Pastel de Bodas (wedding-cake-card) */
+.wedding-cake-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all var(--transition-base);
+  opacity: 0;
+}
+
+.wedding-cake-card:hover {
+  border-color: rgba(201,169,110,0.25);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg), var(--shadow-gold);
+}
+
+.wedding-cake-card__visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.wedding-cake-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-base);
+}
+
+.wedding-cake-card:hover .wedding-cake-card__img {
+  transform: scale(1.03);
+}
+
+.wedding-cake-card__tags {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+}
+
+.wedding-cake-card__tag {
+  font-size: 0.625rem;
+  color: var(--color-gold-light);
+  background: rgba(201,169,110,0.2);
+  border: 1px solid rgba(201,169,110,0.3);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.wedding-cake-card__body {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.wedding-cake-card__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wedding-cake-card__baker {
+  font-size: var(--text-xs);
+  color: var(--color-gold-dim);
+}
+
+.wedding-cake-card__price {
+  font-weight: 600;
+  color: var(--color-cream);
+}
+
+.wedding-cake-card__name {
+  font-size: 1.25rem;
+  color: var(--color-cream);
+  margin: 0;
+}
+
+.wedding-cake-card__specialty {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.wedding-cake-card__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.wedding-cake-card__reviews {
+  font-size: var(--text-xs);
+  color: var(--color-faint);
+}
+
+.wedding-cake-card__cta {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-gold);
+  text-decoration: none;
+  transition: color var(--transition-base);
+  display: inline-block;
+}
+
+.wedding-cake-card__cta:hover {
+  color: var(--color-gold-light);
+}
+
+/* Responsivo */
+@media (max-width: 960px) { 
+  .wedding-page__grid { grid-template-columns: 1fr 1fr; } 
+}
+@media (max-width: 580px) { 
+  .wedding-page__grid { grid-template-columns: 1fr; } 
+}

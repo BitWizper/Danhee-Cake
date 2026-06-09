@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import StarRating from '../components/ui/StarRating';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import StarRating from '../components/ui/StarRating'; // Ajustado según tu estructura de carpetas
 import './ExplorePage.css';
 
 const ExplorePage = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const initialCategory = searchParams.get('categoria') || 'Todas';
   
   const [cakes, setCakes] = useState([]);
@@ -42,6 +43,20 @@ const ExplorePage = () => {
     };
     fetchData();
   }, []);
+
+  // Manejador del click en las categorías (Chips)
+  const handleCategoryClick = (category) => {
+    const nameLower = category.name.toLowerCase();
+    const slugLower = category.slug ? category.slug.toLowerCase() : '';
+
+    // Si presiona "Bodas" o "Boda", redirige a la página exclusiva de bodas
+    if (nameLower === 'bodas' || nameLower === 'boda' || slugLower === 'bodas' || slugLower === 'boda') {
+      navigate('/wedding'); 
+    } else {
+      // Para cualquier otra categoría, filtra aquí mismo normalmente
+      setSpecialty(category.name);
+    }
+  };
 
   const filtered = cakes.filter(cake => {
     const matchSearch = cake.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -87,7 +102,7 @@ const ExplorePage = () => {
                 <button
                   key={s.id}
                   className={`explore-filters__chip ${specialty === s.name || specialty === s.slug ? 'explore-filters__chip--active' : ''}`}
-                  onClick={() => setSpecialty(s.name)}
+                  onClick={() => handleCategoryClick(s)}
                 >
                   {s.name}
                 </button>
