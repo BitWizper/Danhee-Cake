@@ -60,6 +60,12 @@ const UIGraduation = () => {
       navigate('/anniversary');
     } else if (nameLower === 'corporativo' || slugLower === 'corporativo') {
       navigate('/corporate');
+    } else if (nameLower === 'baby shower' || slugLower === 'baby-shower') {
+      navigate('/babyshower');
+    } else if (nameLower === 'cumpleaños' || nameLower === 'cumpleanos' || slugLower === 'cumpleanos') {
+      navigate('/birthday');
+    } else if (nameLower === 'xv años' || slugLower === 'xv-anos') {
+      navigate('/xv');
     } else {
       navigate(`/explorar?categoria=${category.name}`);
     }

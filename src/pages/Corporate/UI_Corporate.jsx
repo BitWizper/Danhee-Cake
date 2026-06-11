@@ -60,6 +60,12 @@ const UICorporate = () => {
       navigate('/anniversary');
     } else if (nameLower === 'graduación' || nameLower === 'graduacion' || slugLower === 'graduacion') {
       navigate('/graduation');
+    } else if (nameLower === 'baby shower' || slugLower === 'baby-shower') {
+      navigate('/babyshower');
+    } else if (nameLower === 'cumpleaños' || nameLower === 'cumpleanos' || slugLower === 'cumpleanos') {
+      navigate('/birthday');
+    } else if (nameLower === 'xv años' || slugLower === 'xv-anos') {
+      navigate('/xv');
     } else {
       navigate(`/explorar?categoria=${category.name}`);
     }

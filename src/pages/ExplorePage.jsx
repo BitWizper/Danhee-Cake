@@ -7,12 +7,12 @@ const ExplorePage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const initialCategory = searchParams.get('categoria') || 'Todas';
-  
+
   const [cakes, setCakes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const [search, setSearch] = useState('');
   const [location, setLocation] = useState('');
   const [specialty, setSpecialty] = useState(initialCategory);
@@ -24,14 +24,14 @@ const ExplorePage = () => {
           fetch('http://localhost:4000/api/cakes'),
           fetch('http://localhost:4000/api/categories')
         ]);
-        
+
         if (!cakesRes.ok || !catsRes.ok) {
           throw new Error('No se pudo obtener la información completa del servidor.');
         }
 
         const cakesData = await cakesRes.json();
         const catsData = await catsRes.json();
-        
+
         if (cakesData.success) setCakes(cakesData.data);
         if (catsData.success) setCategories([{ id: 0, name: 'Todas', slug: 'Todas' }, ...catsData.data]);
       } catch (error) {
@@ -61,14 +61,16 @@ const ExplorePage = () => {
       navigate('/graduation');
     } else if (nameLower === 'cumpleaños' || nameLower === 'cumpleanos' || slugLower === 'cumpleanos') {
       navigate('/birthday');
+    } else if (nameLower === 'xv años' || slugLower === 'xv-anos') {
+      navigate('/xv');
     } else {
       setSpecialty(category.name);
     }
   };
 
   const filtered = cakes.filter(cake => {
-    const matchSearch = cake.name.toLowerCase().includes(search.toLowerCase()) || 
-                        cake.business_name.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = cake.name.toLowerCase().includes(search.toLowerCase()) ||
+      cake.business_name.toLowerCase().includes(search.toLowerCase());
     const matchLocation = !location || cake.location.toLowerCase().includes(location.toLowerCase());
     const matchSpecialty = specialty === 'Todas' || cake.category_name === specialty || cake.category_slug === specialty;
     return matchSearch && matchLocation && matchSpecialty;

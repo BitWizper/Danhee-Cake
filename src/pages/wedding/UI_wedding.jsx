@@ -66,6 +66,8 @@ const UIWedding = () => {
       navigate('/babyshower');
     } else if (nameLower === 'cumpleaños' || nameLower === 'cumpleanos' || slugLower === 'cumpleanos') {
       navigate('/birthday');
+      } else if (nameLower === 'xv años' || slugLower === 'xv-anos') {
+      navigate('/xv');
     } else {
       navigate(`/explorar?categoria=${category.name}`);
     }

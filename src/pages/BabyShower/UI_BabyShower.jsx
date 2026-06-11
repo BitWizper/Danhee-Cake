@@ -64,7 +64,9 @@ const BabyShower = () => {
             navigate('/corporate');
         } else if (nameLower === 'graduación' || nameLower === 'graduacion' || slugLower === 'graduacion') {
             navigate('/graduation');
-        } else {
+        } else if (nameLower === 'xv años' || slugLower === 'xv-anos') {
+            navigate('/xv');
+        } else {    
             navigate(`/explorar?categoria=${category.name}`);
         }
     };

@@ -64,8 +64,10 @@ const Cumpleanos = () => {
             navigate('/graduation');
         } else if (nameLower === 'baby shower' || slugLower === 'baby-shower') {
             navigate('/babyshower');
+        } else if (nameLower === 'xv años' || slugLower === 'xv-anos') {
+            navigate('/xv');
         } else {
-            navigate(`/explorar?categoria=${category.name}`);
+            navigate(`/explorar?cate    goria=${category.name}`);
         }
     };
 

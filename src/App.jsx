@@ -18,8 +18,9 @@ import UIWedding from './pages/wedding/UI_wedding';
 import UIAnniversary from './pages/Anniversary/UI_Anniversary';
 import UICorporate from './pages/Corporate/UI_Corporate';
 import UIBabyShower from './pages/BabyShower/UI_BabyShower';
-import UIBirthday from './pages/Birthday/UI_Cumple';      // ✅ importado como UIBirthday
+import UIBirthday from './pages/Birthday/UI_Cumple';
 import UIGraduation from './pages/Graduation/UI_Graduation';
+import UIXV from './pages/XV/UI_xv';
 import CakeDetailPage from './pages/CakeDetailPage';
 
 import { AuthProvider } from './context/AuthContext';
@@ -62,6 +63,7 @@ const App = () => {
           <Route path="/anniversary" element={<UIAnniversary />} />
           <Route path="/corporate" element={<UICorporate />} />
           <Route path="/graduation" element={<UIGraduation />} />
+          <Route path="/xv" element={<UIXV />} />
           <Route path="/birthday" element={<UIBirthday />} />      {/* ✅ Corregido: UIBirthday */}
           <Route path="/babyshower" element={<UIBabyShower />} />  {/* ✅ Correcto */}
 
