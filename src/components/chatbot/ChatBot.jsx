@@ -1,19 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import { FaPaperPlane, FaRobot, FaTimes } from "react-icons/fa";
+import { useAuth } from "../../context/AuthContext";
 import "./ChatBot.css";
 
+const WELCOME_MESSAGE = {
+  sender: "bot",
+  text: "Hola, soy Danhee Assistant. Puedo ayudarte con sabores, tamaños, rellenos, decoración y pedidos personalizados.",
+};
+
 function ChatBot() {
+  const { user } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [chat, setChat] = useState([
-    {
-      sender: "bot",
-      text: "Hola, soy Danhee Assistant. Puedo ayudarte con sabores, tamaños, rellenos, decoración y pedidos personalizados.",
-    },
-  ]);
+  const [chat, setChat] = useState([WELCOME_MESSAGE]);
   const messagesEndRef = useRef(null);
+
+  // Cuando el usuario cambia (login o logout), se reinicia el chat en UI
+  // También se cierra el chatbot para que el cambio sea limpio
+  useEffect(() => {
+    setChat([WELCOME_MESSAGE]);
+    setMessage("");
+    setIsSending(false);
+    setOpen(false);
+  }, [user]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -35,10 +46,10 @@ function ChatBot() {
     setIsSending(true);
 
     try {
-
       const token = localStorage.getItem("token");
       const conversation_id = localStorage.getItem("conversation_id");
-      const user = JSON.parse(localStorage.getItem("user") || "null");
+      const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+
       const headers = {
         "Content-Type": "application/json",
       };
@@ -55,7 +66,7 @@ function ChatBot() {
           body: JSON.stringify({
             message: trimmedMessage,
             conversation_id: conversation_id,
-            client_id: user ? user.id : null
+            client_id: storedUser ? storedUser.id : null,
           }),
         }
       );
@@ -76,9 +87,7 @@ function ChatBot() {
       setChat((prev) => [...prev, botMessage]);
 
     } catch (error) {
-
       console.error(error);
-
       setChat((prev) => [
         ...prev,
         {
@@ -86,7 +95,6 @@ function ChatBot() {
           text: "Tuve un problema al procesar tu mensaje. Vuelve a intentarlo, por favor.",
         },
       ]);
-
     }
 
     setMessage("");
@@ -145,9 +153,7 @@ function ChatBot() {
               type="text"
               placeholder="Pregunta algo..."
               value={message}
-              onChange={(e) =>
-                setMessage(e.target.value)
-              }
+              onChange={(e) => setMessage(e.target.value)}
               disabled={isSending}
             />
 
