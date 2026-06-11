@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import StarRating from '../../components/ui/StarRating';
-import './UI_BabyShower.css';
+import '../Birthday/UI_Cumple.css';
 
-const BabyShower = () => {
+const Cumpleanos = () => {
     const navigate = useNavigate();
     const [cakes, setCakes] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -29,18 +29,18 @@ const BabyShower = () => {
                 const catsData = await catsRes.json();
 
                 if (cakesData.success) {
-                    const babyShowerCakes = cakesData.data.filter(
-                        cake => cake.category_name === 'Baby Shower' || cake.category_slug === 'baby-shower'
+                    const birthdayCakes = cakesData.data.filter(
+                        cake => cake.category_name === 'Cumpleaños' || cake.category_slug === 'cumpleanos'
                     );
-                    setCakes(babyShowerCakes);
+                    setCakes(birthdayCakes);
                 }
 
                 if (catsData.success) {
                     setCategories([{ id: 0, name: 'Todas', slug: 'Todas' }, ...catsData.data]);
                 }
             } catch (error) {
-                console.error('Error fetching baby shower data:', error);
-                setError('Error de conexión: Verifica que el servidor esté activo para cargar los pasteles de baby shower.');
+                console.error('Error fetching birthday data:', error);
+                setError('Error de conexión: Verifica que el servidor esté activo para cargar los pasteles de cumpleaños.');
             } finally {
                 setLoading(false);
             }
@@ -52,18 +52,18 @@ const BabyShower = () => {
         const nameLower = category.name.toLowerCase();
         const slugLower = category.slug ? category.slug.toLowerCase() : '';
 
-        if (nameLower === 'baby shower' || slugLower === 'baby-shower') {
-            return; // ya estamos en baby shower
+        if (nameLower === 'cumpleaños' || slugLower === 'cumpleanos') {
+            return; // ya estamos en cumpleaños
         } else if (nameLower === 'aniversario' || slugLower === 'aniversario') {
             navigate('/anniversary');
-        } else if (nameLower === 'cumpleaños' || slugLower === 'cumpleanos') {
-            navigate('/birthday');
         } else if (nameLower === 'bodas' || nameLower === 'boda' || slugLower === 'bodas' || slugLower === 'boda') {
             navigate('/wedding');
         } else if (nameLower === 'corporativo' || slugLower === 'corporativo') {
             navigate('/corporate');
         } else if (nameLower === 'graduación' || nameLower === 'graduacion' || slugLower === 'graduacion') {
             navigate('/graduation');
+        } else if (nameLower === 'baby shower' || slugLower === 'baby-shower') {
+            navigate('/babyshower');
         } else {
             navigate(`/explorar?categoria=${category.name}`);
         }
@@ -77,30 +77,30 @@ const BabyShower = () => {
     });
 
     return (
-        <div className="babyshower-page" id="babyshower-page">
-            <div className="babyshower-page__header">
+        <div className="birthday-page" id="birthday-page">
+            <div className="birthday-page__header">
                 <div className="container">
-                    <span className="babyshower-page__label">Colección Especial</span>
-                    <h1 className="babyshower-page__title font-serif">
-                        Pasteles de <span className="gradient-text">Baby Shower</span>
+                    <span className="birthday-page__label">Colección Especial</span>
+                    <h1 className="birthday-page__title font-serif">
+                        Pasteles de <span className="gradient-text">Cumpleaños</span>
                     </h1>
-                    <p className="babyshower-page__subtitle">
-                        Celebra la llegada de un nuevo integrante con un pastel tierno y lleno de amor
+                    <p className="birthday-page__subtitle">
+                        Celebra un año más de vida con un pastel único y personalizado
                     </p>
 
-                    <div className="babyshower-filters" id="babyshower-filters">
-                        <div className="babyshower-filters__main">
+                    <div className="birthday-filters" id="birthday-filters">
+                        <div className="birthday-filters__main">
                             <input
-                                id="babyshower-filter-search"
-                                className="babyshower-filters__input"
+                                id="birthday-filter-search"
+                                className="birthday-filters__input"
                                 type="text"
                                 placeholder="Buscar pastel o repostero..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
                             <input
-                                id="babyshower-filter-location"
-                                className="babyshower-filters__input"
+                                id="birthday-filter-location"
+                                className="birthday-filters__input"
                                 type="text"
                                 placeholder="Ubicación..."
                                 value={location}
@@ -112,7 +112,7 @@ const BabyShower = () => {
                             {categories.map(s => (
                                 <button
                                     key={s.id}
-                                    className={`explore-filters__chip ${s.name === 'Baby Shower' || s.slug === 'baby-shower' ? 'explore-filters__chip--active' : ''}`}
+                                    className={`explore-filters__chip ${s.name === 'Cumpleaños' || s.slug === 'cumpleanos' ? 'explore-filters__chip--active' : ''}`}
                                     onClick={() => handleCategoryClick(s)}
                                 >
                                     {s.name}
@@ -123,51 +123,51 @@ const BabyShower = () => {
                 </div>
             </div>
 
-            <div className="container babyshower-page__grid">
+            <div className="container birthday-page__grid">
                 {error && (
-                    <div className="babyshower-page__error glass">
+                    <div className="birthday-page__error glass">
                         <span>⚠️</span>
                         <p>{error}</p>
                     </div>
                 )}
 
                 {loading ? (
-                    <p className="babyshower-page__empty">Cargando pasteles de baby shower...</p>
+                    <p className="birthday-page__empty">Cargando pasteles de cumpleaños...</p>
                 ) : filteredCakes.length === 0 && !error ? (
-                    <p className="babyshower-page__empty">No se encontraron pasteles de baby shower con ese criterio.</p>
+                    <p className="birthday-page__empty">No se encontraron pasteles de cumpleaños con ese criterio.</p>
                 ) : filteredCakes.map((cake, i) => (
                     <article
                         key={cake.id}
-                        className="babyshower-cake-card animate-fadeUp"
+                        className="birthday-cake-card animate-fadeUp"
                         style={{ animationDelay: `${i * 0.05}s` }}
                     >
                         <Link to={`/pastel/${cake.id}`} style={{ display: 'block', textDecoration: 'none' }}>
-                            <div className="babyshower-cake-card__visual" style={{ height: '220px', background: 'var(--color-surface-2)' }}>
+                            <div className="birthday-cake-card__visual" style={{ height: '220px', background: 'var(--color-surface-2)' }}>
                                 {cake.image_url ? (
-                                    <img src={cake.image_url} alt={cake.name} className="babyshower-cake-card__img" />
+                                    <img src={cake.image_url} alt={cake.name} className="birthday-cake-card__img" />
                                 ) : (
-                                    <span className="babyshower-cake-card__emoji" style={{ fontSize: '3.5rem' }}>🍼</span>
+                                    <span className="birthday-cake-card__emoji" style={{ fontSize: '3.5rem' }}>🎂</span>
                                 )}
-                                <div className="babyshower-cake-card__tags">
-                                    <span className="babyshower-cake-card__tag">{cake.category_name}</span>
+                                <div className="birthday-cake-card__tags">
+                                    <span className="birthday-cake-card__tag">{cake.category_name}</span>
                                 </div>
                             </div>
                         </Link>
 
-                        <div className="babyshower-cake-card__body">
-                            <div className="babyshower-cake-card__meta">
-                                <span className="babyshower-cake-card__baker">{cake.business_name}</span>
-                                <span className="babyshower-cake-card__price">${cake.price}</span>
+                        <div className="birthday-cake-card__body">
+                            <div className="birthday-cake-card__meta">
+                                <span className="birthday-cake-card__baker">{cake.business_name}</span>
+                                <span className="birthday-cake-card__price">${cake.price}</span>
                             </div>
                             <Link to={`/pastel/${cake.id}`} style={{ textDecoration: 'none' }}>
-                                <h2 className="babyshower-cake-card__name font-serif">{cake.name}</h2>
+                                <h2 className="birthday-cake-card__name font-serif">{cake.name}</h2>
                             </Link>
-                            <p className="babyshower-cake-card__specialty">📍 {cake.location}</p>
-                            <div className="babyshower-cake-card__footer">
+                            <p className="birthday-cake-card__specialty">📍 {cake.location}</p>
+                            <div className="birthday-cake-card__footer">
                                 <StarRating rating={Number(cake.rating)} size="sm" />
-                                <span className="babyshower-cake-card__reviews">({cake.reviews_count})</span>
+                                <span className="birthday-cake-card__reviews">({cake.reviews_count})</span>
                             </div>
-                            <Link to={`/repostero/${cake.baker_id}`} className="babyshower-cake-card__cta">
+                            <Link to={`/repostero/${cake.baker_id}`} className="birthday-cake-card__cta">
                                 Ver perfil →
                             </Link>
                         </div>
@@ -178,4 +178,4 @@ const BabyShower = () => {
     );
 };
 
-export default BabyShower;
+export default Cumpleanos;

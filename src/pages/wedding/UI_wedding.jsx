@@ -62,6 +62,10 @@ const UIWedding = () => {
       navigate('/corporate');
     } else if (nameLower === 'graduación' || nameLower === 'graduacion' || slugLower === 'graduacion') {
       navigate('/graduation');
+    } else if (nameLower === 'baby shower' || slugLower === 'baby-shower') {
+      navigate('/babyshower');
+    } else if (nameLower === 'cumpleaños' || nameLower === 'cumpleanos' || slugLower === 'cumpleanos') {
+      navigate('/birthday');
     } else {
       navigate(`/explorar?categoria=${category.name}`);
     }

@@ -1,9 +1,9 @@
-.babyshower-page {
+.birthday-page {
     min-height: 100vh;
     padding-bottom: var(--space-20);
 }
 
-.babyshower-page__header {
+.birthday-page__header {
     padding-top: calc(var(--navbar-height) + var(--space-12));
     padding-bottom: var(--space-12);
     background: var(--color-bg-alt);
@@ -11,7 +11,7 @@
     margin-bottom: var(--space-12);
 }
 
-.babyshower-page__label {
+.birthday-page__label {
     display: block;
     font-size: var(--text-xs);
     letter-spacing: 0.14em;
@@ -20,33 +20,33 @@
     margin-bottom: var(--space-3);
 }
 
-.babyshower-page__title {
+.birthday-page__title {
     font-size: clamp(2rem, 4vw, 3.2rem);
     font-weight: 300;
     color: var(--color-cream);
     margin-bottom: var(--space-3);
 }
 
-.babyshower-page__subtitle {
+.birthday-page__subtitle {
     font-size: var(--text-base);
     color: var(--color-muted);
     margin-bottom: var(--space-8);
 }
 
-.babyshower-filters {
+.birthday-filters {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
     max-width: 800px;
 }
 
-.babyshower-filters__main {
+.birthday-filters__main {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--space-3);
 }
 
-.babyshower-filters__input {
+.birthday-filters__input {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -59,24 +59,24 @@
     width: 100%;
 }
 
-.babyshower-filters__input:focus {
+.birthday-filters__input:focus {
     border-color: rgba(201, 169, 110, 0.4);
 }
 
-.babyshower-page__grid {
+.birthday-page__grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: var(--space-5);
 }
 
-.babyshower-page__empty {
+.birthday-page__empty {
     grid-column: 1 / -1;
     text-align: center;
     color: var(--color-muted);
     padding: var(--space-16);
 }
 
-.babyshower-page__error {
+.birthday-page__error {
     grid-column: 1 / -1;
     display: flex;
     align-items: center;
@@ -88,7 +88,7 @@
     color: #f87171;
 }
 
-.babyshower-cake-card {
+.birthday-cake-card {
     display: flex;
     flex-direction: column;
     background: var(--color-surface);
@@ -99,13 +99,13 @@
     opacity: 0;
 }
 
-.babyshower-cake-card:hover {
+.birthday-cake-card:hover {
     border-color: rgba(201, 169, 110, 0.25);
     transform: translateY(-4px);
     box-shadow: var(--shadow-lg), var(--shadow-gold);
 }
 
-.babyshower-cake-card__visual {
+.birthday-cake-card__visual {
     position: relative;
     display: flex;
     align-items: center;
@@ -113,24 +113,24 @@
     overflow: hidden;
 }
 
-.babyshower-cake-card__img {
+.birthday-cake-card__img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     transition: transform var(--transition-base);
 }
 
-.babyshower-cake-card:hover .babyshower-cake-card__img {
+.birthday-cake-card:hover .birthday-cake-card__img {
     transform: scale(1.03);
 }
 
-.babyshower-cake-card__tags {
+.birthday-cake-card__tags {
     position: absolute;
     top: var(--space-3);
     left: var(--space-3);
 }
 
-.babyshower-cake-card__tag {
+.birthday-cake-card__tag {
     font-size: 0.625rem;
     color: var(--color-gold-light);
     background: rgba(201, 169, 110, 0.2);
@@ -141,54 +141,54 @@
     text-transform: uppercase;
 }
 
-.babyshower-cake-card__body {
+.birthday-cake-card__body {
     padding: var(--space-4);
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
 }
 
-.babyshower-cake-card__meta {
+.birthday-cake-card__meta {
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-.babyshower-cake-card__baker {
+.birthday-cake-card__baker {
     font-size: var(--text-xs);
     color: var(--color-gold-dim);
 }
 
-.babyshower-cake-card__price {
+.birthday-cake-card__price {
     font-weight: 600;
     color: var(--color-cream);
 }
 
-.babyshower-cake-card__name {
+.birthday-cake-card__name {
     font-size: 1.25rem;
     color: var(--color-cream);
     margin: 0;
 }
 
-.babyshower-cake-card__specialty {
+.birthday-cake-card__specialty {
     font-size: var(--text-sm);
     color: var(--color-muted);
     margin: 0;
 }
 
-.babyshower-cake-card__footer {
+.birthday-cake-card__footer {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     margin-top: var(--space-1);
 }
 
-.babyshower-cake-card__reviews {
+.birthday-cake-card__reviews {
     font-size: var(--text-xs);
     color: var(--color-faint);
 }
 
-.babyshower-cake-card__cta {
+.birthday-cake-card__cta {
     margin-top: var(--space-2);
     font-size: var(--text-sm);
     color: var(--color-gold);
@@ -197,18 +197,18 @@
     display: inline-block;
 }
 
-.babyshower-cake-card__cta:hover {
+.birthday-cake-card__cta:hover {
     color: var(--color-gold-light);
 }
 
 @media (max-width: 960px) {
-    .babyshower-page__grid {
+    .birthday-page__grid {
         grid-template-columns: 1fr 1fr;
     }
 }
 
 @media (max-width: 580px) {
-    .babyshower-page__grid {
+    .birthday-page__grid {
         grid-template-columns: 1fr;
     }
 }

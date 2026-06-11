@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import StarRating from '../components/ui/StarRating'; // Ajustado según tu estructura de carpetas
+import StarRating from '../components/ui/StarRating';
 import './ExplorePage.css';
 
 const ExplorePage = () => {
@@ -55,8 +55,12 @@ const ExplorePage = () => {
       navigate('/anniversary');
     } else if (nameLower === 'corporativo' || slugLower === 'corporativo') {
       navigate('/corporate');
+    } else if (nameLower === 'baby-shower' || slugLower === 'baby-shower') {
+      navigate('/babyshower');
     } else if (nameLower === 'graduación' || nameLower === 'graduacion' || slugLower === 'graduacion') {
       navigate('/graduation');
+    } else if (nameLower === 'cumpleaños' || nameLower === 'cumpleanos' || slugLower === 'cumpleanos') {
+      navigate('/birthday');
     } else {
       setSpecialty(category.name);
     }

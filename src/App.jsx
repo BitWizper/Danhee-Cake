@@ -17,6 +17,8 @@ import BakerDashboardPage from './pages/BakerDashboardPage';
 import UIWedding from './pages/wedding/UI_wedding';
 import UIAnniversary from './pages/Anniversary/UI_Anniversary';
 import UICorporate from './pages/Corporate/UI_Corporate';
+import UIBabyShower from './pages/BabyShower/UI_BabyShower';
+import UIBirthday from './pages/Birthday/UI_Cumple';      // ✅ importado como UIBirthday
 import UIGraduation from './pages/Graduation/UI_Graduation';
 import CakeDetailPage from './pages/CakeDetailPage';
 
@@ -35,67 +37,69 @@ const App = () => {
         {/* Navbar fijo en todas las páginas */}
         <Navbar />
 
-      {/* Rutas principales */}
-      <Routes>
-        {/* RQF04 – Home con pasteles destacados y hero */}
-        <Route path="/" element={<HomePage />} />
+        {/* Rutas principales */}
+        <Routes>
+          {/* RQF04 – Home con pasteles destacados y hero */}
+          <Route path="/" element={<HomePage />} />
 
-        {/* RQF03 – Autenticación */}
-        <Route path="/login" element={<LoginPage />} />
+          {/* RQF03 – Autenticación */}
+          <Route path="/login" element={<LoginPage />} />
 
-        {/* RQF01 / RQF02 – Registro cliente y repostero */}
-        <Route path="/registro" element={<RegisterPage />} />
+          {/* RQF01 / RQF02 – Registro cliente y repostero */}
+          <Route path="/registro" element={<RegisterPage />} />
 
-        {/* RQF04.1 – Explorar / Buscar reposteros */}
-        <Route path="/explorar" element={<ExplorePage />} />
+          {/* RQF04.1 – Explorar / Buscar reposteros */}
+          <Route path="/explorar" element={<ExplorePage />} />
 
-        {/* RQF05 / RQF06 – Perfil del repostero, portafolio y reseñas */}
-        <Route path="/repostero/:id" element={<BakerProfilePage />} />
+          {/* RQF05 / RQF06 – Perfil del repostero, portafolio y reseñas */}
+          <Route path="/repostero/:id" element={<BakerProfilePage />} />
 
-        {/* RQF04.3 – Diseñador de pastel personalizado */}
-        <Route path="/diseñador" element={<CakeDesignerPage />} />
+          {/* RQF04.3 – Diseñador de pastel personalizado */}
+          <Route path="/diseñador" element={<CakeDesignerPage />} />
 
-        {/* Rutas de Categorías de Pasteles */}
-        <Route path="/wedding" element={<UIWedding />} />
-        <Route path="/anniversary" element={<UIAnniversary />} />
-        <Route path="/corporate" element={<UICorporate />} />
-        <Route path="/graduation" element={<UIGraduation />} />
+          {/* Rutas de Categorías de Pasteles */}
+          <Route path="/wedding" element={<UIWedding />} />
+          <Route path="/anniversary" element={<UIAnniversary />} />
+          <Route path="/corporate" element={<UICorporate />} />
+          <Route path="/graduation" element={<UIGraduation />} />
+          <Route path="/birthday" element={<UIBirthday />} />      {/* ✅ Corregido: UIBirthday */}
+          <Route path="/babyshower" element={<UIBabyShower />} />  {/* ✅ Correcto */}
 
-        {/* Detalle del pastel individual */}
-        <Route path="/pastel/:id" element={<CakeDetailPage />} />
+          {/* Detalle del pastel individual */}
+          <Route path="/pastel/:id" element={<CakeDetailPage />} />
 
-        {/* RQF04.2 – Agendar cita con repostero */}
-        <Route path="/agenda/:id" element={<AppointmentPage />} />
-        <Route path="/agenda" element={<AppointmentPage />} />
+          {/* RQF04.2 – Agendar cita con repostero */}
+          <Route path="/agenda/:id" element={<AppointmentPage />} />
+          <Route path="/agenda" element={<AppointmentPage />} />
 
-        {/* Dashboard de repostero */}
-        <Route path="/dashboard" element={<BakerDashboardPage />} />
+          {/* Dashboard de repostero */}
+          <Route path="/dashboard" element={<BakerDashboardPage />} />
 
-        {/* 404 fallback */}
-        <Route path="*" element={
-          <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '1rem',
-            paddingTop: 'var(--navbar-height)',
-            fontFamily: 'var(--font-serif)',
-          }}>
-            <span style={{ fontSize: '4rem' }}>🎂</span>
-            <h1 style={{ fontSize: '2.5rem', fontWeight: 300, color: 'var(--color-cream)' }}>
-              Página no encontrada
-            </h1>
-            <a href="/" style={{ color: 'var(--color-gold)' }}>← Volver al inicio</a>
-          </div>
-        } />
-      </Routes>
+          {/* 404 fallback */}
+          <Route path="*" element={
+            <div style={{
+              minHeight: '100vh',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1rem',
+              paddingTop: 'var(--navbar-height)',
+              fontFamily: 'var(--font-serif)',
+            }}>
+              <span style={{ fontSize: '4rem' }}>🎂</span>
+              <h1 style={{ fontSize: '2.5rem', fontWeight: 300, color: 'var(--color-cream)' }}>
+                Página no encontrada
+              </h1>
+              <a href="/" style={{ color: 'var(--color-gold)' }}>← Volver al inicio</a>
+            </div>
+          } />
+        </Routes>
 
-      {/* Footer en todas las páginas */}
-      <Footer />
-      <ChatBot />
-    </BrowserRouter>
+        {/* Footer en todas las páginas */}
+        <Footer />
+        <ChatBot />
+      </BrowserRouter>
     </AuthProvider>
   );
 };
