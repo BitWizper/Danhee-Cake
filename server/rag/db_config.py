@@ -11,6 +11,7 @@ import mysql.connector
 from mysql.connector import Error
 from dotenv import load_dotenv
 from pathlib import Path
+import json
 
 # Cargar las variables de entorno desde el archivo .env de Node.js
 base_dir = Path(__file__).resolve().parent.parent
@@ -157,5 +158,84 @@ def get_user_by_id(user_id):
     except Error as e:
         print(f"[db_config] Error en get_user_by_id: {e}", file=sys.stderr)
         return None
+    finally:
+        if conn: conn.close()
+
+def get_or_create_chat_session(conversation_id, client_id=None):
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT conversation_id FROM chat_sessions WHERE conversation_id = %s', (conversation_id,))
+        if cursor.fetchone():
+            return True
+        cursor.execute('INSERT INTO chat_sessions (conversation_id, client_id) VALUES (%s, %s)', (conversation_id, client_id))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"[db_config] Error en get_or_create_chat_session: {e}", file=sys.stderr)
+        return False
+    finally:
+        if conn: conn.close()
+
+def get_chat_history(conversation_id, system_prompt, max_turns=10):
+    conn = get_connection()
+    if not conn: return [{"role": "system", "content": system_prompt}]
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('''
+            SELECT role, content, tool_calls 
+            FROM chat_messages 
+            WHERE conversation_id = %s 
+            ORDER BY id ASC
+        ''', (conversation_id,))
+        rows = cursor.fetchall()
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Sliding window: conservamos los últimos turnos para evitar Out of Memory
+        if len(rows) > max_turns * 2:
+            rows = rows[-(max_turns * 2):]
+            
+        for row in rows:
+            msg = {"role": row["role"], "content": row["content"]}
+            if row["tool_calls"]:
+                try:
+                    msg["tool_calls"] = json.loads(row["tool_calls"])
+                except:
+                    pass
+            messages.append(msg)
+            
+        return messages
+    except Error as e:
+        print(f"[db_config] Error en get_chat_history: {e}", file=sys.stderr)
+        return [{"role": "system", "content": system_prompt}]
+    finally:
+        if conn: conn.close()
+
+def custom_serializer(obj):
+    if hasattr(obj, 'model_dump'):
+        return obj.model_dump()
+    if hasattr(obj, 'dict'):
+        return obj.dict()
+    if hasattr(obj, '__dict__'):
+        return obj.__dict__
+    return str(obj)
+
+def add_chat_message(conversation_id, role, content, tool_calls=None):
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        tool_calls_json = json.dumps(tool_calls, default=custom_serializer) if tool_calls else None
+        cursor.execute('''
+            INSERT INTO chat_messages (conversation_id, role, content, tool_calls)
+            VALUES (%s, %s, %s, %s)
+        ''', (conversation_id, role, content, tool_calls_json))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"[db_config] Error en add_chat_message: {e}", file=sys.stderr)
+        return False
     finally:
         if conn: conn.close()

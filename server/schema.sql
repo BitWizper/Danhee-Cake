@@ -108,6 +108,25 @@ CREATE TABLE IF NOT EXISTS cake_designs (
 -- ============================================================
 --  SEED – Categorías (datos iniciales)
 -- ============================================================
+-- ── Memoria del Chatbot ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  conversation_id VARCHAR(50) PRIMARY KEY,
+  client_id INT DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (client_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  conversation_id VARCHAR(50) NOT NULL,
+  role VARCHAR(20) NOT NULL,
+  content TEXT NOT NULL,
+  tool_calls TEXT DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (conversation_id) REFERENCES chat_sessions(conversation_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT IGNORE INTO categories (name, slug, icon, description, sort_order) VALUES
 ('XV Años',     'xv-anos',      '👑', 'Pasteles elegantes y memorables para la gran celebración de quince años',         1),
 ('Boda',        'boda',         '💍', 'Pasteles nupciales de lujo, diseñados para el día más especial de tu vida',        2),

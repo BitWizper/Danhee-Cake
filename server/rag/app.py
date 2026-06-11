@@ -39,15 +39,14 @@ except ImportError as e:
 from db_config import (
     get_cakes, get_bakers, get_baker_by_id, 
     get_appointments_by_baker_date, insert_appointment, 
-    insert_guest_appointment, get_categories, get_user_by_id
+    insert_guest_appointment, get_categories, get_user_by_id,
+    get_or_create_chat_session, get_chat_history, add_chat_message
 )
 
 base_dir = Path(__file__).resolve().parent
 
 # Variable global para almacenar client_id del usuario actual (por turno)
 _current_client_id = None
-# Diccionario para mantener el historial de conversación por cliente (clave: client_id o "guest")
-conversation_histories = {}
 # Variable para almacenar el último resultado de búsqueda
 _last_search_result = {}
 # Cache para contenido de PDFs
@@ -1528,28 +1527,21 @@ print(f"[RAG Server] 🤖 Usando modelo con soporte de tools: {llm_model}", file
 # SECCIÓN 5: ORQUESTADOR CON FUNCTION CALLING Y MEMORIA
 # ─────────────────────────────────────────────────────────────────────────────
 
-def generate_response_with_tools(question: str, client_id: int = None) -> str:
+def generate_response_with_tools(question: str, client_id: int = None, conversation_id: str = None) -> str:
     """
     Orquestador con Function Calling nativo de Ollama y memoria de conversación.
-    Mantiene un historial completo por cliente.
+    Mantiene un historial completo por cliente en base de datos.
     """
-    global _current_client_id, conversation_histories
+    global _current_client_id
     _current_client_id = client_id
     
-    # Determinar clave de historial (para invitados usamos "guest")
-    history_key = client_id if client_id is not None else "guest"
+    # Obtener el historial actual de la base de datos
+    messages = get_chat_history(conversation_id, SYSTEM_PROMPT)
     
-    # Inicializar historial si no existe (con el mensaje de sistema)
-    if history_key not in conversation_histories:
-        conversation_histories[history_key] = [
-            {"role": "system", "content": SYSTEM_PROMPT}
-        ]
-    
-    # Obtener el historial actual
-    messages = conversation_histories[history_key].copy()
-    
-    # Agregar el nuevo mensaje del usuario
+    # Agregar el nuevo mensaje del usuario al arreglo temporal
     messages.append({"role": "user", "content": question})
+    # Guardarlo de manera persistente en DB
+    add_chat_message(conversation_id, "user", question)
     
     # Búsqueda RAG (opcional, se puede inyectar como un mensaje de sistema adicional)
     rag_context = ""
@@ -1582,16 +1574,24 @@ def generate_response_with_tools(question: str, client_id: int = None) -> str:
     if tool_calls:
         print(f"[RAG] 🔧 Ejecutando {len(tool_calls)} herramienta(s)...", file=sys.stderr)
         
-        # Agregar el mensaje del asistente con las tool_calls al historial temporal
+        # Agregar el mensaje del asistente con las tool_calls al historial temporal y BD
         messages.append({
             "role": "assistant",
             "content": assistant_message.get("content", ""),
             "tool_calls": tool_calls
         })
+        add_chat_message(conversation_id, "assistant", assistant_message.get("content", ""), tool_calls)
         
         for tool_call in tool_calls:
-            func_name = tool_call.get("function", {}).get("name", "")
-            raw_args = tool_call.get("function", {}).get("arguments", {})
+            if hasattr(tool_call, 'function'):
+                func_name = tool_call.function.name
+                raw_args = tool_call.function.arguments
+            elif isinstance(tool_call, dict):
+                func_name = tool_call.get("function", {}).get("name", "")
+                raw_args = tool_call.get("function", {}).get("arguments", {})
+            else:
+                func_name = ""
+                raw_args = {}
             
             if isinstance(raw_args, str):
                 try:
@@ -1632,17 +1632,20 @@ def generate_response_with_tools(question: str, client_id: int = None) -> str:
                     result = FUNCTIONS_MAP[func_name](**filtered_args)
                     print(f"[RAG]   ✅ Resultado obtenido", file=sys.stderr)
                 except Exception as e:
-                    result = {"error": f"Error: {str(e)}"}
-                    print(f"[RAG]   ❌ Error: {e}", file=sys.stderr)
+                    # Manejo de error seguro para evitar State Poisoning y bucles infinitos
+                    result = {"error": "Error interno al ejecutar la herramienta. Por favor, informa al usuario que hubo un problema técnico y que intente más tarde."}
+                    print(f"[RAG]   ❌ Error interceptado para proteger la memoria: {e}", file=sys.stderr)
             else:
                 print(f"[RAG]   ▶ {func_name}({args})", file=sys.stderr)
                 result = {"error": f"Herramienta '{func_name}' no encontrada"}
                 print(f"[RAG]   ❌ Herramienta no encontrada", file=sys.stderr)
             
+            tool_result_content = json.dumps(result, ensure_ascii=False, default=json_serial)
             messages.append({
                 "role": "tool",
-                "content": json.dumps(result, ensure_ascii=False, default=json_serial)
+                "content": tool_result_content
             })
+            add_chat_message(conversation_id, "tool", tool_result_content)
         
         print(f"[RAG] Re-invocando LLM con resultados...", file=sys.stderr)
         try:
@@ -1652,9 +1655,10 @@ def generate_response_with_tools(question: str, client_id: int = None) -> str:
             )
             final_content = final_response.get("message", {}).get("content", "").strip()
             
-            # Agregar la respuesta final del asistente al historial
+            # Agregar la respuesta final del asistente al historial y DB
             if final_content:
                 messages.append({"role": "assistant", "content": final_content})
+                add_chat_message(conversation_id, "assistant", final_content)
             else:
                 # Si no generó contenido, tomar el último resultado de la herramienta
                 last_tool_result = json.loads(messages[-1]["content"])
@@ -1665,14 +1669,7 @@ def generate_response_with_tools(question: str, client_id: int = None) -> str:
                 else:
                     final_content = "Procesé tu solicitud en Danhee Cake. ¿Necesitas algo más? 🎂"
                 messages.append({"role": "assistant", "content": final_content})
-            
-            # Actualizar el historial permanente (eliminando el mensaje de contexto RAG si se inyectó)
-            cleaned_messages = []
-            for m in messages:
-                if m.get("role") == "system" and m.get("content", "").startswith("Contexto adicional:"):
-                    continue
-                cleaned_messages.append(m)
-            conversation_histories[history_key] = cleaned_messages
+                add_chat_message(conversation_id, "assistant", final_content)
             
             return final_content
                     
@@ -1687,15 +1684,9 @@ def generate_response_with_tools(question: str, client_id: int = None) -> str:
         if not direct_content:
             direct_content = "🎂 ¡Bienvenido a Danhee Cake! Soy tu asistente virtual. ¿En qué puedo ayudarte?"
         
-        # Agregar la respuesta directa al historial
+        # Agregar la respuesta directa al historial y base de datos
         messages.append({"role": "assistant", "content": direct_content})
-        # Eliminar posible mensaje de contexto RAG inyectado
-        cleaned_messages = []
-        for m in messages:
-            if m.get("role") == "system" and m.get("content", "").startswith("Contexto adicional:"):
-                continue
-            cleaned_messages.append(m)
-        conversation_histories[history_key] = cleaned_messages
+        add_chat_message(conversation_id, "assistant", direct_content)
         
         return direct_content
 
@@ -1716,6 +1707,14 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 req_data = json.loads(post_data.decode('utf-8'))
                 question = req_data.get('message', '').strip()
                 client_id = req_data.get('client_id')
+                conversation_id = req_data.get('conversation_id')
+                
+                if not conversation_id:
+                    import uuid
+                    conversation_id = str(uuid.uuid4())
+                
+                # Crear sesión si no existe
+                get_or_create_chat_session(conversation_id, client_id)
                 
                 if not question:
                     self._send_error(400, "Mensaje vacío")
@@ -1726,14 +1725,20 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     print(f"[RAG Server] ✅ Usuario autenticado ID: {client_id}", file=sys.stderr)
                 else:
                     print(f"[RAG Server] 👤 Usuario visitante", file=sys.stderr)
+                print(f"[RAG Server] 🔑 Conversation ID: {conversation_id}", file=sys.stderr)
                 
-                response_text = generate_response_with_tools(question, client_id)
+                response_text = generate_response_with_tools(question, client_id, conversation_id)
                 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
-                self.wfile.write(json.dumps({"response": response_text}, ensure_ascii=False).encode('utf-8'))
+                
+                response_json = {
+                    "response": response_text,
+                    "conversation_id": conversation_id
+                }
+                self.wfile.write(json.dumps(response_json, ensure_ascii=False).encode('utf-8'))
                 print(f"[RAG Server] ✔ Respuesta enviada", file=sys.stderr)
                 
             except Exception as e:
