@@ -15,6 +15,10 @@ import CakeDesignerPage from './pages/CakeDesignerPage';
 import AppointmentPage from './pages/AppointmentPage';
 import BakerDashboardPage from './pages/BakerDashboardPage';
 import UIWedding from './pages/wedding/UI_wedding';
+import UIAnniversary from './pages/Anniversary/UI_Anniversary';
+import UICorporate from './pages/Corporate/UI_Corporate';
+import UIGraduation from './pages/Graduation/UI_Graduation';
+import CakeDetailPage from './pages/CakeDetailPage';
 
 import { AuthProvider } from './context/AuthContext';
 import CursorGlow from './components/ui/CursorGlow';
@@ -51,7 +55,14 @@ const App = () => {
         {/* RQF04.3 – Diseñador de pastel personalizado */}
         <Route path="/diseñador" element={<CakeDesignerPage />} />
 
+        {/* Rutas de Categorías de Pasteles */}
         <Route path="/wedding" element={<UIWedding />} />
+        <Route path="/anniversary" element={<UIAnniversary />} />
+        <Route path="/corporate" element={<UICorporate />} />
+        <Route path="/graduation" element={<UIGraduation />} />
+
+        {/* Detalle del pastel individual */}
+        <Route path="/pastel/:id" element={<CakeDetailPage />} />
 
         {/* RQF04.2 – Agendar cita con repostero */}
         <Route path="/agenda/:id" element={<AppointmentPage />} />

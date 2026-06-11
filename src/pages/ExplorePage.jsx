@@ -49,11 +49,15 @@ const ExplorePage = () => {
     const nameLower = category.name.toLowerCase();
     const slugLower = category.slug ? category.slug.toLowerCase() : '';
 
-    // Si presiona "Bodas" o "Boda", redirige a la página exclusiva de bodas
     if (nameLower === 'bodas' || nameLower === 'boda' || slugLower === 'bodas' || slugLower === 'boda') {
-      navigate('/wedding'); 
+      navigate('/wedding');
+    } else if (nameLower === 'aniversario' || slugLower === 'aniversario') {
+      navigate('/anniversary');
+    } else if (nameLower === 'corporativo' || slugLower === 'corporativo') {
+      navigate('/corporate');
+    } else if (nameLower === 'graduación' || nameLower === 'graduacion' || slugLower === 'graduacion') {
+      navigate('/graduation');
     } else {
-      // Para cualquier otra categoría, filtra aquí mismo normalmente
       setSpecialty(category.name);
     }
   };

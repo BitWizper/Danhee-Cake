@@ -37,10 +37,12 @@ function ChatBot() {
     try {
 
       const token = localStorage.getItem("token");
+      const conversation_id = localStorage.getItem("conversation_id");
+      const user = JSON.parse(localStorage.getItem("user") || "null");
       const headers = {
         "Content-Type": "application/json",
       };
-      
+
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
@@ -52,12 +54,19 @@ function ChatBot() {
           headers: headers,
           body: JSON.stringify({
             message: trimmedMessage,
+            conversation_id: conversation_id,
+            client_id: user ? user.id : null
           }),
         }
       );
 
       const data = await res.json();
-      const responseText = (data.response || "").replace(/�/g, "").trim();
+      const rawText = data.response || "";
+      const responseText = rawText.replace(/\uFFFD/g, "").trim();
+
+      if (data.conversation_id) {
+        localStorage.setItem("conversation_id", data.conversation_id);
+      }
 
       const botMessage = {
         sender: "bot",

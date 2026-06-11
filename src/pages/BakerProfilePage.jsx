@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import StarRating from '../components/ui/StarRating';
 import Button from '../components/ui/Button';
@@ -121,10 +121,11 @@ const BakerProfilePage = () => {
               <p className="empty-msg">Este repostero aún no ha subido pasteles a su portafolio.</p>
             ) : (
               cakes.map((cake, i) => (
-                <div 
+                <Link 
+                  to={`/pastel/${cake.id}`}
                   key={cake.id} 
                   className="cake-card-simple glass animate-fadeUp"
-                  style={{ animationDelay: `${i * 0.1}s` }}
+                  style={{ animationDelay: `${i * 0.1}s`, display: 'block', textDecoration: 'none' }}
                 >
                   <div className="cake-card-simple__img">
                     {cake.image_url ? (
@@ -137,7 +138,7 @@ const BakerProfilePage = () => {
                     <h3>{cake.name}</h3>
                     <p>{cake.category_name}</p>
                   </div>
-                </div>
+                </Link>
               ))
             )}
           </div>

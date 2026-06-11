@@ -54,8 +54,15 @@ const UIWedding = () => {
     const nameLower = category.name.toLowerCase();
     const slugLower = category.slug ? category.slug.toLowerCase() : '';
 
-    // Si ya es Bodas no hace nada, para cualquier otra categoría regresa al explorador general pasándole el filtro
-    if (nameLower !== 'bodas' && nameLower !== 'boda' && slugLower !== 'bodas' && slugLower !== 'boda') {
+    if (nameLower === 'bodas' || nameLower === 'boda' || slugLower === 'bodas' || slugLower === 'boda') {
+      return; // ya estamos aquí
+    } else if (nameLower === 'aniversario' || slugLower === 'aniversario') {
+      navigate('/anniversary');
+    } else if (nameLower === 'corporativo' || slugLower === 'corporativo') {
+      navigate('/corporate');
+    } else if (nameLower === 'graduación' || nameLower === 'graduacion' || slugLower === 'graduacion') {
+      navigate('/graduation');
+    } else {
       navigate(`/explorar?categoria=${category.name}`);
     }
   };
@@ -134,23 +141,27 @@ const UIWedding = () => {
             className="wedding-cake-card animate-fadeUp"
             style={{ animationDelay: `${i * 0.05}s` }}
           >
-            <div className="wedding-cake-card__visual" style={{ height: '220px', background: 'var(--color-surface-2)' }}>
-              {cake.image_url ? (
-                <img src={cake.image_url} alt={cake.name} className="wedding-cake-card__img" />
-              ) : (
-                <span className="wedding-cake-card__emoji" style={{ fontSize: '3.5rem' }}>🎂</span>
-              )}
-              <div className="wedding-cake-card__tags">
-                <span className="wedding-cake-card__tag">{cake.category_name}</span>
+            <Link to={`/pastel/${cake.id}`} style={{ display: 'block', textDecoration: 'none' }}>
+              <div className="wedding-cake-card__visual" style={{ height: '220px', background: 'var(--color-surface-2)' }}>
+                {cake.image_url ? (
+                  <img src={cake.image_url} alt={cake.name} className="wedding-cake-card__img" />
+                ) : (
+                  <span className="wedding-cake-card__emoji" style={{ fontSize: '3.5rem' }}>🎂</span>
+                )}
+                <div className="wedding-cake-card__tags">
+                  <span className="wedding-cake-card__tag">{cake.category_name}</span>
+                </div>
               </div>
-            </div>
+            </Link>
 
             <div className="wedding-cake-card__body">
               <div className="wedding-cake-card__meta">
                 <span className="wedding-cake-card__baker">{cake.business_name}</span>
                 <span className="wedding-cake-card__price">${cake.price}</span>
               </div>
-              <h2 className="wedding-cake-card__name font-serif">{cake.name}</h2>
+              <Link to={`/pastel/${cake.id}`} style={{ textDecoration: 'none' }}>
+                <h2 className="wedding-cake-card__name font-serif">{cake.name}</h2>
+              </Link>
               <p className="wedding-cake-card__specialty">📍 {cake.location}</p>
               <div className="wedding-cake-card__footer">
                 <StarRating rating={Number(cake.rating)} size="sm" />
