@@ -17,10 +17,50 @@ function ChatBot() {
   const [chat, setChat] = useState([WELCOME_MESSAGE]);
   const messagesEndRef = useRef(null);
 
-  // Cuando el usuario cambia (login o logout), se reinicia el chat en UI
-  // También se cierra el chatbot para que el cambio sea limpio
+  // Cargar el historial de conversación del usuario autenticado
+  const loadConversationHistory = async () => {
+    try {
+      const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+      if (!storedUser?.id) return;
+
+      // Llamar directamente al servidor Python (puerto 5005)
+      const response = await fetch(`http://localhost:5005/chat/history?client_id=${storedUser.id}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.messages && data.messages.length > 0) {
+          // Convertir al formato que usa el chat (sender: "user" o "bot")
+          const historyMessages = data.messages.map(msg => ({
+            sender: msg.role === 'user' ? 'user' : 'bot',
+            text: msg.content
+          }));
+          setChat(historyMessages);
+        } else {
+          // No hay historial, mostrar mensaje de bienvenida
+          setChat([WELCOME_MESSAGE]);
+        }
+      } else {
+        // Error en la respuesta, mantener bienvenida
+        setChat([WELCOME_MESSAGE]);
+      }
+    } catch (error) {
+      console.error("Error cargando historial:", error);
+      setChat([WELCOME_MESSAGE]);
+    }
+  };
+
+  // Cuando el usuario cambia (login o logout)
   useEffect(() => {
-    setChat([WELCOME_MESSAGE]);
+    if (user) {
+      // Usuario autenticado: eliminar conversation_id actual para que el backend recupere el último
+      localStorage.removeItem('conversation_id');
+      // Cargar el historial de conversaciones
+      loadConversationHistory();
+    } else {
+      // Usuario no autenticado: resetear chat a bienvenida y limpiar ID
+      setChat([WELCOME_MESSAGE]);
+      localStorage.removeItem('conversation_id');
+    }
     setMessage("");
     setIsSending(false);
     setOpen(false);
@@ -58,6 +98,7 @@ function ChatBot() {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
+      // Enviar al proxy Node.js (puerto 4000) que redirige al servidor Python
       const res = await fetch(
         "http://localhost:4000/api/chat",
         {

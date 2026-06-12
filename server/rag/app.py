@@ -40,7 +40,9 @@ from db_config import (
     get_cakes, get_bakers, get_baker_by_id, 
     get_appointments_by_baker_date, insert_appointment, 
     insert_guest_appointment, get_categories, get_user_by_id,
-    get_or_create_chat_session, get_chat_history, add_chat_message
+    get_or_create_chat_session, get_chat_history, add_chat_message,
+    get_last_conversation_by_client,      # <-- NUEVA
+    get_chat_messages                     # <-- NUEVA
 )
 
 base_dir = Path(__file__).resolve().parent
@@ -1699,6 +1701,40 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
     
+    def do_GET(self):
+        """Manejar solicitudes GET para obtener historial de chat"""
+        from urllib.parse import urlparse, parse_qs
+        
+        parsed = urlparse(self.path)
+        path = parsed.path
+        
+        if path == '/chat/history':
+            params = parse_qs(parsed.query)
+            conversation_id = params.get('conversation_id', [None])[0]
+            client_id = params.get('client_id', [None])[0]
+            
+            # Si no hay conversation_id pero hay client_id, obtener el último
+            if not conversation_id and client_id:
+                conversation_id = get_last_conversation_by_client(client_id)
+                if conversation_id:
+                    print(f"[RAG Server] Recuperado conversation_id para cliente {client_id}: {conversation_id}", file=sys.stderr)
+            
+            if not conversation_id:
+                self._send_error(400, "Se requiere conversation_id o client_id")
+                return
+            
+            # Obtener los mensajes del historial (solo user y assistant)
+            messages = get_chat_messages(conversation_id)
+            filtered = [m for m in messages if m['role'] in ('user', 'assistant')]
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({"messages": filtered}, ensure_ascii=False).encode('utf-8'))
+        else:
+            self._send_error(404, "Not found")
+    
     def do_POST(self):
         if self.path == '/chat':
             try:
@@ -1709,11 +1745,19 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 client_id = req_data.get('client_id')
                 conversation_id = req_data.get('conversation_id')
                 
+                # Si no hay conversation_id pero hay cliente autenticado, recuperar su última conversación
+                if not conversation_id and client_id:
+                    last_conv = get_last_conversation_by_client(client_id)
+                    if last_conv:
+                        conversation_id = last_conv
+                        print(f"[RAG Server] Recuperada última conversación: {conversation_id}", file=sys.stderr)
+                
+                # Si aún no hay ID, crear uno nuevo
                 if not conversation_id:
                     import uuid
                     conversation_id = str(uuid.uuid4())
                 
-                # Crear sesión si no existe
+                # Crear sesión si no existe (o actualizar)
                 get_or_create_chat_session(conversation_id, client_id)
                 
                 if not question:
@@ -1750,7 +1794,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
     

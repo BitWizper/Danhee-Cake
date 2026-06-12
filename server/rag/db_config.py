@@ -213,6 +213,66 @@ def get_chat_history(conversation_id, system_prompt, max_turns=10):
     finally:
         if conn: conn.close()
 
+def get_last_conversation_by_client(client_id):
+    """
+    Retorna el conversation_id más reciente de un cliente autenticado.
+    Asume que la tabla chat_sessions tiene una columna updated_at o created_at.
+    Si no, cambiar ORDER BY updated_at DESC por ORDER BY id DESC
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+    try:
+        cursor = conn.cursor()
+        query = '''
+            SELECT conversation_id
+            FROM chat_sessions
+            WHERE client_id = %s
+            ORDER BY updated_at DESC
+            LIMIT 1
+        '''
+        cursor.execute(query, (client_id,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+    except Exception as e:
+        print(f"[db_config] Error en get_last_conversation_by_client: {e}", file=sys.stderr)
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_chat_messages(conversation_id):
+    """
+    Devuelve todos los mensajes de una conversación (sin el system prompt).
+    """
+    conn = get_connection()
+    if not conn:
+        return []
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = '''
+            SELECT role, content, tool_calls
+            FROM chat_messages
+            WHERE conversation_id = %s
+            ORDER BY id ASC
+        '''
+        cursor.execute(query, (conversation_id,))
+        rows = cursor.fetchall()
+        # Convertir tool_calls de JSON string a objeto si existe
+        for row in rows:
+            if row.get('tool_calls'):
+                try:
+                    row['tool_calls'] = json.loads(row['tool_calls'])
+                except:
+                    pass
+        return rows
+    except Exception as e:
+        print(f"[db_config] Error en get_chat_messages: {e}", file=sys.stderr)
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 def custom_serializer(obj):
     if hasattr(obj, 'model_dump'):
         return obj.model_dump()
