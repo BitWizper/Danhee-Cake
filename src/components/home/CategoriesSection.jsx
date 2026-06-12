@@ -1,10 +1,32 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // ← Agregamos useNavigate
 import './CategoriesSection.css';
 
 const CategoriesSection = () => {
+  const navigate = useNavigate(); // ← Hook para redirigir
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Función que devuelve la ruta específica para ciertas categorías
+  const getRouteForCategory = (category) => {
+    const name = category.name.toLowerCase();
+    const slug = category.slug?.toLowerCase() || '';
+
+    if (name === 'xv años' || slug === 'xv-anos') return '/xv';
+    if (name === 'boda' || slug === 'boda') return '/wedding';
+    if (name === 'baby shower' || slug === 'baby-shower') return '/babyshower';
+    if (name === 'cumpleaños' || slug === 'cumpleanos') return '/birthday';
+    if (name === 'aniversario' || slug === 'aniversario') return '/anniversary';
+    if (name === 'graduación' || slug === 'graduacion') return '/graduation';
+    if (name === 'corporativo' || slug === 'corporativo') return '/corporate';
+    // Para cualquier otra (ej. Sin Ocasión) usamos el explorador con filtro
+    return `/explorar?categoria=${encodeURIComponent(category.slug || category.name)}`;
+  };
+
+  const handleCategoryClick = (category) => {
+    const route = getRouteForCategory(category);
+    navigate(route);
+  };
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -48,18 +70,21 @@ const CategoriesSection = () => {
 
         <div className="categories__grid">
           {categories.map((cat, i) => (
-            <Link
+            <div
               key={cat.id}
-              to={`/explorar?categoria=${cat.slug}`}
               className="category-card"
               style={{ animationDelay: `${i * 0.1}s` }}
+              onClick={() => handleCategoryClick(cat)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && handleCategoryClick(cat)}
             >
               <div className="category-card__icon">{cat.icon}</div>
               <h3 className="category-card__name font-serif">{cat.name}</h3>
               <div className="category-card__hover">
                 <span>Ver más →</span>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       </div>
