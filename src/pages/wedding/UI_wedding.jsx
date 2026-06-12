@@ -31,7 +31,7 @@ const UIWedding = () => {
         if (cakesData.success) {
           // Filtramos directamente desde la API para quedarnos SOLO con los de Bodas
           const weddingCakes = cakesData.data.filter(
-            cake => cake.category_name === 'Bodas' || cake.category_slug === 'bodas'
+            cake => cake.category_name === 'Boda' || cake.category_slug === 'boda'
           );
           setCakes(weddingCakes);
         }
