@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
 import './Navbar.css';
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showCartDropdown, setShowCartDropdown] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 40);
@@ -17,6 +20,7 @@ const Navbar = () => {
   useEffect(() => setMenuOpen(false), [location]);
 
   const { user, isAuthenticated, logout } = useAuth();
+  const { getRecentItems, getTotalItems } = useCart();
 
   const navLinks = [
     { to: '/', label: 'Inicio' },
@@ -45,6 +49,56 @@ const Navbar = () => {
             </Link>
           ))}
         </nav>
+
+        {/* Carrito */}
+        <div className="navbar__cart-wrapper"
+          onMouseEnter={() => setShowCartDropdown(true)}
+          onMouseLeave={() => setShowCartDropdown(false)}
+        >
+          <button
+            className="navbar__cart-btn"
+            onClick={() => navigate('/carrito')}
+            id="navbar-cart"
+            title="Ver carrito"
+          >
+            <span className="navbar__cart-icon">🛒</span>
+            {getTotalItems() > 0 && (
+              <span className="navbar__cart-badge">{getTotalItems()}</span>
+            )}
+          </button>
+
+          {/* Dropdown del carrito */}
+          {showCartDropdown && getTotalItems() > 0 && (
+            <div className="navbar__cart-dropdown">
+              <div className="navbar__cart-dropdown__header">
+                <h4>Últimos Agregados</h4>
+              </div>
+              <div className="navbar__cart-dropdown__items">
+                {getRecentItems().map(item => (
+                  <div key={item.id} className="navbar__cart-item">
+                    <div className="navbar__cart-item__img">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name} />
+                      ) : (
+                        <span>🎂</span>
+                      )}
+                    </div>
+                    <div className="navbar__cart-item__info">
+                      <p className="navbar__cart-item__name">{item.name}</p>
+                      <p className="navbar__cart-item__price">${item.price} x {item.quantity}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                className="navbar__cart-view-all"
+                onClick={() => navigate('/carrito')}
+              >
+                Ver Todo el Carrito →
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Auth buttons */}
         <div className="navbar__actions">

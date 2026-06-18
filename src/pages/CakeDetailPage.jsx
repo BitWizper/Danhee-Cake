@@ -2,15 +2,18 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import StarRating from '../components/ui/StarRating';
 import Button from '../components/ui/Button';
+import { useCart } from '../context/CartContext';
 import './CakeDetailPage.css';
 
 const CakeDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { addToCart } = useCart();
   
   const [cake, setCake] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [addedToCart, setAddedToCart] = useState(false);
 
   useEffect(() => {
     const fetchCake = async () => {
@@ -34,9 +37,20 @@ const CakeDetailPage = () => {
     fetchCake();
   }, [id]);
 
-  const handlePurchase = () => {
-    // Por ahora una alerta interactiva simulando la acción de compra
-    alert(`🎉 ¡Excelente elección! Has añadido el pastel "${cake.name}" a tu carrito por $${cake.price}. El flujo de pago estará disponible pronto.`);
+  const handleAddToCart = () => {
+    if (cake) {
+      addToCart(cake);
+      setAddedToCart(true);
+      setTimeout(() => setAddedToCart(false), 2000);
+    }
+  };
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/explorar');
+    }
   };
 
   if (loading) return <div className="cake-detail-loading">Cargando detalles del pastel...</div>;
@@ -82,10 +96,14 @@ const CakeDetailPage = () => {
           </div>
 
           <div className="cake-detail__actions">
-            <Button variant="gold" className="btn-buy" onClick={handlePurchase}>
-              Añadir al carrito
+            <Button 
+              variant="gold" 
+              className={`btn-buy ${addedToCart ? 'btn-buy--success' : ''}`}
+              onClick={handleAddToCart}
+            >
+              {addedToCart ? '✓ Agregado al carrito' : 'Añadir al carrito'}
             </Button>
-            <Button variant="outline" onClick={() => navigate(-1)}>
+            <Button variant="outline" onClick={handleBack}>
               Volver
             </Button>
           </div>

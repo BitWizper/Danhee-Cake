@@ -156,7 +156,9 @@ const ExplorePage = () => {
                 <span className="cake-card__baker">{cake.business_name}</span>
                 <span className="cake-card__price">${cake.price}</span>
               </div>
-              <h2 className="cake-card__name font-serif">{cake.name}</h2>
+              <Link to={`/pastel/${cake.id}`} style={{ textDecoration: 'none' }}>
+                <h2 className="cake-card__name font-serif">{cake.name}</h2>
+              </Link>
               <p className="cake-card__specialty">📍 {cake.location}</p>
               <div className="cake-card__footer">
                 <StarRating rating={Number(cake.rating)} size="sm" />

@@ -116,6 +116,13 @@
   flex: 1;
   font-size: 1.1rem;
   padding: 1rem;
+  transition: all var(--transition-base);
+}
+
+.btn-buy--success {
+  background: rgba(196, 124, 124, 0.3) !important;
+  color: var(--color-rose) !important;
+  border-color: var(--color-rose) !important;
 }
 
 .cake-detail__guarantee {
