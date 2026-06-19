@@ -299,3 +299,21 @@ def add_chat_message(conversation_id, role, content, tool_calls=None):
         return False
     finally:
         if conn: conn.close()
+
+def add_observability_log(session_id, user_prompt, system_response, ttft_ms, total_latency_ms, tokens_per_second, was_blocked, tools_executed):
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        tools_executed_json = json.dumps(tools_executed, default=custom_serializer) if tools_executed else None
+        cursor.execute('''
+            INSERT INTO observability_logs (session_id, user_prompt, system_response, ttft_ms, total_latency_ms, tokens_per_second, was_blocked, tools_executed)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (session_id, user_prompt, system_response, ttft_ms, total_latency_ms, tokens_per_second, int(was_blocked), tools_executed_json))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"[db_config] Error en add_observability_log: {e}", file=sys.stderr)
+        return False
+    finally:
+        if conn: conn.close()

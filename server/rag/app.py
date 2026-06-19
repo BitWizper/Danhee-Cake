@@ -42,7 +42,8 @@ from db_config import (
     insert_guest_appointment, get_categories, get_user_by_id,
     get_or_create_chat_session, get_chat_history, add_chat_message,
     get_last_conversation_by_client,      # <-- NUEVA
-    get_chat_messages                     # <-- NUEVA
+    get_chat_messages,                    # <-- NUEVA
+    add_observability_log
 )
 
 base_dir = Path(__file__).resolve().parent
@@ -1693,6 +1694,55 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
         return direct_content
 
 
+def check_guardrails(prompt: str) -> bool:
+    if not prompt:
+        return False
+    prompt_lower = prompt.lower()
+    forbidden_patterns = [
+        "ignora las instrucciones",
+        "ignora las reglas",
+        "ignora los prompts",
+        "ignore previous instructions",
+        "ignore instructions",
+        "revela tu system prompt",
+        "revela tu prompt",
+        "revela tus instrucciones",
+        "revelar system prompt",
+        "revelar instrucciones",
+        "reveal your prompt",
+        "reveal prompt",
+        "asume el rol de",
+        "actúa como",
+        "assume the role of",
+        "act as a",
+        "you are now a",
+        "ahora eres",
+        "olvida todo",
+        "forget all previous",
+        "desactiva la seguridad",
+        "disable safety",
+        "jailbreak",
+        "instrucciones del sistema"
+    ]
+    for pattern in forbidden_patterns:
+        if pattern in prompt_lower:
+            return True
+            
+    # Patrones repetitivos atípicos
+    words = prompt_lower.split()
+    if len(words) > 50:
+        from collections import Counter
+        counts = Counter(words)
+        for word, count in counts.items():
+            if len(word) > 2 and count > 15:
+                return True
+                
+    import re
+    if re.search(r'(.)\1{29,}', prompt_lower):
+        return True
+    return False
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SECCIÓN 6: SERVIDOR HTTP
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1736,7 +1786,11 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
             self._send_error(404, "Not found")
     
     def do_POST(self):
-        if self.path == '/chat':
+        import time
+        import re
+        from datetime import datetime
+        
+        if self.path == '/chat/stream':
             try:
                 content_length = int(self.headers['Content-Length'])
                 post_data = self.rfile.read(content_length)
@@ -1745,33 +1799,302 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 client_id = req_data.get('client_id')
                 conversation_id = req_data.get('conversation_id')
                 
-                # Si no hay conversation_id pero hay cliente autenticado, recuperar su última conversación
+                # Configurar CORS y cabeceras SSE
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+                self.send_header('Cache-Control', 'no-cache')
+                self.send_header('Connection', 'keep-alive')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                
+                def send_event(event_type, data_dict):
+                    payload = json.dumps({"type": event_type, **data_dict}, ensure_ascii=False)
+                    self.wfile.write(f"data: {payload}\n\n".encode('utf-8'))
+                    self.wfile.flush()
+                
+                start_time = datetime.now()
+                ttft_ms = None
+                tools_executed_list = []
+                was_blocked = False
+                
+                # Validar Guardrails
+                if check_guardrails(question):
+                    was_blocked = True
+                    err_msg = "Entrada bloqueada por políticas de seguridad de Danhee Cake. Intento de inyección de prompt detectado."
+                    send_event("error", {"content": err_msg})
+                    
+                    total_latency = int((datetime.now() - start_time).total_seconds() * 1000)
+                    add_observability_log(
+                        session_id=conversation_id or "unknown",
+                        user_prompt=question,
+                        system_response=err_msg,
+                        ttft_ms=0,
+                        total_latency_ms=total_latency,
+                        tokens_per_second=0.0,
+                        was_blocked=True,
+                        tools_executed=[]
+                    )
+                    return
+                
+                # Obtener conversation_id si no se provee
                 if not conversation_id and client_id:
                     last_conv = get_last_conversation_by_client(client_id)
                     if last_conv:
                         conversation_id = last_conv
-                        print(f"[RAG Server] Recuperada última conversación: {conversation_id}", file=sys.stderr)
                 
-                # Si aún no hay ID, crear uno nuevo
                 if not conversation_id:
                     import uuid
                     conversation_id = str(uuid.uuid4())
                 
-                # Crear sesión si no existe (o actualizar)
+                get_or_create_chat_session(conversation_id, client_id)
+                add_chat_message(conversation_id, "user", question)
+                
+                send_event("conversation_id", {"conversation_id": conversation_id})
+                
+                # Estado 1: Buscando Información
+                send_event("state", {"status": "searching", "message": "Buscando información en la base de datos de Danhee Cake..."})
+                
+                rag_context = ""
+                if db is not None:
+                    try:
+                        docs = db.similarity_search(question, k=3)
+                        rag_context = "\n".join([doc.page_content for doc in docs])
+                    except Exception as e:
+                        print(f"[RAG Stream] Error Chroma: {e}", file=sys.stderr)
+                
+                messages = get_chat_history(conversation_id, SYSTEM_PROMPT)
+                messages.append({"role": "user", "content": question})
+                if rag_context:
+                    messages.append({"role": "system", "content": f"Contexto adicional: {rag_context}"})
+                
+                # Estado 2: Procesando / Pensando (Inferencia)
+                send_event("state", {"status": "thinking", "message": "Analizando tu solicitud..."})
+                
+                try:
+                    response = ollama_sdk.chat(
+                        model=llm_model,
+                        messages=messages,
+                        tools=TOOLS_SCHEMA
+                    )
+                except Exception as e:
+                    err_msg = "Error interno del modelo de IA local. Intenta de nuevo."
+                    send_event("error", {"content": err_msg})
+                    return
+                
+                assistant_message = response.get("message", {})
+                tool_calls = assistant_message.get("tool_calls", [])
+                
+                final_response_text = ""
+                
+                if tool_calls:
+                    messages.append({
+                        "role": "assistant",
+                        "content": assistant_message.get("content", ""),
+                        "tool_calls": tool_calls
+                    })
+                    add_chat_message(conversation_id, "assistant", assistant_message.get("content", ""), tool_calls)
+                    
+                    for tool_call in tool_calls:
+                        if hasattr(tool_call, 'function'):
+                            func_name = tool_call.function.name
+                            raw_args = tool_call.function.arguments
+                        elif isinstance(tool_call, dict):
+                            func_name = tool_call.get("function", {}).get("name", "")
+                            raw_args = tool_call.get("function", {}).get("arguments", {})
+                        else:
+                            func_name = ""
+                            raw_args = {}
+                        
+                        if isinstance(raw_args, str):
+                            try: args = json.loads(raw_args)
+                            except: args = {}
+                        else:
+                            args = raw_args
+                        
+                        # Obtener contexto anterior si lo espera
+                        ultima_pregunta = ""
+                        for m in reversed(messages):
+                            if m.get("role") == "user" and m.get("content") != question:
+                                ultima_pregunta = m.get("content", "")
+                                break
+                        
+                        import inspect
+                        if func_name in FUNCTIONS_MAP:
+                            sig = inspect.signature(FUNCTIONS_MAP[func_name])
+                            valid_keys = [k for k, v in sig.parameters.items() if v.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)]
+                            
+                            if "contexto_anterior" not in args and "contexto_anterior" in valid_keys and ultima_pregunta:
+                                if ultima_pregunta not in ('<nil>', 'null', 'None'):
+                                    args["contexto_anterior"] = ultima_pregunta
+                            
+                            filtered_args = {k: v for k, v in args.items() if k in valid_keys}
+                            
+                            # Estado 3: Ejecutando Acción
+                            send_event("state", {"status": "executing", "message": f"Buscando / Consultando: {func_name}..."})
+                            
+                            try:
+                                result = FUNCTIONS_MAP[func_name](**filtered_args)
+                                status = "SUCCESS"
+                            except Exception as e:
+                                result = {"error": f"Error ejecutando herramienta: {e}"}
+                                status = "ERROR"
+                            
+                            tools_executed_list.append({
+                                "name": func_name,
+                                "parameters": filtered_args,
+                                "status": status
+                            })
+                        else:
+                            result = {"error": f"Herramienta '{func_name}' no encontrada"}
+                            tools_executed_list.append({
+                                "name": func_name,
+                                "parameters": args,
+                                "status": "ERROR"
+                            })
+                        
+                        tool_result_content = json.dumps(result, ensure_ascii=False, default=json_serial)
+                        messages.append({
+                            "role": "tool",
+                            "content": tool_result_content
+                        })
+                        add_chat_message(conversation_id, "tool", tool_result_content)
+                    
+                    # Volver a llamar al LLM con stream=True para generar la respuesta final
+                    send_event("state", {"status": "thinking", "message": "Formulando respuesta..."})
+                    
+                    try:
+                        stream_response = ollama_sdk.chat(
+                            model=llm_model,
+                            messages=messages,
+                            stream=True
+                        )
+                        
+                        for chunk in stream_response:
+                            chunk_content = chunk.get("message", {}).get("content", "")
+                            if chunk_content:
+                                if ttft_ms is None:
+                                    ttft_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+                                final_response_text += chunk_content
+                                send_event("token", {"content": chunk_content})
+                        
+                        add_chat_message(conversation_id, "assistant", final_response_text)
+                    except Exception as e:
+                        err_msg = "Error generando la respuesta final en streaming."
+                        send_event("error", {"content": err_msg})
+                        return
+                else:
+                    # Respuesta directa (sin herramientas)
+                    direct_content = assistant_message.get("content", "").strip()
+                    if not direct_content:
+                        direct_content = "¡Hola! Soy tu asistente de Danhee Cake. ¿En qué puedo ayudarte?"
+                    
+                    ttft_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+                    final_response_text = direct_content
+                    
+                    words = re.findall(r'\s+|\S+', direct_content)
+                    for word in words:
+                        send_event("token", {"content": word})
+                        time.sleep(0.01)
+                    
+                    add_chat_message(conversation_id, "assistant", direct_content)
+                
+                # Métricas de observabilidad
+                end_time = datetime.now()
+                total_latency_ms = int((end_time - start_time).total_seconds() * 1000)
+                num_tokens = len(final_response_text) / 4.0
+                active_gen_time_sec = (total_latency_ms - (ttft_ms or 0)) / 1000.0
+                if active_gen_time_sec <= 0:
+                    active_gen_time_sec = 0.1
+                tps = round(num_tokens / active_gen_time_sec, 2)
+                
+                add_observability_log(
+                    session_id=conversation_id,
+                    user_prompt=question,
+                    system_response=final_response_text,
+                    ttft_ms=ttft_ms or total_latency_ms,
+                    total_latency_ms=total_latency_ms,
+                    tokens_per_second=tps,
+                    was_blocked=False,
+                    tools_executed=tools_executed_list
+                )
+                
+                send_event("done", {})
+                
+            except Exception as e:
+                print(f"[RAG Server Stream Error] {e}", file=sys.stderr)
+                try:
+                    payload = json.dumps({"type": "error", "content": f"Error en streaming: {str(e)}"}, ensure_ascii=False)
+                    self.wfile.write(f"data: {payload}\n\n".encode('utf-8'))
+                    self.wfile.flush()
+                except:
+                    pass
+        
+        elif self.path == '/chat':
+            try:
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length)
+                req_data = json.loads(post_data.decode('utf-8'))
+                question = req_data.get('message', '').strip()
+                client_id = req_data.get('client_id')
+                conversation_id = req_data.get('conversation_id')
+                
+                start_time = datetime.now()
+                
+                # Validar Guardrails
+                if check_guardrails(question):
+                    err_msg = "Entrada bloqueada por políticas de seguridad de Danhee Cake. Intento de inyección de prompt detectado."
+                    
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"response": err_msg, "conversation_id": conversation_id or "unknown"}, ensure_ascii=False).encode('utf-8'))
+                    
+                    total_latency = int((datetime.now() - start_time).total_seconds() * 1000)
+                    add_observability_log(
+                        session_id=conversation_id or "unknown",
+                        user_prompt=question,
+                        system_response=err_msg,
+                        ttft_ms=0,
+                        total_latency_ms=total_latency,
+                        tokens_per_second=0.0,
+                        was_blocked=True,
+                        tools_executed=[]
+                    )
+                    return
+                
+                if not conversation_id and client_id:
+                    last_conv = get_last_conversation_by_client(client_id)
+                    if last_conv:
+                        conversation_id = last_conv
+                
+                if not conversation_id:
+                    import uuid
+                    conversation_id = str(uuid.uuid4())
+                
                 get_or_create_chat_session(conversation_id, client_id)
                 
                 if not question:
                     self._send_error(400, "Mensaje vacío")
                     return
                 
-                print(f"\n[RAG Server] ══ Pregunta: '{question}' ══", file=sys.stderr)
-                if client_id:
-                    print(f"[RAG Server] ✅ Usuario autenticado ID: {client_id}", file=sys.stderr)
-                else:
-                    print(f"[RAG Server] 👤 Usuario visitante", file=sys.stderr)
-                print(f"[RAG Server] 🔑 Conversation ID: {conversation_id}", file=sys.stderr)
-                
                 response_text = generate_response_with_tools(question, client_id, conversation_id)
+                
+                # Calcular latencias para el log
+                total_latency_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+                num_tokens = len(response_text) / 4.0
+                tps = round(num_tokens / (total_latency_ms / 1000.0 if total_latency_ms > 0 else 0.1), 2)
+                
+                add_observability_log(
+                    session_id=conversation_id,
+                    user_prompt=question,
+                    system_response=response_text,
+                    ttft_ms=total_latency_ms,
+                    total_latency_ms=total_latency_ms,
+                    tokens_per_second=tps,
+                    was_blocked=False,
+                    tools_executed=[]
+                )
                 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -1783,14 +2106,13 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     "conversation_id": conversation_id
                 }
                 self.wfile.write(json.dumps(response_json, ensure_ascii=False).encode('utf-8'))
-                print(f"[RAG Server] ✔ Respuesta enviada", file=sys.stderr)
                 
             except Exception as e:
                 print(f"[RAG Server] Error: {e}", file=sys.stderr)
                 self._send_error(500, str(e))
         else:
             self._send_error(404, "Not found")
-    
+            
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header('Access-Control-Allow-Origin', '*')

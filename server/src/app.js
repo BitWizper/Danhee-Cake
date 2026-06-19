@@ -4,7 +4,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 require('dotenv').config();
 const errorHandler = require('./middleware/errorHandler');
-const { askChatbot } = require('./controllers/chat.controller');
+const { askChatbot, streamChatbot } = require('./controllers/chat.controller');
 const chatRoutes = require('./routes/chat.routes');
 
 
@@ -22,6 +22,7 @@ app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
 app.post('/api/chat', askChatbot);
+app.post('/api/chat/stream', streamChatbot);
 
 // Ruta base
 app.get('/', (req, res) => {
