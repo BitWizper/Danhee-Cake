@@ -25,7 +25,13 @@ function ChatBot() {
   const lastTranscriptRef = useRef("");
   const autoSubmitRef = useRef(false);
 
-  const startListening = () => {
+  const startListening = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      alert('Permiso de micrófono denegado o no disponible.');
+      return;
+    }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Tu navegador no soporta el reconocimiento de voz. Por favor usa Google Chrome o Microsoft Edge.");
