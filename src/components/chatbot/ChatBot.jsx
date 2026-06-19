@@ -21,49 +21,73 @@ function ChatBot() {
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const silenceTimeoutRef = useRef(null);
+  const lastTranscriptRef = useRef("");
 
-  const toggleListening = () => {
+  const startListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Tu navegador no soporta el reconocimiento de voz. Por favor usa Google Chrome o Microsoft Edge.");
       return;
     }
 
-    if (isListening) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      setIsListening(false);
-      return;
-    }
-
     try {
+      // Limpiar el mensaje anterior al iniciar nueva grabación
+      setMessage("");
+      lastTranscriptRef.current = "";
+      
       const rec = new SpeechRecognition();
-      rec.continuous = true; // Permite hablar con pausas sin que se corte
+      rec.continuous = false; // Detección automática de pausa natural
       rec.interimResults = true; // Permite ver la transcripción en tiempo real
       rec.lang = "es-MX";
 
       rec.onstart = () => {
         setIsListening(true);
+        // Limpiar timeout anterior si existe
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+        }
       };
 
       rec.onresult = (event) => {
         let fullTranscript = "";
+        let isFinal = false;
+        
         for (let i = 0; i < event.results.length; ++i) {
-          fullTranscript += event.results[i][0].transcript;
+          const transcript = event.results[i][0].transcript;
+          fullTranscript += transcript;
+          if (event.results[i].isFinal) {
+            isFinal = true;
+          }
         }
+        
         if (fullTranscript) {
+          lastTranscriptRef.current = fullTranscript;
           setMessage(fullTranscript);
+        }
+
+        // Si la transcripción es final, detener después de una pausa
+        if (isFinal) {
+          if (silenceTimeoutRef.current) {
+            clearTimeout(silenceTimeoutRef.current);
+          }
+          silenceTimeoutRef.current = setTimeout(() => {
+            if (recognitionRef.current) {
+              recognitionRef.current.stop();
+            }
+          }, 800); // Esperar 800ms antes de detener
         }
       };
 
       rec.onerror = (event) => {
         // Evitar registrar no-speech, aborted o network como errores rojos de consola
-        if (event.error === "no-speech" || event.error === "aborted") {
-          console.warn("Reconocimiento de voz finalizado: ", event.error);
+        if (event.error === "no-speech") {
+          console.warn("No se detectó voz. Por favor, intenta de nuevo.");
+        } else if (event.error === "aborted") {
+          console.warn("Reconocimiento de voz cancelado.");
         } else if (event.error === "network") {
-          console.warn("Reconocimiento de voz finalizado por error de red (requiere Internet).");
-          alert("El reconocimiento de voz del navegador requiere una conexión a Internet activa para funcionar. Por favor, verifica tu conexión e inténtalo de nuevo.");
+          console.warn("Error de red en reconocimiento de voz.");
+          alert("El reconocimiento de voz requiere una conexión a Internet activa. Por favor, verifica tu conexión e inténtalo de nuevo.");
         } else {
           console.error("Error en reconocimiento de voz:", event.error);
           if (event.error === "not-allowed") {
@@ -77,6 +101,9 @@ function ChatBot() {
 
       rec.onend = () => {
         setIsListening(false);
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+        }
       };
 
       recognitionRef.current = rec;
@@ -85,6 +112,21 @@ function ChatBot() {
       console.error("Error al iniciar Web Speech:", err);
       setIsListening(false);
     }
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListening(false);
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+      }
+      return;
+    }
+
+    startListening();
   };
 
   // Cargar el historial de conversación del usuario autenticado
@@ -129,6 +171,18 @@ function ChatBot() {
     setIsSending(false);
     setOpen(false);
   }, [user]);
+
+  // Limpiar recursos de grabación cuando se desmonta el componente
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

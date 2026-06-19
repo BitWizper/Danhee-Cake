@@ -213,16 +213,62 @@
   width: 44px;
   padding: 0;
   border-radius: 16px;
-  background: rgba(245, 237, 214, 0.06);
-  border: 1px solid rgba(201, 169, 110, 0.16);
-  color: var(--color-cream);
+  background: linear-gradient(135deg, var(--color-gold-light), var(--color-rose));
+  border: none;
+  color: var(--color-bg);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.chat-footer button.mic-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--color-gold-light), var(--color-rose));
+  filter: brightness(1.1);
+  transform: scale(1.05);
 }
 
 .chat-footer button.mic-button.active {
   background: linear-gradient(135deg, #e74c3c, #c0392b);
   border-color: #e74c3c;
   color: white;
-  animation: pulse 1.2s infinite ease-in-out;
+  animation: micPulse 1s infinite ease-in-out;
+  box-shadow: 0 0 12px rgba(231, 76, 60, 0.6), inset 0 0 12px rgba(0, 0, 0, 0.3);
+}
+
+.chat-footer button.mic-button.active::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(231, 76, 60, 0.4), transparent);
+  transform: translate(-50%, -50%);
+  animation: micWave 1.2s infinite;
+}
+
+@keyframes micPulse {
+  0%, 100% { 
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.8;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes micWave {
+  0% {
+    width: 100%;
+    height: 100%;
+    opacity: 0.8;
+  }
+  100% {
+    width: 200%;
+    height: 200%;
+    opacity: 0;
+  }
 }
 
 @keyframes spin {
