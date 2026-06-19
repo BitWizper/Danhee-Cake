@@ -23,6 +23,7 @@ function ChatBot() {
   const recognitionRef = useRef(null);
   const silenceTimeoutRef = useRef(null);
   const lastTranscriptRef = useRef("");
+  const autoSubmitRef = useRef(false);
 
   const startListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -32,18 +33,18 @@ function ChatBot() {
     }
 
     try {
-      // Limpiar el mensaje anterior al iniciar nueva grabación
+      // Limpiar estado anterior al iniciar nueva grabación
       setMessage("");
       lastTranscriptRef.current = "";
+      autoSubmitRef.current = false;
       
       const rec = new SpeechRecognition();
-      rec.continuous = false; // Detección automática de pausa natural
-      rec.interimResults = true; // Permite ver la transcripción en tiempo real
+      rec.continuous = false;
+      rec.interimResults = true;
       rec.lang = "es-MX";
 
       rec.onstart = () => {
         setIsListening(true);
-        // Limpiar timeout anterior si existe
         if (silenceTimeoutRef.current) {
           clearTimeout(silenceTimeoutRef.current);
         }
@@ -54,11 +55,8 @@ function ChatBot() {
         let isFinal = false;
         
         for (let i = 0; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          fullTranscript += transcript;
-          if (event.results[i].isFinal) {
-            isFinal = true;
-          }
+          fullTranscript += event.results[i][0].transcript;
+          if (event.results[i].isFinal) isFinal = true;
         }
         
         if (fullTranscript) {
@@ -66,43 +64,48 @@ function ChatBot() {
           setMessage(fullTranscript);
         }
 
-        // Si la transcripción es final, detener después de una pausa
+        // Si la transcripción es final, esperar pausa y luego detener + enviar
         if (isFinal) {
-          if (silenceTimeoutRef.current) {
-            clearTimeout(silenceTimeoutRef.current);
-          }
+          if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+          autoSubmitRef.current = true;
           silenceTimeoutRef.current = setTimeout(() => {
             if (recognitionRef.current) {
               recognitionRef.current.stop();
             }
-          }, 800); // Esperar 800ms antes de detener
+          }, 600);
         }
       };
 
       rec.onerror = (event) => {
-        // Evitar registrar no-speech, aborted o network como errores rojos de consola
         if (event.error === "no-speech") {
           console.warn("No se detectó voz. Por favor, intenta de nuevo.");
         } else if (event.error === "aborted") {
           console.warn("Reconocimiento de voz cancelado.");
         } else if (event.error === "network") {
           console.warn("Error de red en reconocimiento de voz.");
-          alert("El reconocimiento de voz requiere una conexión a Internet activa. Por favor, verifica tu conexión e inténtalo de nuevo.");
+          alert("El reconocimiento de voz requiere conexión a Internet. Por favor verifica tu conexión.");
         } else {
-          console.error("Error en reconocimiento de voz:", event.error);
           if (event.error === "not-allowed") {
-            alert("Acceso al micrófono denegado. Por favor, habilita los permisos de micrófono en tu navegador.");
+            alert("Acceso al micrófono denegado. Habilita los permisos de micrófono en tu navegador.");
           } else {
-            alert(`Error al reconocer voz: ${event.error}`);
+            console.error("Error en reconocimiento de voz:", event.error);
           }
         }
+        autoSubmitRef.current = false;
         setIsListening(false);
       };
 
       rec.onend = () => {
         setIsListening(false);
-        if (silenceTimeoutRef.current) {
-          clearTimeout(silenceTimeoutRef.current);
+        // Auto-enviar si hay transcripción final
+        if (autoSubmitRef.current && lastTranscriptRef.current.trim()) {
+          autoSubmitRef.current = false;
+          // Usar un timeout mínimo para que el state de message se actualice
+          setTimeout(() => {
+            const fakeEvent = { preventDefault: () => {} };
+            // Disparar envío con el valor del ref (no del estado que podría ser stale)
+            sendMessageText(lastTranscriptRef.current.trim(), fakeEvent);
+          }, 50);
         }
       };
 
@@ -116,13 +119,12 @@ function ChatBot() {
 
   const toggleListening = () => {
     if (isListening) {
+      autoSubmitRef.current = false;
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
       setIsListening(false);
-      if (silenceTimeoutRef.current) {
-        clearTimeout(silenceTimeoutRef.current);
-      }
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
       return;
     }
 
@@ -188,12 +190,7 @@ function ChatBot() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat, open, loadingState]);
 
-  const sendMessage = async (event) => {
-    event.preventDefault();
-
-    const trimmedMessage = message.trim();
-    if (!trimmedMessage || isSending) return;
-
+  const _doSend = async (trimmedMessage) => {
     const userMessage = {
       id: Date.now().toString(),
       sender: "user",
@@ -202,7 +199,6 @@ function ChatBot() {
 
     setChat((prev) => [...prev, userMessage]);
     setIsSending(true);
-    setMessage("");
     setLoadingState({ status: "thinking", message: "Conectando con el asistente..." });
 
     try {
@@ -320,6 +316,24 @@ function ChatBot() {
       setIsSending(false);
       setLoadingState({ status: "", message: "" });
     }
+  };
+
+  // Wrapper para el formulario (usa el estado message)
+  const sendMessage = (event) => {
+    event.preventDefault();
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage || isSending) return;
+    setMessage("");
+    _doSend(trimmedMessage);
+  };
+
+  // Versión usada por el auto-envío de voz (recibe texto directamente)
+  const sendMessageText = (text, event) => {
+    if (event) event.preventDefault();
+    const trimmedMessage = (text || "").trim();
+    if (!trimmedMessage || isSending) return;
+    setMessage("");
+    _doSend(trimmedMessage);
   };
 
   return (
