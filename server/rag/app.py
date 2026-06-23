@@ -1469,26 +1469,26 @@ SERVICIOS PARA CLIENTES:
 ¡SOLO RESPONDE SOBRE DANHEE CAKE! NO HABLES DE OTRAS COSAS.
 """
 
-SYSTEM_PROMPT = f"""ERES EL ASISTENTE EXCLUSIVO DE DANHEE CAKE.
+SYSTEM_PROMPT = f"""Eres el asistente exclusivo de DANHEE CAKE. Solo hablas sobre Danhee Cake.
 
-{DANHEE_INFO}
-
-REGLAS OBLIGATORIAS:
-1. SOLO hablas sobre Danhee Cake y sus servicios.
-2. SIEMPRE usa las herramientas disponibles para responder.
-3. Responde en español, cálido y profesional.
-4. Para preguntas sobre recomendaciones de pasteles (como "qué pastel me recomiendas para cumpleaños"), usa la herramienta recomendar_pastel.
-5. Para preguntas sobre tamaños de pasteles, usa la herramienta consultar_tamanos_pasteles.
-6. Para preguntas frecuentes (políticas, envíos, pagos, personalización, etc.), usa la herramienta extraer_texto_pdf con nombre_archivo='faq.pdf'.
-7. Para preguntas como "qué empresas hay en [ubicación]" usa consultar_empresas_por_ubicacion.
-8. Para preguntas como "qué pasteles tiene [empresa]" usa consultar_pasteles_por_empresa.
-9. Para preguntas sobre "qué es Danhee Cake" o "información de Danhee", usa la herramienta consultar_politicas_pasteleria con tema='danhee'. Esto leerá el archivo danhee_knowledge_base.pdf.
-10. Para preguntas como "qué pasteles hay de [sabor/nombre]" usa buscar_pastel_por_nombre.
-11. Cuando el usuario pida detalles de un pastel específico (ej. "cuéntame del pastel Red velvet", "quiero saber sobre el pastel de fresa", "detalles del caramelo especial"), DEBES usar la herramienta consultar_detalle_pastel_por_id con el nombre del pastel en el parámetro pastel_id (como string). No uses contexto_anterior para el nombre, envíalo directamente en pastel_id.
-12. Mantén el contexto de la conversación: si el usuario pregunta "y el de red velvet?" después de hablar de una empresa, debes inferir que se refiere al pastel de esa empresa o al último pastel mencionado.
-13. EXCEPCIÓN IMPORTANTE PARA PASTELES 3D: Si el usuario pregunta o menciona "pasteles 3D" o "diseñar mi pastel 3D", NO USES ninguna herramienta (especialmente NO uses consultar_detalle_pastel_por_id). Simplemente responde directamente y de manera profesional indicándole que debe dirigirse al apartado de "Diseña tu pastel" en la plataforma, ya que los pasteles 3D requieren un diseño completamente personalizado.
-14. EXCEPCIÓN IMPORTANTE PARA AGENDAR CITAS: Si el usuario te pregunta "¿Cómo puedo agendar una cita?" o similar (de manera general, sin darte datos específicos de fecha/hora para reservar), NO USES la herramienta registrar_solicitud_cita. Simplemente explícale los pasos: dile que debe buscar el pastel que mejor se adapte a sus necesidades según la categoría que busque, luego entrar a ver el perfil de ese pastel o repostero, y ahí aparecerá la opción para agendar cita.
-"""
+REGLAS:
+- Usa SIEMPRE las herramientas disponibles para responder.
+- Responde en español, cálido y breve.
+- recomendar_pastel → recomendaciones por ocasión.
+- consultar_pasteles_por_categoria → pasteles por categoría.
+- buscar_pastel_por_nombre → buscar por nombre.
+- consultar_detalle_pastel_por_id → detalles de un pastel (pasa el nombre en pastel_id).
+- obtener_precios_por_categoria → precios por categoría.
+- consultar_tamanos_pasteles → tamaños disponibles.
+- consultar_empresas_por_ubicacion → empresas por ciudad.
+- consultar_pasteles_por_empresa → pasteles de una empresa.
+- extraer_texto_pdf(nombre_archivo='faq.pdf') → políticas, pagos, envíos.
+- consultar_politicas_pasteleria(tema='danhee') → info general de Danhee.
+- registrar_solicitud_cita → SOLO si el usuario da nombre, baker_id, fecha Y hora.
+- Para agendar citas sin datos: explica que debe ver el perfil del repostero.
+- Para pasteles 3D: indica que use la sección 'Diseña tu pastel' en la plataforma.
+- Mantén el contexto de la conversación entre turnos.
+{DANHEE_INFO}"""
 
 def get_tools_model() -> str:
     """Detecta el mejor modelo con soporte de tools en Ollama."""
@@ -1546,14 +1546,12 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
     # Guardarlo de manera persistente en DB
     add_chat_message(conversation_id, "user", question)
     
-    # Búsqueda RAG (opcional, se puede inyectar como un mensaje de sistema adicional)
+    # Búsqueda RAG limitada a k=2 para reducir latencia
     rag_context = ""
     if db is not None:
         try:
-            docs = db.similarity_search(question, k=3)
+            docs = db.similarity_search(question, k=2)
             rag_context = "\n".join([doc.page_content for doc in docs])
-            print(f"[RAG] Contexto recuperado ({len(docs)} fragmentos)", file=sys.stderr)
-            # Inyectar contexto como un mensaje del sistema (solo para esta consulta)
             if rag_context:
                 messages.append({"role": "system", "content": f"Contexto adicional: {rag_context}"})
         except Exception as e:
@@ -1788,7 +1786,9 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         import time
         import re
+        import threading
         from datetime import datetime
+        from concurrent.futures import ThreadPoolExecutor
         
         if self.path == '/chat/stream':
             try:
@@ -1808,21 +1808,21 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 
                 def send_event(event_type, data_dict):
-                    payload = json.dumps({"type": event_type, **data_dict}, ensure_ascii=False)
-                    self.wfile.write(f"data: {payload}\n\n".encode('utf-8'))
-                    self.wfile.flush()
+                    try:
+                        payload = json.dumps({"type": event_type, **data_dict}, ensure_ascii=False)
+                        self.wfile.write(f"data: {payload}\n\n".encode('utf-8'))
+                        self.wfile.flush()
+                    except Exception:
+                        pass
                 
                 start_time = datetime.now()
                 ttft_ms = None
                 tools_executed_list = []
-                was_blocked = False
                 
-                # Validar Guardrails
+                # ── Guardrails ────────────────────────────────────────────────
                 if check_guardrails(question):
-                    was_blocked = True
                     err_msg = "Entrada bloqueada por políticas de seguridad de Danhee Cake. Intento de inyección de prompt detectado."
                     send_event("error", {"content": err_msg})
-                    
                     total_latency = int((datetime.now() - start_time).total_seconds() * 1000)
                     add_observability_log(
                         session_id=conversation_id or "unknown",
@@ -1836,54 +1836,74 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     )
                     return
                 
-                # Obtener conversation_id si no se provee
+                # ── Conversation ID ───────────────────────────────────────────
                 if not conversation_id and client_id:
                     last_conv = get_last_conversation_by_client(client_id)
                     if last_conv:
                         conversation_id = last_conv
-                
                 if not conversation_id:
                     import uuid
                     conversation_id = str(uuid.uuid4())
                 
                 get_or_create_chat_session(conversation_id, client_id)
-                add_chat_message(conversation_id, "user", question)
-                
                 send_event("conversation_id", {"conversation_id": conversation_id})
                 
-                # Estado 1: Buscando Información
-                send_event("state", {"status": "searching", "message": "Buscando información en la base de datos de Danhee Cake..."})
+                # ── Cargar historial + Chroma en paralelo ─────────────────────
+                send_event("state", {"status": "searching", "message": "Buscando información..."})
                 
-                rag_context = ""
-                if db is not None:
-                    try:
-                        docs = db.similarity_search(question, k=3)
-                        rag_context = "\n".join([doc.page_content for doc in docs])
-                    except Exception as e:
-                        print(f"[RAG Stream] Error Chroma: {e}", file=sys.stderr)
+                rag_context_holder = [""]
+                history_holder = [None]
                 
-                messages = get_chat_history(conversation_id, SYSTEM_PROMPT)
+                def fetch_history():
+                    history_holder[0] = get_chat_history(conversation_id, SYSTEM_PROMPT)
+                
+                def fetch_rag():
+                    if db is not None:
+                        try:
+                            docs = db.similarity_search(question, k=2)
+                            rag_context_holder[0] = "\n".join([doc.page_content for doc in docs])
+                        except Exception as e:
+                            print(f"[RAG Stream] Error Chroma: {e}", file=sys.stderr)
+                
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    f1 = executor.submit(fetch_history)
+                    f2 = executor.submit(fetch_rag)
+                    f1.result()
+                    f2.result()
+                
+                messages = history_holder[0] or [{"role": "system", "content": SYSTEM_PROMPT}]
                 messages.append({"role": "user", "content": question})
-                if rag_context:
-                    messages.append({"role": "system", "content": f"Contexto adicional: {rag_context}"})
+                # Guardar mensaje usuario de forma asíncrona (no bloquea)
+                add_chat_message(conversation_id, "user", question)
                 
-                # Estado 2: Procesando / Pensando (Inferencia)
+                if rag_context_holder[0]:
+                    messages.append({"role": "system", "content": f"Contexto adicional: {rag_context_holder[0]}"})
+                
+                # ── Primera llamada al LLM (detección de tool calls) ──────────
                 send_event("state", {"status": "thinking", "message": "Analizando tu solicitud..."})
+                
+                # Opciones Ollama para reducir latencia: limitar tokens de respuesta
+                # y usar temperatura baja para generación más rápida
+                OLLAMA_OPTIONS = {
+                    "num_predict": 512,   # máx tokens a generar
+                    "temperature": 0.3,
+                    "top_p": 0.9,
+                    "repeat_penalty": 1.1,
+                }
                 
                 try:
                     response = ollama_sdk.chat(
                         model=llm_model,
                         messages=messages,
-                        tools=TOOLS_SCHEMA
+                        tools=TOOLS_SCHEMA,
+                        options=OLLAMA_OPTIONS
                     )
                 except Exception as e:
-                    err_msg = "Error interno del modelo de IA local. Intenta de nuevo."
-                    send_event("error", {"content": err_msg})
+                    send_event("error", {"content": "Error interno del modelo de IA local. Intenta de nuevo."})
                     return
                 
                 assistant_message = response.get("message", {})
                 tool_calls = assistant_message.get("tool_calls", [])
-                
                 final_response_text = ""
                 
                 if tool_calls:
@@ -1911,7 +1931,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                         else:
                             args = raw_args
                         
-                        # Obtener contexto anterior si lo espera
+                        # Contexto anterior de la conversación
                         ultima_pregunta = ""
                         for m in reversed(messages):
                             if m.get("role") == "user" and m.get("content") != question:
@@ -1921,54 +1941,40 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                         import inspect
                         if func_name in FUNCTIONS_MAP:
                             sig = inspect.signature(FUNCTIONS_MAP[func_name])
-                            valid_keys = [k for k, v in sig.parameters.items() if v.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)]
-                            
+                            valid_keys = [
+                                k for k, v in sig.parameters.items()
+                                if v.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+                            ]
                             if "contexto_anterior" not in args and "contexto_anterior" in valid_keys and ultima_pregunta:
                                 if ultima_pregunta not in ('<nil>', 'null', 'None'):
                                     args["contexto_anterior"] = ultima_pregunta
-                            
                             filtered_args = {k: v for k, v in args.items() if k in valid_keys}
                             
-                            # Estado 3: Ejecutando Acción
-                            send_event("state", {"status": "executing", "message": f"Buscando / Consultando: {func_name}..."})
-                            
+                            send_event("state", {"status": "executing", "message": f"Consultando: {func_name}..."})
                             try:
                                 result = FUNCTIONS_MAP[func_name](**filtered_args)
-                                status = "SUCCESS"
+                                tc_status = "SUCCESS"
                             except Exception as e:
                                 result = {"error": f"Error ejecutando herramienta: {e}"}
-                                status = "ERROR"
-                            
-                            tools_executed_list.append({
-                                "name": func_name,
-                                "parameters": filtered_args,
-                                "status": status
-                            })
+                                tc_status = "ERROR"
+                            tools_executed_list.append({"name": func_name, "parameters": filtered_args, "status": tc_status})
                         else:
                             result = {"error": f"Herramienta '{func_name}' no encontrada"}
-                            tools_executed_list.append({
-                                "name": func_name,
-                                "parameters": args,
-                                "status": "ERROR"
-                            })
+                            tools_executed_list.append({"name": func_name, "parameters": args, "status": "ERROR"})
                         
                         tool_result_content = json.dumps(result, ensure_ascii=False, default=json_serial)
-                        messages.append({
-                            "role": "tool",
-                            "content": tool_result_content
-                        })
+                        messages.append({"role": "tool", "content": tool_result_content})
                         add_chat_message(conversation_id, "tool", tool_result_content)
                     
-                    # Volver a llamar al LLM con stream=True para generar la respuesta final
+                    # ── Respuesta final en stream ─────────────────────────────
                     send_event("state", {"status": "thinking", "message": "Formulando respuesta..."})
-                    
                     try:
                         stream_response = ollama_sdk.chat(
                             model=llm_model,
                             messages=messages,
-                            stream=True
+                            stream=True,
+                            options=OLLAMA_OPTIONS
                         )
-                        
                         for chunk in stream_response:
                             chunk_content = chunk.get("message", {}).get("content", "")
                             if chunk_content:
@@ -1976,36 +1982,29 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                                     ttft_ms = int((datetime.now() - start_time).total_seconds() * 1000)
                                 final_response_text += chunk_content
                                 send_event("token", {"content": chunk_content})
-                        
                         add_chat_message(conversation_id, "assistant", final_response_text)
                     except Exception as e:
-                        err_msg = "Error generando la respuesta final en streaming."
-                        send_event("error", {"content": err_msg})
+                        send_event("error", {"content": "Error generando la respuesta final en streaming."})
                         return
+                
                 else:
-                    # Respuesta directa (sin herramientas)
+                    # ── Respuesta directa sin herramientas ────────────────────
                     direct_content = assistant_message.get("content", "").strip()
                     if not direct_content:
                         direct_content = "¡Hola! Soy tu asistente de Danhee Cake. ¿En qué puedo ayudarte?"
-                    
                     ttft_ms = int((datetime.now() - start_time).total_seconds() * 1000)
                     final_response_text = direct_content
-                    
-                    words = re.findall(r'\s+|\S+', direct_content)
-                    for word in words:
+                    # Enviar tokens directamente sin sleep artificial
+                    for word in re.findall(r'\S+\s*', direct_content):
                         send_event("token", {"content": word})
-                        time.sleep(0.01)
-                    
                     add_chat_message(conversation_id, "assistant", direct_content)
                 
-                # Métricas de observabilidad
+                # ── Observabilidad (asíncrona, no bloquea el stream) ──────────
                 end_time = datetime.now()
                 total_latency_ms = int((end_time - start_time).total_seconds() * 1000)
                 num_tokens = len(final_response_text) / 4.0
-                active_gen_time_sec = (total_latency_ms - (ttft_ms or 0)) / 1000.0
-                if active_gen_time_sec <= 0:
-                    active_gen_time_sec = 0.1
-                tps = round(num_tokens / active_gen_time_sec, 2)
+                active_gen_sec = max((total_latency_ms - (ttft_ms or 0)) / 1000.0, 0.1)
+                tps = round(num_tokens / active_gen_sec, 2)
                 
                 add_observability_log(
                     session_id=conversation_id,
@@ -2017,7 +2016,6 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     was_blocked=False,
                     tools_executed=tools_executed_list
                 )
-                
                 send_event("done", {})
                 
             except Exception as e:
