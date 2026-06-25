@@ -1,38 +1,47 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import StarRating from '../ui/StarRating';
 import './FeaturedCakes.css';
 
 const FeaturedCakes = () => {
+  const { user, token, isAuthenticated } = useAuth();
   const [cakes, setCakes] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  const fetchFeaturedCakes = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('http://localhost:4000/api/cakes?featured=true');
+      if (!response.ok) {
+        throw new Error(`Error de red: ${response.status} ${response.statusText}`);
+      }
+      const result = await response.json();
+      if (result.success) {
+        setCakes(result.data);
+      } else {
+        setError(result.message || 'Error al cargar los pasteles destacados.');
+      }
+    } catch (err) {
+      console.error('Error fetching featured cakes:', err);
+      setError('No se pudo conectar con el servidor. Por favor, verifica tu conexión.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchFeaturedCakes = async () => {
-      try {
-        const response = await fetch('http://localhost:4000/api/cakes?featured=true');
-        
-        if (!response.ok) {
-          throw new Error(`Error de red: ${response.status} ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        if (result.success) {
-          setCakes(result.data);
-        } else {
-          setError(result.message || 'Error al cargar los pasteles destacados.');
-        }
-      } catch (err) {
-        console.error('Error fetching featured cakes:', err);
-        setError('No se pudo conectar con el servidor. Por favor, verifica tu conexión.');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchFeaturedCakes();
   }, []);
+
+
+
+  const handleNavigateToEdit = () => {
+    navigate('/edit-product');
+  };
 
   return (
     <section className="featured section" id="featured-cakes">
@@ -88,7 +97,26 @@ const FeaturedCakes = () => {
                     <span className="cake-card__baker">{cake.business_name}</span>
                     <span className="cake-card__price">Desde ${cake.price}</span>
                   </div>
-                  <h3 className="cake-card__name font-serif">{cake.name}</h3>
+                  <div className="cake-card__title-row">
+                    <h3 className="cake-card__name font-serif">{cake.name}</h3>
+                    {user?.role === 'repostero' && user?.id === cake.user_id && (
+                      <button
+                        type="button"
+                        className="cake-card__menu-trigger"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleNavigateToEdit();
+                        }}
+                        aria-label="Ir a editar catálogo"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="12" cy="5" r="2.2" fill="currentColor" />
+                          <circle cx="12" cy="12" r="2.2" fill="currentColor" />
+                          <circle cx="12" cy="19" r="2.2" fill="currentColor" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                   <p className="cake-card__specialty">{cake.location}</p>
                   <div className="cake-card__footer">
                     <StarRating rating={Number(cake.rating)} size="sm" />
@@ -109,6 +137,7 @@ const FeaturedCakes = () => {
           </Link>
         </div>
       </div>
+
     </section>
   );
 };

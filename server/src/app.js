@@ -22,6 +22,7 @@ app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
 app.post('/api/chat', askChatbot);
+app.use('/api/payments', require('./routes/payments.routes'));
 
 // Ruta base
 app.get('/', (req, res) => {

@@ -5,7 +5,7 @@ import CakeModal from '../components/ui/CakeModal';
 import './BakerDashboardPage.css';
 
 const BakerDashboardPage = () => {
-  const { user, token } = useAuth();
+  const { user, token, loading: authLoading } = useAuth();
   const [stats, setStats] = useState({ cakes: 0, appointments: 0, rating: 0 });
   const [appointments, setAppointments] = useState([]);
   const [myCakes, setMyCakes] = useState([]);
@@ -52,8 +52,10 @@ const BakerDashboardPage = () => {
   };
 
   useEffect(() => {
-    if (token) fetchData();
-  }, [token]);
+    if (!authLoading && token) {
+      fetchData();
+    }
+  }, [token, authLoading]);
 
   // Cargar datos de perfil de empresa al entrar a la pestaña
   useEffect(() => {
