@@ -103,20 +103,24 @@ function ChatBot() {
 
       rec.onend = () => {
         setIsListening(false);
-        // Auto-enviar si hay transcripción final
         if (autoSubmitRef.current && lastTranscriptRef.current.trim()) {
           autoSubmitRef.current = false;
-          // Usar un timeout mínimo para que el state de message se actualice
-          setTimeout(() => {
-            const fakeEvent = { preventDefault: () => {} };
-            // Disparar envío con el valor del ref (no del estado que podría ser stale)
-            sendMessageText(lastTranscriptRef.current.trim(), fakeEvent);
-          }, 50);
+          const fakeEvent = { preventDefault: () => {} };
+          sendMessageText(lastTranscriptRef.current.trim(), fakeEvent);
+        }
+        // Clean up refs after voice ends
+        recognitionRef.current = null;
+        lastTranscriptRef.current = "";
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+          silenceTimeoutRef.current = null;
         }
       };
-
+      
       recognitionRef.current = rec;
       rec.start();
+      // Reset any previous timeout when starting a new recording
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     } catch (err) {
       console.error("Error al iniciar Web Speech:", err);
       setIsListening(false);
@@ -124,18 +128,25 @@ function ChatBot() {
   };
 
   const toggleListening = () => {
-    if (isListening) {
-      autoSubmitRef.current = false;
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
+      if (isListening) {
+        autoSubmitRef.current = false;
+        if (recognitionRef.current) {
+          recognitionRef.current.stop();
+        }
+        // Ensure cleanup after manual stop
+        recognitionRef.current = null;
+        lastTranscriptRef.current = "";
+        autoSubmitRef.current = false;
+        setIsListening(false);
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+          silenceTimeoutRef.current = null;
+        }
+        return;
       }
-      setIsListening(false);
-      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-      return;
-    }
 
-    startListening();
-  };
+      startListening();
+    };
 
   // Cargar el historial de conversación del usuario autenticado
   const loadConversationHistory = async () => {
