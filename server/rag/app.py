@@ -1799,11 +1799,11 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 client_id = req_data.get('client_id')
                 conversation_id = req_data.get('conversation_id')
                 
-                # Configurar CORS y cabeceras SSE
+                # Configurar CORS y cabeceras SSE estricto
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
-                self.send_header('Cache-Control', 'no-cache')
-                self.send_header('Connection', 'keep-alive')
+                self.send_header('Cache-Control', 'no-cache, no-transform')
+                self.send_header('Connection', 'close') # <-- Fuerza el término de la conexión al acabar
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 
@@ -1821,19 +1821,9 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 
                 # ── Guardrails ────────────────────────────────────────────────
                 if check_guardrails(question):
-                    err_msg = "Entrada bloqueada por políticas de seguridad de Danhee Cake. Intento de inyección de prompt detectado."
+                    err_msg = "Entrada bloqueada por políticas de seguridad de Danhee Cake."
                     send_event("error", {"content": err_msg})
-                    total_latency = int((datetime.now() - start_time).total_seconds() * 1000)
-                    add_observability_log(
-                        session_id=conversation_id or "unknown",
-                        user_prompt=question,
-                        system_response=err_msg,
-                        ttft_ms=0,
-                        total_latency_ms=total_latency,
-                        tokens_per_second=0.0,
-                        was_blocked=True,
-                        tools_executed=[]
-                    )
+                    send_event("done", {})
                     return
                 
                 # ── Conversation ID ───────────────────────────────────────────
@@ -1873,19 +1863,16 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 
                 messages = history_holder[0] or [{"role": "system", "content": SYSTEM_PROMPT}]
                 messages.append({"role": "user", "content": question})
-                # Guardar mensaje usuario de forma asíncrona (no bloquea)
                 add_chat_message(conversation_id, "user", question)
                 
                 if rag_context_holder[0]:
                     messages.append({"role": "system", "content": f"Contexto adicional: {rag_context_holder[0]}"})
                 
-                # ── Primera llamada al LLM (detección de tool calls) ──────────
+                # ── Primera llamada al LLM ────────────────────────────────────
                 send_event("state", {"status": "thinking", "message": "Analizando tu solicitud..."})
                 
-                # Opciones Ollama para reducir latencia: limitar tokens de respuesta
-                # y usar temperatura baja para generación más rápida
                 OLLAMA_OPTIONS = {
-                    "num_predict": 512,   # máx tokens a generar
+                    "num_predict": 512,
                     "temperature": 0.3,
                     "top_p": 0.9,
                     "repeat_penalty": 1.1,
@@ -1899,7 +1886,8 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                         options=OLLAMA_OPTIONS
                     )
                 except Exception as e:
-                    send_event("error", {"content": "Error interno del modelo de IA local. Intenta de nuevo."})
+                    send_event("error", {"content": "Error interno del modelo de IA local."})
+                    send_event("done", {})
                     return
                 
                 assistant_message = response.get("message", {})
@@ -1928,10 +1916,8 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                         if isinstance(raw_args, str):
                             try: args = json.loads(raw_args)
                             except: args = {}
-                        else:
-                            args = raw_args
+                        else: args = raw_args
                         
-                        # Contexto anterior de la conversación
                         ultima_pregunta = ""
                         for m in reversed(messages):
                             if m.get("role") == "user" and m.get("content") != question:
@@ -1984,8 +1970,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                                 send_event("token", {"content": chunk_content})
                         add_chat_message(conversation_id, "assistant", final_response_text)
                     except Exception as e:
-                        send_event("error", {"content": "Error generando la respuesta final en streaming."})
-                        return
+                        send_event("error", {"content": "Error generando la respuesta final."})
                 
                 else:
                     # ── Respuesta directa sin herramientas ────────────────────
@@ -1994,122 +1979,33 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                         direct_content = "¡Hola! Soy tu asistente de Danhee Cake. ¿En qué puedo ayudarte?"
                     ttft_ms = int((datetime.now() - start_time).total_seconds() * 1000)
                     final_response_text = direct_content
-                    # Enviar tokens directamente sin sleep artificial
                     for word in re.findall(r'\S+\s*', direct_content):
                         send_event("token", {"content": word})
                     add_chat_message(conversation_id, "assistant", direct_content)
                 
-                # ── Observabilidad (asíncrona, no bloquea el stream) ──────────
-                end_time = datetime.now()
-                total_latency_ms = int((end_time - start_time).total_seconds() * 1000)
-                num_tokens = len(final_response_text) / 4.0
-                active_gen_sec = max((total_latency_ms - (ttft_ms or 0)) / 1000.0, 0.1)
-                tps = round(num_tokens / active_gen_sec, 2)
-                
-                add_observability_log(
-                    session_id=conversation_id,
-                    user_prompt=question,
-                    system_response=final_response_text,
-                    ttft_ms=ttft_ms or total_latency_ms,
-                    total_latency_ms=total_latency_ms,
-                    tokens_per_second=tps,
-                    was_blocked=False,
-                    tools_executed=tools_executed_list
-                )
+                # ── CIERRE REQUERIDO Y OBLIGATORIO PARA SSE ───────────────────
                 send_event("done", {})
+                
+                # Registrar observabilidad
+                try:
+                    end_time = datetime.now()
+                    total_latency_ms = int((end_time - start_time).total_seconds() * 1000)
+                    num_tokens = len(final_response_text) / 4.0
+                    active_gen_sec = max((total_latency_ms - (ttft_ms or 0)) / 1000.0, 0.1)
+                    tps = round(num_tokens / active_gen_sec, 2)
+                    add_observability_log(
+                        session_id=conversation_id, user_prompt=question,
+                        system_response=final_response_text, ttft_ms=ttft_ms or total_latency_ms,
+                        total_latency_ms=total_latency_ms, tokens_per_second=tps,
+                        was_blocked=False, tools_executed=tools_executed_list
+                    )
+                except Exception:
+                    pass
                 
             except Exception as e:
                 print(f"[RAG Server Stream Error] {e}", file=sys.stderr)
-                try:
-                    payload = json.dumps({"type": "error", "content": f"Error en streaming: {str(e)}"}, ensure_ascii=False)
-                    self.wfile.write(f"data: {payload}\n\n".encode('utf-8'))
-                    self.wfile.flush()
-                except:
-                    pass
-        
-        elif self.path == '/chat':
-            try:
-                content_length = int(self.headers['Content-Length'])
-                post_data = self.rfile.read(content_length)
-                req_data = json.loads(post_data.decode('utf-8'))
-                question = req_data.get('message', '').strip()
-                client_id = req_data.get('client_id')
-                conversation_id = req_data.get('conversation_id')
-                
-                start_time = datetime.now()
-                
-                # Validar Guardrails
-                if check_guardrails(question):
-                    err_msg = "Entrada bloqueada por políticas de seguridad de Danhee Cake. Intento de inyección de prompt detectado."
-                    
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json; charset=utf-8')
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"response": err_msg, "conversation_id": conversation_id or "unknown"}, ensure_ascii=False).encode('utf-8'))
-                    
-                    total_latency = int((datetime.now() - start_time).total_seconds() * 1000)
-                    add_observability_log(
-                        session_id=conversation_id or "unknown",
-                        user_prompt=question,
-                        system_response=err_msg,
-                        ttft_ms=0,
-                        total_latency_ms=total_latency,
-                        tokens_per_second=0.0,
-                        was_blocked=True,
-                        tools_executed=[]
-                    )
-                    return
-                
-                if not conversation_id and client_id:
-                    last_conv = get_last_conversation_by_client(client_id)
-                    if last_conv:
-                        conversation_id = last_conv
-                
-                if not conversation_id:
-                    import uuid
-                    conversation_id = str(uuid.uuid4())
-                
-                get_or_create_chat_session(conversation_id, client_id)
-                
-                if not question:
-                    self._send_error(400, "Mensaje vacío")
-                    return
-                
-                response_text = generate_response_with_tools(question, client_id, conversation_id)
-                
-                # Calcular latencias para el log
-                total_latency_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-                num_tokens = len(response_text) / 4.0
-                tps = round(num_tokens / (total_latency_ms / 1000.0 if total_latency_ms > 0 else 0.1), 2)
-                
-                add_observability_log(
-                    session_id=conversation_id,
-                    user_prompt=question,
-                    system_response=response_text,
-                    ttft_ms=total_latency_ms,
-                    total_latency_ms=total_latency_ms,
-                    tokens_per_second=tps,
-                    was_blocked=False,
-                    tools_executed=[]
-                )
-                
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json; charset=utf-8')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                
-                response_json = {
-                    "response": response_text,
-                    "conversation_id": conversation_id
-                }
-                self.wfile.write(json.dumps(response_json, ensure_ascii=False).encode('utf-8'))
-                
-            except Exception as e:
-                print(f"[RAG Server] Error: {e}", file=sys.stderr)
-                self._send_error(500, str(e))
-        else:
-            self._send_error(404, "Not found")
+                send_event("error", {"content": f"Error en streaming: {str(e)}"})
+                send_event("done", {})
             
     def do_OPTIONS(self):
         self.send_response(204)

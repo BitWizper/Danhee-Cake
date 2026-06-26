@@ -75,7 +75,7 @@ const streamChatbot = async (req, res) => {
     }
   }
 
-  // Configurar cabeceras de SSE
+  // Configurar cabeceras de Server-Sent Events (SSE)
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -95,17 +95,41 @@ const streamChatbot = async (req, res) => {
       return res.end();
     }
 
-    // Leer el stream del cuerpo de la respuesta de Python y retransmitirlo
     const reader = pythonRes.body.getReader();
     const decoder = new TextDecoder();
+    let streamBuffer = "";
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value);
-      res.write(chunk);
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          // Si quedó algo en el buffer al finalizar, lo enviamos
+          if (streamBuffer.trim()) {
+            res.write(streamBuffer);
+          }
+          break;
+        }
+
+        // Decodificar usando { stream: true } para evitar fragmentación de caracteres
+        streamBuffer += decoder.decode(value, { stream: true });
+        
+        // Separamos por bloques de eventos SSE
+        const lines = streamBuffer.split("\n\n");
+        streamBuffer = lines.pop(); // Guardar fragmento incompleto para el siguiente ciclo
+
+        for (const line of lines) {
+          if (line.trim()) {
+            res.write(`${line}\n\n`);
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock(); // Liberar el lector de Python pase lo que pase
     }
+
+    // Cierre forzado y limpio de la conexión HTTP hacia React
     res.end();
+
   } catch (error) {
     console.error("[Node Stream] Error conectando con el servicio RAG Python:", error.message);
     res.write(`data: ${JSON.stringify({ type: "error", content: "El asistente de IA se está iniciando. Por favor, intenta de nuevo." })}\n\n`);

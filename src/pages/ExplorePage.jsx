@@ -17,6 +17,10 @@ const ExplorePage = () => {
   const [location, setLocation] = useState('');
   const [specialty, setSpecialty] = useState(initialCategory);
 
+  // ── VARIABLES DE PAGINACIÓN (6 PASTELES) ─────────────────────────────────
+  const [currentPage, setCurrentPage] = useState(1);
+  const cakesPerPage = 9; 
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -76,6 +80,34 @@ const ExplorePage = () => {
     return matchSearch && matchLocation && matchSpecialty;
   });
 
+  // Reiniciar a página 1 al filtrar
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, location, specialty]);
+
+  // Variables de división de páginas
+  const indexOfLastCake = currentPage * cakesPerPage;
+  const indexOfFirstCake = indexOfLastCake - cakesPerPage;
+  const currentCakes = filtered.slice(indexOfFirstCake, indexOfLastCake);
+  const totalPages = Math.ceil(filtered.length / cakesPerPage);
+
+  // ── MOSTRAR RANGO SIMPLE DE HASTA 5 NÚMEROS (SIN ELIPSIS) ─────────────────
+  const getPaginatedRange = () => {
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - 2);
+    let end = Math.min(totalPages, start + maxVisible - 1);
+
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+
+    const pages = [];
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+
   return (
     <div className="explore-page" id="explore-page">
       <div className="explore-page__header">
@@ -134,7 +166,7 @@ const ExplorePage = () => {
           <p className="explore-page__empty">Cargando pasteles...</p>
         ) : filtered.length === 0 && !error ? (
           <p className="explore-page__empty">No se encontraron pasteles con ese criterio.</p>
-        ) : filtered.map((cake, i) => (
+        ) : currentCakes.map((cake, i) => (
           <article
             key={cake.id}
             className="cake-card animate-fadeUp"
@@ -171,6 +203,39 @@ const ExplorePage = () => {
           </article>
         ))}
       </div>
+
+      {/* ── CONTROLES LIMPIOS DE 5 BOTONES SIN ELIPSIS ── */}
+      {!loading && totalPages > 1 && (
+        <div className="explore-pagination">
+          <button
+            disabled={currentPage === 1}
+            className="explore-pagination__arrow"
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          >
+            ‹
+          </button>
+
+          <div className="explore-pagination__numbers">
+            {getPaginatedRange().map((page) => (
+              <button
+                key={page}
+                className={`explore-pagination__num ${page === currentPage ? 'explore-pagination__num--active' : ''}`}
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+
+          <button
+            disabled={currentPage === totalPages}
+            className="explore-pagination__arrow"
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          >
+            ›
+          </button>
+        </div>
+      )}
     </div>
   );
 };
