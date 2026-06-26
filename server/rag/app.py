@@ -6,6 +6,7 @@ import urllib.request
 import decimal
 from datetime import date, datetime
 import unicodedata
+import threading
 
 def quitar_acentos(texto: str) -> str:
     if not texto: return ""
@@ -50,8 +51,16 @@ from db_config import (
 
 base_dir = Path(__file__).resolve().parent
 
-# Variable global para almacenar client_id del usuario actual (por turno)
-_current_client_id = None
+# Thread-local storage para almacenar client_id por hilo de petición
+# Evita que peticiones concurrentes sobreescriban el client_id entre sí
+_thread_local = threading.local()
+
+def _get_current_client_id():
+    return getattr(_thread_local, 'client_id', None)
+
+def _set_current_client_id(value):
+    _thread_local.client_id = value
+
 # Variable para almacenar el último resultado de búsqueda
 _last_search_result = {}
 # Cache para contenido de PDFs
@@ -214,14 +223,12 @@ def registrar_solicitud_cita(
     notas: str = ""
 ) -> dict:
     """Registra una solicitud de cita con un repostero de Danhee Cake."""
-    global _current_client_id
-    
-    print(f"[RAG Tools] Registrando cita en Danhee Cake: {client_name}, baker={baker_id}, {fecha} {hora}", file=sys.stderr)
     
     notas_final = f"Cliente: {client_name}. {notas}".strip()
     
-    if _current_client_id:
-        exito = insert_appointment(_current_client_id, baker_id, fecha, hora, notas_final)
+    client_id = _get_current_client_id()
+    if client_id:
+        exito = insert_appointment(client_id, baker_id, fecha, hora, notas_final)
         if exito:
             return {
                 "exito": True,
@@ -1088,11 +1095,11 @@ def listar_mis_pasteles() -> dict:
     """
     Muestra la lista de pasteles asociados al catálogo del repostero autenticado.
     """
-    global _current_client_id
-    if not _current_client_id:
+    client_id = _get_current_client_id()
+    if not client_id:
         return {"mensaje": "No estás autenticado. Por favor inicia sesión como repostero."}
     
-    baker = get_baker_profile_by_user_id(_current_client_id)
+    baker = get_baker_profile_by_user_id(client_id)
     if not baker:
         return {"mensaje": "No se encontró un perfil de repostero para tu usuario."}
     
@@ -1119,11 +1126,11 @@ def agregar_nuevo_pastel(nombre: str, precio: float, categoria: str = None, desc
     """
     Agrega un nuevo pastel al catálogo del repostero.
     """
-    global _current_client_id
-    if not _current_client_id:
+    client_id = _get_current_client_id()
+    if not client_id:
         return {"mensaje": "No estás autenticado. Por favor inicia sesión como repostero."}
     
-    baker = get_baker_profile_by_user_id(_current_client_id)
+    baker = get_baker_profile_by_user_id(client_id)
     if not baker:
         return {"mensaje": "No se encontró un perfil de repostero para tu usuario."}
     
@@ -1151,11 +1158,11 @@ def actualizar_mi_pastel(pastel_id: int, nombre: str = None, precio: float = Non
     """
     Actualiza la información de un pastel existente del repostero.
     """
-    global _current_client_id
-    if not _current_client_id:
+    client_id = _get_current_client_id()
+    if not client_id:
         return {"mensaje": "No estás autenticado. Por favor inicia sesión como repostero."}
     
-    baker = get_baker_profile_by_user_id(_current_client_id)
+    baker = get_baker_profile_by_user_id(client_id)
     if not baker:
         return {"mensaje": "No se encontró un perfil de repostero para tu usuario."}
     
@@ -1199,11 +1206,11 @@ def eliminar_mi_pastel(pastel_id: int) -> dict:
     """
     Elimina un pastel del catálogo del repostero.
     """
-    global _current_client_id
-    if not _current_client_id:
+    client_id = _get_current_client_id()
+    if not client_id:
         return {"mensaje": "No estás autenticado. Por favor inicia sesión como repostero."}
     
-    baker = get_baker_profile_by_user_id(_current_client_id)
+    baker = get_baker_profile_by_user_id(client_id)
     if not baker:
         return {"mensaje": "No se encontró un perfil de repostero para tu usuario."}
         
@@ -1782,8 +1789,7 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
     Orquestador con Function Calling nativo de Ollama y memoria de conversación.
     Mantiene un historial completo por cliente en base de datos.
     """
-    global _current_client_id
-    _current_client_id = client_id
+    _set_current_client_id(client_id)
     
     # Determinar rol del usuario
     role = 'cliente'
@@ -2056,6 +2062,9 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 client_id = req_data.get('client_id')
                 conversation_id = req_data.get('conversation_id')
                 role = req_data.get('role')
+                
+                # Asignar a la variable global para que las funciones locales la conozcan
+                _set_current_client_id(client_id)
                 
                 # Determinar rol del usuario
                 if not role and client_id:

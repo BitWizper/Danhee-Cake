@@ -250,6 +250,7 @@ function ChatBot() {
           message: trimmedMessage,
           conversation_id: conversation_id,
           client_id: storedUser ? storedUser.id : null,
+          role: storedUser ? storedUser.role : null,
         }),
       });
 

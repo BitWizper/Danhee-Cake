@@ -108,10 +108,10 @@ const App = () => {
             } />
           </Routes>
 
-        {/* Footer en todas las páginas */}
-        <Footer />
-        <ChatBot />
-      </BrowserRouter>
+          {/* Footer en todas las páginas */}
+          <Footer />
+          <ChatBot />
+        </BrowserRouter>
       </CartProvider>
     </AuthProvider>
   );
