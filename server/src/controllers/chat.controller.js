@@ -54,4 +54,63 @@ const askChatbot = async (req, res) => {
   }
 };
 
-module.exports = { askChatbot };
+const streamChatbot = async (req, res) => {
+  const { message, conversation_id } = req.body;
+
+  if (!message || message.trim() === "") {
+    return res.status(400).json({ error: "El mensaje no puede estar vacío" });
+  }
+
+  let client_id = null;
+  const authHeader = req.headers['authorization'];
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.slice(7);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      client_id = decoded.id || decoded.userId || null;
+    } catch (error) {
+      console.log(`[Chat Stream] Token inválido o expirado, continuando como invitado`);
+      client_id = null;
+    }
+  }
+
+  // Configurar cabeceras de SSE
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+  try {
+    // Llamar al endpoint de stream del backend en Python
+    const pythonRes = await fetch("http://127.0.0.1:5005/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, client_id, conversation_id }),
+    });
+
+    if (!pythonRes.ok) {
+      console.error("[Node Stream] Error del servicio RAG Python:", pythonRes.statusText);
+      res.write(`data: ${JSON.stringify({ type: "error", content: "Error en el servicio RAG" })}\n\n`);
+      return res.end();
+    }
+
+    // Leer el stream del cuerpo de la respuesta de Python y retransmitirlo
+    const reader = pythonRes.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      res.write(chunk);
+    }
+    res.end();
+  } catch (error) {
+    console.error("[Node Stream] Error conectando con el servicio RAG Python:", error.message);
+    res.write(`data: ${JSON.stringify({ type: "error", content: "El asistente de IA se está iniciando. Por favor, intenta de nuevo." })}\n\n`);
+    res.end();
+  }
+};
+
+module.exports = { askChatbot, streamChatbot };
