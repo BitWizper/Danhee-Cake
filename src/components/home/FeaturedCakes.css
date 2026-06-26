@@ -139,6 +139,69 @@
   color: var(--color-faint);
 }
 
+.cake-card__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  position: relative; /* ESTO ES LO QUE FALTABA */
+}
+
+.cake-card__menu-trigger {
+  /* Ya no necesita position: absolute ni top/right si está en el row */
+  /* Lo ponemos relativo al flujo del flexbox */
+  position: relative; 
+  z-index: 10; 
+  width: 35px; /* Tamaño más manejable */
+  height: 35px;
+  background: rgba(201, 169, 110, 0.2); 
+  border: 1px solid var(--color-gold);
+  color: var(--color-gold);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex-shrink: 0; /* Evita que el botón se aplaste */
+}
+
+.cake-card__menu-trigger:hover {
+  background: var(--color-gold);
+  color: #000;
+}
+.cake-card__menu-trigger:focus {
+  background: rgba(201,169,110,0.22);
+  transform: scale(1.05);
+}
+
+.cake-card__menu-popup {
+  position: absolute;
+  right: var(--space-5);
+  top: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+}
+
+.cake-card__menu-popup button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--color-cream);
+  text-align: left;
+  font-size: var(--text-sm);
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+}
+
+.cake-card__menu-popup button:hover {
+  color: var(--color-gold);
+}
+
 .cake-card__cta {
   display: inline-block;
   margin-top: var(--space-3);

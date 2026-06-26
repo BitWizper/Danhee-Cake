@@ -1,9 +1,10 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import './UI_cart.css';
 
 const UICart = () => {
   const { cartItems, removeFromCart, updateQuantity, getTotalPrice, clearCart } = useCart();
+  const navigate = useNavigate();
 
   return (
     <div className="cart-page" id="cart-page">
@@ -108,7 +109,7 @@ const UICart = () => {
                 <span>${getTotalPrice().toFixed(2)}</span>
               </div>
 
-              <button className="cart-page__checkout">
+              <button className="cart-page__checkout" onClick={() => navigate('/checkout')}>
                 Proceder al Pago
               </button>
 

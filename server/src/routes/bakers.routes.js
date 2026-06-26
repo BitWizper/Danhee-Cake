@@ -8,7 +8,6 @@ const upload = require('../middleware/upload');
 // RUTAS PÚBLICAS (NO requieren autenticación)
 // ============================================
 router.get('/', bakersController.getAllPublic);  // ← Obtener TODOS los reposteros
-router.get('/:id', bakersController.getProfile);  // Obtener un repostero específico
 
 // ============================================
 // RUTAS PROTEGIDAS (Requieren ser repostero autenticado)
@@ -21,5 +20,8 @@ router.put('/cakes/:id', authMiddleware, authorize('repostero'), upload.single('
 router.delete('/cakes/:id', authMiddleware, authorize('repostero'), bakersController.deleteCake);
 router.get('/profile/me', authMiddleware, authorize('repostero'), bakersController.getMyProfile);
 router.put('/profile', authMiddleware, authorize('repostero'), bakersController.updateProfile);
+
+// Esta ruta se mantiene al final para evitar conflictos con rutas estáticas como /cakes o /stats
+router.get('/:id', bakersController.getProfile);  // Obtener un repostero específico
 
 module.exports = router;

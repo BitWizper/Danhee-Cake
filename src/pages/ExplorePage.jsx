@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import StarRating from '../components/ui/StarRating';
+import CakeModal from '../components/ui/CakeModal';
 import './ExplorePage.css';
 
 const ExplorePage = () => {
+  const { user, token, isAuthenticated } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const initialCategory = searchParams.get('categoria') || 'Todas';
@@ -12,6 +15,9 @@ const ExplorePage = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [menuOpenId, setMenuOpenId] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCake, setEditingCake] = useState(null);
 
   const [search, setSearch] = useState('');
   const [location, setLocation] = useState('');
@@ -48,6 +54,17 @@ const ExplorePage = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.cake-card')) {
+        setMenuOpenId(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
   // Manejador del click en las categorías (Chips)
   const handleCategoryClick = (category) => {
     const nameLower = category.name.toLowerCase();
@@ -79,34 +96,6 @@ const ExplorePage = () => {
     const matchSpecialty = specialty === 'Todas' || cake.category_name === specialty || cake.category_slug === specialty;
     return matchSearch && matchLocation && matchSpecialty;
   });
-
-  // Reiniciar a página 1 al filtrar
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, location, specialty]);
-
-  // Variables de división de páginas
-  const indexOfLastCake = currentPage * cakesPerPage;
-  const indexOfFirstCake = indexOfLastCake - cakesPerPage;
-  const currentCakes = filtered.slice(indexOfFirstCake, indexOfLastCake);
-  const totalPages = Math.ceil(filtered.length / cakesPerPage);
-
-  // ── MOSTRAR RANGO SIMPLE DE HASTA 5 NÚMEROS (SIN ELIPSIS) ─────────────────
-  const getPaginatedRange = () => {
-    const maxVisible = 5;
-    let start = Math.max(1, currentPage - 2);
-    let end = Math.min(totalPages, start + maxVisible - 1);
-
-    if (end - start + 1 < maxVisible) {
-      start = Math.max(1, end - maxVisible + 1);
-    }
-
-    const pages = [];
-    for (let i = start; i <= end; i++) {
-      pages.push(i);
-    }
-    return pages;
-  };
 
   return (
     <div className="explore-page" id="explore-page">
@@ -188,9 +177,28 @@ const ExplorePage = () => {
                 <span className="cake-card__baker">{cake.business_name}</span>
                 <span className="cake-card__price">${cake.price}</span>
               </div>
-              <Link to={`/pastel/${cake.id}`} style={{ textDecoration: 'none' }}>
-                <h2 className="cake-card__name font-serif">{cake.name}</h2>
-              </Link>
+              <div className="cake-card__title-row">
+                <Link to={`/pastel/${cake.id}`} style={{ textDecoration: 'none', flex: 1 }}>
+                  <h2 className="cake-card__name font-serif">{cake.name}</h2>
+                </Link>
+                {user?.role === 'repostero' && user?.id === cake.user_id && (
+                  <button
+                    type="button"
+                    className="cake-card__menu-trigger"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleNavigateToEdit();
+                    }}
+                    aria-label="Ir a editar catálogo"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="5" r="2.2" fill="currentColor" />
+                      <circle cx="12" cy="12" r="2.2" fill="currentColor" />
+                      <circle cx="12" cy="19" r="2.2" fill="currentColor" />
+                    </svg>
+                  </button>
+                )}
+              </div>
               <p className="cake-card__specialty">📍 {cake.location}</p>
               <div className="cake-card__footer">
                 <StarRating rating={Number(cake.rating)} size="sm" />

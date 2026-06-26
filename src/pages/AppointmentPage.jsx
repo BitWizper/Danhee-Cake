@@ -7,7 +7,7 @@ import './AppointmentPage.css';
 const AppointmentPage = () => {
   const { id } = useParams(); // bakerId
   const navigate = useNavigate();
-  const { user, token, isAuthenticated } = useAuth();
+  const { user, token, isAuthenticated, loading: authLoading } = useAuth();
   
   const [baker, setBaker] = useState(null);
   const [form, setForm] = useState({
@@ -19,6 +19,8 @@ const AppointmentPage = () => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
+    
     if (!isAuthenticated) {
       navigate('/login');
       return;
@@ -38,7 +40,7 @@ const AppointmentPage = () => {
 
     if (id) fetchBaker();
     else setLoading(false);
-  }, [id, isAuthenticated, navigate]);
+  }, [id, isAuthenticated, authLoading, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

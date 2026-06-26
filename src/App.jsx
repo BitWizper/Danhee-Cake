@@ -14,6 +14,7 @@ import BakerProfilePage from './pages/BakerProfilePage';
 import CakeDesignerPage from './pages/CakeDesignerPage';
 import AppointmentPage from './pages/AppointmentPage';
 import BakerDashboardPage from './pages/BakerDashboardPage';
+import UI_editproduct from './pages/editProduct/UI_editproduct';
 import UIWedding from './pages/wedding/UI_wedding';
 import UIAnniversary from './pages/Anniversary/UI_Anniversary';
 import UICorporate from './pages/Corporate/UI_Corporate';
@@ -23,6 +24,7 @@ import UIGraduation from './pages/Graduation/UI_Graduation';
 import UIXV from './pages/XV/UI_xv';
 import CakeDetailPage from './pages/CakeDetailPage';
 import UICart from './pages/cart/UI_cart';
+import UICheckout from './pages/checkout/UI_checkout_process';
 
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
@@ -72,6 +74,7 @@ const App = () => {
 
             {/* Carrito de Compras */}
             <Route path="/carrito" element={<UICart />} />
+            <Route path="/checkout" element={<UICheckout />} />
 
             {/* Detalle del pastel individual */}
             <Route path="/pastel/:id" element={<CakeDetailPage />} />
@@ -82,6 +85,7 @@ const App = () => {
 
             {/* Dashboard de repostero */}
             <Route path="/dashboard" element={<BakerDashboardPage />} />
+            <Route path="/edit-product" element={<UI_editproduct />} />
 
             {/* 404 fallback */}
             <Route path="*" element={

@@ -1,0 +1,54 @@
+.checkout-page {
+  padding: 4rem 0 6rem;
+}
+.checkout-content h1 {
+  margin-bottom: 1.25rem;
+}
+.checkout-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 2rem;
+}
+.checkout-main {
+  background: var(--color-panel, rgba(255,255,255,0.02));
+  padding: 1.25rem;
+  border-radius: 10px;
+}
+.checkout-steps {
+  display: flex;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+.checkout-steps .step {
+  padding: .5rem .75rem;
+  background: rgba(255,255,255,0.02);
+  border-radius: 6px;
+  color: var(--color-cream);
+  font-size: .95rem;
+}
+.checkout-steps .step.active {
+  background: linear-gradient(90deg, var(--color-gold), #b8874a);
+  color: #1b1b1b;
+}
+.checkout-section { margin-top: 1rem; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.form-grid input { padding: .6rem .75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.04); background: transparent; color: var(--color-cream); }
+.card-row { display:flex; gap:.75rem; }
+.payment-options { display:flex; flex-direction:column; gap:.5rem; margin: .75rem 0; }
+.payment-option { padding:.6rem; border-radius:6px; background: rgba(255,255,255,0.02); display:flex; align-items:center; gap:.5rem; }
+.payment-option.selected { box-shadow: 0 0 0 2px rgba(184,135,74,0.15); }
+.checkout-actions { display:flex; gap:.75rem; justify-content:flex-end; margin-top:1rem; }
+.checkout-side .side-box { background: rgba(255,255,255,0.02); padding:1rem; border-radius:8px; }
+.review-item { display:flex; justify-content:space-between; gap:1rem; padding:.6rem 0; border-bottom:1px solid rgba(255,255,255,0.02); }
+.review-item__left { display:flex; gap:.75rem; align-items:center; }
+.review-item__left img { width:60px; height:60px; object-fit:cover; border-radius:6px; }
+.checkout-summary { margin-top:1rem; }
+.checkout-summary div { display:flex; justify-content:space-between; padding:.3rem 0; }
+.total-row { font-weight:700; margin-top:.5rem; }
+.side-total { margin-top:.75rem; font-size:1.1rem; }
+.muted { color: rgba(255,255,255,0.6); font-size: .92rem; }
+
+.oxxo-ticket-box { background: rgba(255,255,255,0.02); padding: .75rem; border-radius:8px; margin-bottom: .75rem; }
+.oxxo-ticket-box h4 { margin: 0 0 .25rem 0; }
+.oxxo-ticket-box a { color: var(--color-gold); }
+
