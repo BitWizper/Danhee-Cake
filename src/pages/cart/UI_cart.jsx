@@ -1,10 +1,23 @@
+import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 import './UI_cart.css';
 
 const UICart = () => {
   const { cartItems, removeFromCart, updateQuantity, getTotalPrice, clearCart } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Redirigir si el usuario es repostero
+  useEffect(() => {
+    if (user?.role === 'repostero') {
+      navigate('/');
+    }
+  }, [user, navigate]);
+
+  // Si es repostero, no renderizar nada mientras se redirige
+  if (user?.role === 'repostero') return null;
 
   return (
     <div className="cart-page" id="cart-page">
