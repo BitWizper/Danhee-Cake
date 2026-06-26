@@ -394,3 +394,90 @@ def add_observability_log(session_id, user_prompt, system_response, ttft_ms,
             conn.close()
     threading.Thread(target=_write, daemon=True).start()
     return True
+
+
+def get_baker_profile_by_user_id(user_id):
+    conn = get_connection()
+    if not conn: return None
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('SELECT * FROM baker_profiles WHERE user_id = %s', (user_id,))
+        return cursor.fetchone()
+    except Error as e:
+        print(f"[db_config] Error en get_baker_profile_by_user_id: {e}", file=sys.stderr)
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_baker_cakes(baker_id):
+    conn = get_connection()
+    if not conn: return []
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('''
+            SELECT c.*, cat.name as category_name
+            FROM cakes c
+            LEFT JOIN categories cat ON c.category_id = cat.id
+            WHERE c.baker_id = %s
+            ORDER BY c.created_at DESC
+        ''', (baker_id,))
+        return cursor.fetchall()
+    except Error as e:
+        print(f"[db_config] Error en get_baker_cakes: {e}", file=sys.stderr)
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+def add_baker_cake(baker_id, category_id, name, description, price, image_url=None, is_featured=0):
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO cakes (baker_id, category_id, name, description, price, image_url, is_featured)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ''', (baker_id, category_id, name, description, price, image_url, is_featured))
+        conn.commit()
+        return cursor.lastrowid
+    except Error as e:
+        print(f"[db_config] Error en add_baker_cake: {e}", file=sys.stderr)
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+def update_baker_cake(baker_id, cake_id, name, description, price, category_id, is_featured=0):
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE cakes 
+            SET name = %s, description = %s, price = %s, category_id = %s, is_featured = %s 
+            WHERE id = %s AND baker_id = %s
+        ''', (name, description, price, category_id, is_featured, cake_id, baker_id))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Error as e:
+        print(f"[db_config] Error en update_baker_cake: {e}", file=sys.stderr)
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+def delete_baker_cake(baker_id, cake_id):
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM cakes WHERE id = %s AND baker_id = %s', (cake_id, baker_id))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Error as e:
+        print(f"[db_config] Error en delete_baker_cake: {e}", file=sys.stderr)
+        return False
+    finally:
+        cursor.close()
+        conn.close()

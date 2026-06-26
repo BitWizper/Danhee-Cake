@@ -43,7 +43,9 @@ from db_config import (
     get_or_create_chat_session, get_chat_history, add_chat_message,
     get_last_conversation_by_client,      # <-- NUEVA
     get_chat_messages,                    # <-- NUEVA
-    add_observability_log
+    add_observability_log,
+    get_baker_profile_by_user_id, get_baker_cakes,
+    add_baker_cake, update_baker_cake, delete_baker_cake
 )
 
 base_dir = Path(__file__).resolve().parent
@@ -1082,6 +1084,154 @@ def mostrar_opciones(contexto: str = "", contexto_anterior: str = "") -> dict:
     }
 
 
+def listar_mis_pasteles() -> dict:
+    """
+    Muestra la lista de pasteles asociados al catálogo del repostero autenticado.
+    """
+    global _current_client_id
+    if not _current_client_id:
+        return {"mensaje": "No estás autenticado. Por favor inicia sesión como repostero."}
+    
+    baker = get_baker_profile_by_user_id(_current_client_id)
+    if not baker:
+        return {"mensaje": "No se encontró un perfil de repostero para tu usuario."}
+    
+    cakes = get_baker_cakes(baker["id"])
+    if not cakes:
+        return {"mensaje": "Aún no tienes pasteles registrados en tu catálogo. ¡Puedes pedirme que agregue uno!"}
+    
+    lista = []
+    for c in cakes:
+        destacado = "⭐ Destacado" if c.get("is_featured") else ""
+        cat = c.get("category_name") or "Sin categoría"
+        desc = c.get("description") or "Sin descripción"
+        precio = float(c.get("price", 0))
+        lista.append(f"• **ID: {c['id']}** - **{c['name']}** - ${precio:.2f} MXN - Categoría: {cat} - {desc} {destacado}")
+    
+    mensaje = "🍰 **Tus pasteles registrados:**\n\n" + "\n".join(lista)
+    return {
+        "pasteles": cakes,
+        "cantidad": len(cakes),
+        "mensaje": mensaje
+    }
+
+def agregar_nuevo_pastel(nombre: str, precio: float, categoria: str = None, descripcion: str = None) -> dict:
+    """
+    Agrega un nuevo pastel al catálogo del repostero.
+    """
+    global _current_client_id
+    if not _current_client_id:
+        return {"mensaje": "No estás autenticado. Por favor inicia sesión como repostero."}
+    
+    baker = get_baker_profile_by_user_id(_current_client_id)
+    if not baker:
+        return {"mensaje": "No se encontró un perfil de repostero para tu usuario."}
+    
+    # Resolver id de categoría
+    category_id = None
+    if categoria:
+        cats = get_categories()
+        categoria_norm = quitar_acentos(categoria.lower())
+        for cat in cats:
+            if categoria_norm in quitar_acentos(cat["name"].lower()) or quitar_acentos(cat["slug"].lower()) in categoria_norm:
+                category_id = cat["id"]
+                break
+    
+    cake_id = add_baker_cake(baker["id"], category_id, nombre, descripcion, precio)
+    if cake_id:
+        return {
+            "success": True,
+            "cake_id": cake_id,
+            "mensaje": f"✅ ¡Pastel **'{nombre}'** agregado exitosamente a tu catálogo con un precio de ${precio:.2f} MXN! (ID asignado: {cake_id})"
+        }
+    else:
+        return {"mensaje": "❌ Ocurrió un error al intentar registrar el pastel en la base de datos."}
+
+def actualizar_mi_pastel(pastel_id: int, nombre: str = None, precio: float = None, descripcion: str = None, categoria: str = None) -> dict:
+    """
+    Actualiza la información de un pastel existente del repostero.
+    """
+    global _current_client_id
+    if not _current_client_id:
+        return {"mensaje": "No estás autenticado. Por favor inicia sesión como repostero."}
+    
+    baker = get_baker_profile_by_user_id(_current_client_id)
+    if not baker:
+        return {"mensaje": "No se encontró un perfil de repostero para tu usuario."}
+    
+    # Primero obtener el pastel actual para validar pertenencia y completar campos vacíos
+    cakes = get_baker_cakes(baker["id"])
+    target_cake = None
+    for c in cakes:
+        if c["id"] == int(pastel_id):
+            target_cake = c
+            break
+            
+    if not target_cake:
+        return {"mensaje": f"No se encontró el pastel con ID {pastel_id} en tu catálogo. Verifica que el ID sea correcto."}
+    
+    # Preparar valores (si no se envían, conservar los existentes)
+    new_nombre = nombre if nombre is not None else target_cake["name"]
+    new_precio = float(precio) if precio is not None else float(target_cake["price"])
+    new_descripcion = descripcion if descripcion is not None else target_cake["description"]
+    
+    category_id = target_cake["category_id"]
+    if categoria:
+        cats = get_categories()
+        categoria_norm = quitar_acentos(categoria.lower())
+        for cat in cats:
+            if categoria_norm in quitar_acentos(cat["name"].lower()) or quitar_acentos(cat["slug"].lower()) in categoria_norm:
+                category_id = cat["id"]
+                break
+                
+    is_featured = target_cake.get("is_featured", 0)
+    
+    success = update_baker_cake(baker["id"], int(pastel_id), new_nombre, new_descripcion, new_precio, category_id, is_featured)
+    if success:
+        return {
+            "success": True,
+            "mensaje": f"✅ El pastel **'{new_nombre}'** (ID: {pastel_id}) ha sido actualizado correctamente."
+        }
+    else:
+        return {"mensaje": "❌ No se pudo actualizar el pastel. Intenta de nuevo."}
+
+def eliminar_mi_pastel(pastel_id: int) -> dict:
+    """
+    Elimina un pastel del catálogo del repostero.
+    """
+    global _current_client_id
+    if not _current_client_id:
+        return {"mensaje": "No estás autenticado. Por favor inicia sesión como repostero."}
+    
+    baker = get_baker_profile_by_user_id(_current_client_id)
+    if not baker:
+        return {"mensaje": "No se encontró un perfil de repostero para tu usuario."}
+        
+    success = delete_baker_cake(baker["id"], int(pastel_id))
+    if success:
+        return {
+            "success": True,
+            "mensaje": f"✅ El pastel con ID {pastel_id} ha sido eliminado correctamente de tu catálogo."
+        }
+    else:
+        return {"mensaje": f"❌ No se encontró o no se pudo eliminar el pastel con ID {pastel_id}. Verifica si el ID te pertenece."}
+
+def listar_categorias_disponibles() -> dict:
+    """
+    Lista las categorías de pasteles activas para que el repostero sepa cuáles asignar.
+    """
+    cats = get_categories()
+    if not cats:
+        return {"mensaje": "No hay categorías registradas actualmente."}
+        
+    lista = [f"• **{c['name']}** (Slug: `{c['slug']}`)" for c in cats]
+    mensaje = "🏷️ **Categorías de pasteles disponibles:**\n\n" + "\n".join(lista)
+    return {
+        "categorias": cats,
+        "mensaje": mensaje
+    }
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SECCIÓN 2: MAPA DE FUNCIONES
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1109,6 +1259,13 @@ FUNCTIONS_MAP = {
     "mostrar_opciones": mostrar_opciones,
     "consultar_empresas_por_ubicacion": consultar_empresas_por_ubicacion,
     "consultar_pasteles_por_empresa": consultar_pasteles_por_empresa,
+    
+    # Baker functions
+    "listar_mis_pasteles": listar_mis_pasteles,
+    "agregar_nuevo_pastel": agregar_nuevo_pastel,
+    "actualizar_mi_pastel": actualizar_mi_pastel,
+    "eliminar_mi_pastel": eliminar_mi_pastel,
+    "listar_categorias_disponibles": listar_categorias_disponibles,
 }
 
 
@@ -1490,6 +1647,96 @@ REGLAS:
 - Mantén el contexto de la conversación entre turnos.
 {DANHEE_INFO}"""
 
+BAKER_SYSTEM_PROMPT = """Eres el asistente exclusivo para REPOSTEROS de DANHEE CAKE. Tu objetivo principal es ayudar al repostero a gestionar su catálogo de pasteles de forma rápida e interactiva.
+
+REGLAS:
+- Usa SIEMPRE las herramientas exclusivas de repostero para responder.
+- Responde en español, de manera atenta, clara y concisa.
+- listar_mis_pasteles → Muestra los pasteles del catálogo del repostero.
+- agregar_nuevo_pastel → Agrega un nuevo pastel al catálogo (requiere al menos nombre y precio, y puedes deducir o preguntar la categoría y descripción).
+- actualizar_mi_pastel → Modifica los datos de un pastel existente del repostero (necesitas el pastel_id).
+- eliminar_mi_pastel → Elimina un pastel del catálogo usando su ID.
+- listar_categorias_disponibles → Muestra las categorías existentes que el repostero puede asignar a sus pasteles.
+- Si el repostero pregunta sobre clientes, citas u otras opciones de clientes, recuérdale con amabilidad que estás aquí para ayudarle con la gestión rápida de sus pasteles.
+- Mantén el contexto de la conversación entre turnos.
+"""
+
+BAKER_TOOLS_SCHEMA = [
+    {
+        "type": "function",
+        "function": {
+            "name": "listar_mis_pasteles",
+            "description": "Muestra la lista de pasteles asociados a tu catálogo de repostería.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "agregar_nuevo_pastel",
+            "description": "Registra un nuevo pastel en tu portafolio de repostería.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nombre": {"type": "string", "description": "Nombre del pastel (ej: 'Pastel de tres leches con fresas')"},
+                    "precio": {"type": "number", "description": "Precio del pastel en MXN (ej: 450.0)"},
+                    "categoria": {"type": "string", "description": "Categoría a la que pertenece (ej: 'Boda', 'XV Años', 'Cumpleaños', 'Baby Shower')"},
+                    "descripcion": {"type": "string", "description": "Descripción opcional de los ingredientes, tamaño o diseño"}
+                },
+                "required": ["nombre", "precio"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "actualizar_mi_pastel",
+            "description": "Actualiza el nombre, precio, descripción o categoría de uno de tus pasteles usando su ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pastel_id": {"type": "integer", "description": "ID numérico del pastel a modificar"},
+                    "nombre": {"type": "string", "description": "Nuevo nombre del pastel"},
+                    "precio": {"type": "number", "description": "Nuevo precio del pastel"},
+                    "descripcion": {"type": "string", "description": "Nueva descripción del pastel"},
+                    "categoria": {"type": "string", "description": "Nueva categoría del pastel"}
+                },
+                "required": ["pastel_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "eliminar_mi_pastel",
+            "description": "Elimina un pastel de tu catálogo por completo usando su ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pastel_id": {"type": "integer", "description": "ID numérico del pastel a eliminar"}
+                },
+                "required": ["pastel_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "listar_categorias_disponibles",
+            "description": "Muestra la lista de categorías activas en Danhee Cake para saber cuáles puedes asociar a tus pasteles.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    }
+]
+
 def get_tools_model() -> str:
     """Detecta el mejor modelo con soporte de tools en Ollama."""
     try:
@@ -1538,17 +1785,27 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
     global _current_client_id
     _current_client_id = client_id
     
+    # Determinar rol del usuario
+    role = 'cliente'
+    if client_id:
+        user = get_user_by_id(client_id)
+        if user:
+            role = user.get('role', 'cliente')
+            
+    current_system_prompt = BAKER_SYSTEM_PROMPT if role == 'repostero' else SYSTEM_PROMPT
+    current_tools_schema = BAKER_TOOLS_SCHEMA if role == 'repostero' else TOOLS_SCHEMA
+    
     # Obtener el historial actual de la base de datos
-    messages = get_chat_history(conversation_id, SYSTEM_PROMPT)
+    messages = get_chat_history(conversation_id, current_system_prompt)
     
     # Agregar el nuevo mensaje del usuario al arreglo temporal
     messages.append({"role": "user", "content": question})
     # Guardarlo de manera persistente en DB
     add_chat_message(conversation_id, "user", question)
     
-    # Búsqueda RAG limitada a k=2 para reducir latencia
+    # Búsqueda RAG limitada a k=2 para reducir latencia (solo para clientes)
     rag_context = ""
-    if db is not None:
+    if role != 'repostero' and db is not None:
         try:
             docs = db.similarity_search(question, k=2)
             rag_context = "\n".join([doc.page_content for doc in docs])
@@ -1557,13 +1814,13 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
         except Exception as e:
             print(f"[RAG] Error en búsqueda: {e}", file=sys.stderr)
     
-    print(f"[RAG] Llamando a Ollama ({llm_model}) con {len(TOOLS_SCHEMA)} herramientas...", file=sys.stderr)
+    print(f"[RAG] Llamando a Ollama ({llm_model}) con {len(current_tools_schema)} herramientas...", file=sys.stderr)
     
     try:
         response = ollama_sdk.chat(
             model=llm_model,
             messages=messages,
-            tools=TOOLS_SCHEMA
+            tools=current_tools_schema
         )
     except Exception as e:
         print(f"[RAG] Error en Ollama: {e}", file=sys.stderr)
@@ -1798,6 +2055,18 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 question = req_data.get('message', '').strip()
                 client_id = req_data.get('client_id')
                 conversation_id = req_data.get('conversation_id')
+                role = req_data.get('role')
+                
+                # Determinar rol del usuario
+                if not role and client_id:
+                    user = get_user_by_id(client_id)
+                    if user:
+                        role = user.get('role')
+                if not role:
+                    role = 'cliente'
+                    
+                current_system_prompt = BAKER_SYSTEM_PROMPT if role == 'repostero' else SYSTEM_PROMPT
+                current_tools_schema = BAKER_TOOLS_SCHEMA if role == 'repostero' else TOOLS_SCHEMA
                 
                 # Configurar CORS y cabeceras SSE estricto
                 self.send_response(200)
@@ -1845,10 +2114,10 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 history_holder = [None]
                 
                 def fetch_history():
-                    history_holder[0] = get_chat_history(conversation_id, SYSTEM_PROMPT)
+                    history_holder[0] = get_chat_history(conversation_id, current_system_prompt)
                 
                 def fetch_rag():
-                    if db is not None:
+                    if role != 'repostero' and db is not None:
                         try:
                             docs = db.similarity_search(question, k=2)
                             rag_context_holder[0] = "\n".join([doc.page_content for doc in docs])
@@ -1861,7 +2130,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     f1.result()
                     f2.result()
                 
-                messages = history_holder[0] or [{"role": "system", "content": SYSTEM_PROMPT}]
+                messages = history_holder[0] or [{"role": "system", "content": current_system_prompt}]
                 messages.append({"role": "user", "content": question})
                 add_chat_message(conversation_id, "user", question)
                 
@@ -1882,7 +2151,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     response = ollama_sdk.chat(
                         model=llm_model,
                         messages=messages,
-                        tools=TOOLS_SCHEMA,
+                        tools=current_tools_schema,
                         options=OLLAMA_OPTIONS
                     )
                 except Exception as e:

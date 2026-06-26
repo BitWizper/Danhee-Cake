@@ -12,6 +12,7 @@ const askChatbot = async (req, res) => {
   // Si hay un JWT válido en el header Authorization, extraemos el client_id
   // para que el chatbot pueda agendar citas reales. Si no, client_id = null.
   let client_id = null;
+  let role = null;
   const authHeader = req.headers['authorization'];
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -19,11 +20,13 @@ const askChatbot = async (req, res) => {
       const token = authHeader.slice(7);
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       client_id = decoded.id || decoded.userId || null;
-      console.log(`[Chat] Usuario autenticado: ID=${client_id}, Email=${decoded.email}`);
+      role = decoded.role || null;
+      console.log(`[Chat] Usuario autenticado: ID=${client_id}, Email=${decoded.email}, Rol=${role}`);
     } catch (error) {
       // Token ausente, expirado o inválido → usuario no autenticado
       console.log(`[Chat] Token inválido o expirado, continuando como invitado`);
       client_id = null;
+      role = null;
     }
   } else {
     console.log(`[Chat] No hay token, usuario invitado`);
@@ -33,7 +36,7 @@ const askChatbot = async (req, res) => {
     const response = await fetch("http://127.0.0.1:5005/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, client_id }),
+      body: JSON.stringify({ message, client_id, role }),
     });
 
     if (!response.ok) {
@@ -62,6 +65,7 @@ const streamChatbot = async (req, res) => {
   }
 
   let client_id = null;
+  let role = null;
   const authHeader = req.headers['authorization'];
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -69,9 +73,11 @@ const streamChatbot = async (req, res) => {
       const token = authHeader.slice(7);
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       client_id = decoded.id || decoded.userId || null;
+      role = decoded.role || null;
     } catch (error) {
       console.log(`[Chat Stream] Token inválido o expirado, continuando como invitado`);
       client_id = null;
+      role = null;
     }
   }
 
@@ -86,7 +92,7 @@ const streamChatbot = async (req, res) => {
     const pythonRes = await fetch("http://127.0.0.1:5005/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, client_id, conversation_id }),
+      body: JSON.stringify({ message, client_id, conversation_id, role }),
     });
 
     if (!pythonRes.ok) {

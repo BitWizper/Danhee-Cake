@@ -9,6 +9,12 @@ const WELCOME_MESSAGE = {
   text: "Hola, soy Danhee Assistant. Puedo ayudarte con sabores, tamaños, rellenos, decoración y pedidos personalizados.",
 };
 
+const BAKER_WELCOME_MESSAGE = {
+  id: "welcome",
+  sender: "bot",
+  text: "Hola, soy el asistente de repostería de Danhee Cake. Te puedo ayudar a listar, agregar, modificar o eliminar pasteles en tu catálogo.",
+};
+
 function ChatBot() {
   const { user } = useAuth();
 
@@ -155,6 +161,7 @@ function ChatBot() {
       if (!storedUser?.id) return;
 
       const response = await fetch(`http://localhost:5005/chat/history?client_id=${storedUser.id}`);
+      const welcomeMsg = storedUser?.role === 'repostero' ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
 
       if (response.ok) {
         const data = await response.json();
@@ -166,24 +173,28 @@ function ChatBot() {
           }));
           setChat(historyMessages);
         } else {
-          setChat([WELCOME_MESSAGE]);
+          setChat([welcomeMsg]);
         }
       } else {
-        setChat([WELCOME_MESSAGE]);
+        setChat([welcomeMsg]);
       }
     } catch (error) {
       console.error("Error cargando historial:", error);
-      setChat([WELCOME_MESSAGE]);
+      const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+      const welcomeMsg = storedUser?.role === 'repostero' ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
+      setChat([welcomeMsg]);
     }
   };
 
   // Cuando el usuario cambia (login o logout)
   useEffect(() => {
+    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+    const welcomeMsg = storedUser?.role === 'repostero' ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
     if (user) {
       localStorage.removeItem('conversation_id');
       loadConversationHistory();
     } else {
-      setChat([WELCOME_MESSAGE]);
+      setChat([welcomeMsg]);
       localStorage.removeItem('conversation_id');
     }
     setMessage("");
