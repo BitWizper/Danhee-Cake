@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FaPaperPlane, FaRobot, FaTimes, FaMicrophone, FaMicrophoneSlash } from "react-icons/fa";
+import { FaPaperPlane, FaRobot, FaTimes, FaMicrophone, FaMicrophoneSlash, FaEllipsisV } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
 import "./ChatBot.css";
 
@@ -24,12 +24,40 @@ function ChatBot() {
   const [chat, setChat] = useState([WELCOME_MESSAGE]);
   const [loadingState, setLoadingState] = useState({ status: "", message: "" });
   const [isListening, setIsListening] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const silenceTimeoutRef = useRef(null);
   const lastTranscriptRef = useRef("");
   const autoSubmitRef = useRef(false);
+  const menuRef = useRef(null);
+
+  const getWelcomeMessage = () => {
+    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+    return storedUser?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
+  };
+
+  const startNewChat = () => {
+    if (isSending) return;
+
+    const shouldReset = window.confirm(
+      "Quieres iniciar un nuevo chat? Tu historial quedara guardado y podras verlo cuando quieras."
+    );
+
+    if (!shouldReset) return;
+
+    if (isListening && recognitionRef.current) {
+      autoSubmitRef.current = false;
+      recognitionRef.current.stop();
+    }
+
+    localStorage.removeItem("conversation_id");
+    setMessage("");
+    setLoadingState({ status: "", message: "" });
+    setChat([getWelcomeMessage()]);
+    setMenuOpen(false);
+  };
 
   const startListening = async () => {
     try {
@@ -188,8 +216,7 @@ function ChatBot() {
 
   // Cuando el usuario cambia (login o logout)
   useEffect(() => {
-    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-    const welcomeMsg = storedUser?.role === 'repostero' ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
+    const welcomeMsg = getWelcomeMessage();
     if (user) {
       localStorage.removeItem('conversation_id');
       loadConversationHistory();
@@ -200,7 +227,19 @@ function ChatBot() {
     setMessage("");
     setIsSending(false);
     setOpen(false);
+    setMenuOpen(false);
   }, [user]);
+
+  useEffect(() => {
+    const handleClickOutsideMenu = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutsideMenu);
+    return () => document.removeEventListener("mousedown", handleClickOutsideMenu);
+  }, []);
 
   // Limpiar recursos de grabación cuando se desmonta el componente
   useEffect(() => {
@@ -383,7 +422,36 @@ function ChatBot() {
               <span className="chat-eyebrow">Asistente virtual</span>
               <strong>Danhee Assistant</strong>
             </div>
-            <span className="chat-status">En línea</span>
+
+            <div className="chat-header-right">
+              <span className="chat-status">En línea</span>
+
+              <div className="chat-menu" ref={menuRef}>
+                <button
+                  type="button"
+                  className="chat-menu-trigger"
+                  aria-label="Opciones del chat"
+                  aria-expanded={menuOpen}
+                  onClick={() => setMenuOpen((prev) => !prev)}
+                  disabled={isSending}
+                >
+                  <FaEllipsisV />
+                </button>
+
+                {menuOpen && (
+                  <div className="chat-menu-dropdown" role="menu">
+                    <button
+                      type="button"
+                      className="chat-menu-item"
+                      onClick={startNewChat}
+                      disabled={isSending}
+                    >
+                      Nuevo chat
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="chat-body" role="log" aria-live="polite">

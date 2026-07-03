@@ -27,6 +27,10 @@ const ExplorePage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const cakesPerPage = 9; 
 
+  const handleNavigateToEdit = () => {
+    navigate('/edit-product');
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -96,6 +100,38 @@ const ExplorePage = () => {
     const matchSpecialty = specialty === 'Todas' || cake.category_name === specialty || cake.category_slug === specialty;
     return matchSearch && matchLocation && matchSpecialty;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / cakesPerPage));
+  const indexOfLastCake = currentPage * cakesPerPage;
+  const indexOfFirstCake = indexOfLastCake - cakesPerPage;
+  const currentCakes = filtered.slice(indexOfFirstCake, indexOfLastCake);
+
+  const getPaginatedRange = () => {
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    const half = Math.floor(maxVisible / 2);
+    let start = Math.max(1, currentPage - half);
+    const end = start + maxVisible - 1;
+
+    if (end > totalPages) {
+      start = totalPages - maxVisible + 1;
+    }
+
+    return Array.from({ length: maxVisible }, (_, i) => start + i);
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, location, specialty]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <div className="explore-page" id="explore-page">
