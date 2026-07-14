@@ -35,26 +35,30 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+  // Control opcional del microservicio Python RAG (deshabilitado por defecto)
+  let pythonProcess = null;
+  if (process.env.START_RAG === 'true') {
+    console.log("🐍 Iniciando microservicio Python RAG en app.py...");
+    pythonProcess = spawn("python", ["rag/app.py"], {
+      cwd: path.join(__dirname, ".."),
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: "utf-8"
+      }
+    });
 
-  // Iniciar microservicio Python RAG en segundo plano
-  console.log("🐍 Iniciando microservicio Python RAG en app.py...");
-  const pythonProcess = spawn("python", ["rag/app.py"], {
-    cwd: path.join(__dirname, ".."),
-    stdio: "inherit", // Comparte la consola para ver los logs de la IA directamente en Node.js
-    env: {
-      ...process.env,
-      PYTHONIOENCODING: "utf-8"
-    }
-  });
+    pythonProcess.on("error", (err) => {
+      console.error("❌ Error al iniciar el microservicio Python RAG:", err.message);
+      console.error("Asegúrate de tener Python instalado y en tu variable de entorno PATH.");
+    });
 
-  pythonProcess.on("error", (err) => {
-    console.error("❌ Error al iniciar el microservicio Python RAG:", err.message);
-    console.error("Asegúrate de tener Python instalado y en tu variable de entorno PATH.");
-  });
-
-  pythonProcess.on("close", (code) => {
-    console.log(`🐍 Microservicio Python RAG finalizó con código: ${code}`);
-  });
+    pythonProcess.on("close", (code) => {
+      console.log(`🐍 Microservicio Python RAG finalizó con código: ${code}`);
+    });
+  } else {
+    console.log("🐍 Microservicio Python RAG deshabilitado (START_RAG !== 'true')");
+  }
 
   // Limpieza de procesos huérfanos al apagar la aplicación
   const cleanup = () => {
