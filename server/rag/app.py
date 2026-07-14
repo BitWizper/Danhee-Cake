@@ -7,6 +7,7 @@ import decimal
 from datetime import date, datetime
 import unicodedata
 import threading
+import os
 
 def quitar_acentos(texto: str) -> str:
     if not texto: return ""
@@ -1747,7 +1748,8 @@ BAKER_TOOLS_SCHEMA = [
 def get_tools_model() -> str:
     """Detecta el mejor modelo con soporte de tools en Ollama."""
     try:
-        req = urllib.request.Request("http://localhost:11434/api/tags")
+        ollama_host = os.getenv('OLLAMA_HOST', 'localhost')
+        req = urllib.request.Request(f"http://{ollama_host}:11434/api/tags")
         with urllib.request.urlopen(req, timeout=3) as response:
             data = json.loads(response.read().decode('utf-8'))
             models = [m['name'] for m in data.get('models', [])]
