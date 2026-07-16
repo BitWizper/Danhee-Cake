@@ -109,10 +109,16 @@ def _should_skip_rag(question: str) -> bool:
     return not any(keyword in q for keyword in keywords)
 
 
+def _should_use_tools(question: str, role: str = "cliente") -> bool:
+    if role == "repostero":
+        return True
+    return not _should_skip_rag(question)
+
+
 def _get_ollama_options() -> dict:
     return {
-        "num_predict": 280,
-        "num_ctx": 2048,
+        "num_predict": 180,
+        "num_ctx": 1024,
         "temperature": 0.2,
         "top_p": 0.9,
         "repeat_penalty": 1.1,
@@ -1862,38 +1868,41 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
             
     current_system_prompt = BAKER_SYSTEM_PROMPT if role == 'repostero' else SYSTEM_PROMPT
     current_tools_schema = BAKER_TOOLS_SCHEMA if role == 'repostero' else TOOLS_SCHEMA
+    use_tools = _should_use_tools(question, role)
 
     cached_response = _get_cached_response(question, role, conversation_id)
     if cached_response is not None:
         return cached_response
     
-    # Obtener el historial actual de la base de datos
-    messages = get_chat_history(conversation_id, current_system_prompt)
+    # Obtener el historial actual de la base de datos solo cuando realmente lo necesitamos
+    messages = get_chat_history(conversation_id, current_system_prompt, max_turns=4) if use_tools else [{"role": "system", "content": current_system_prompt}]
     
     # Agregar el nuevo mensaje del usuario al arreglo temporal
     messages.append({"role": "user", "content": question})
     # Guardarlo de manera persistente en DB
     add_chat_message(conversation_id, "user", question)
     
-    # Búsqueda RAG limitada a k=2 para reducir latencia (solo para clientes)
+    # Búsqueda RAG limitada a k=1 para reducir latencia (solo para clientes y cuando sí se necesitan herramientas)
     rag_context = ""
-    if role != 'repostero' and db is not None and not _should_skip_rag(question):
+    if use_tools and role != 'repostero' and db is not None and not _should_skip_rag(question):
         try:
-            docs = db.similarity_search(question, k=2)
+            docs = db.similarity_search(question, k=1)
             rag_context = "\n".join([doc.page_content for doc in docs])
             if rag_context:
                 messages.append({"role": "system", "content": f"Contexto adicional: {rag_context}"})
         except Exception as e:
             print(f"[RAG] Error en búsqueda: {e}", file=sys.stderr)
     
-    print(f"[RAG] Llamando a Ollama ({llm_model}) con {len(current_tools_schema)} herramientas...", file=sys.stderr)
+    tools_payload = current_tools_schema if use_tools else None
+    print(f"[RAG] Llamando a Ollama ({llm_model}) con {'herramientas' if use_tools else 'respuesta directa'}...", file=sys.stderr)
     
     try:
         response = ollama_sdk.chat(
             model=llm_model,
             messages=messages,
-            tools=current_tools_schema,
-            options=_get_ollama_options()
+            tools=tools_payload,
+            options=_get_ollama_options(),
+            keep_alive="5m"
         )
     except Exception as e:
         print(f"[RAG] Error en Ollama: {e}", file=sys.stderr)
@@ -1983,7 +1992,8 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
             final_response = ollama_sdk.chat(
                 model=llm_model,
                 messages=messages,
-                options=_get_ollama_options()
+                options=_get_ollama_options(),
+                keep_alive="5m"
             )
             final_content = final_response.get("message", {}).get("content", "").strip()
             
@@ -2146,6 +2156,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     
                 current_system_prompt = BAKER_SYSTEM_PROMPT if role == 'repostero' else SYSTEM_PROMPT
                 current_tools_schema = BAKER_TOOLS_SCHEMA if role == 'repostero' else TOOLS_SCHEMA
+                use_tools = _should_use_tools(question, role)
                 
                 # Configurar CORS y cabeceras SSE estricto
                 self.send_response(200)
@@ -2186,7 +2197,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 get_or_create_chat_session(conversation_id, client_id)
                 send_event("conversation_id", {"conversation_id": conversation_id})
                 
-                # ── Cargar historial + Chroma en paralelo ─────────────────────
+                # ── Cargar historial + Chroma en paralelo solo si realmente se necesitan ─────────────────────
                 rag_context_holder = [""]
                 history_holder = [None]
 
@@ -2199,43 +2210,49 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                         send_event("done", {})
                         return
 
-                send_event("state", {"status": "searching", "message": "Buscando información..."})
-                
-                def fetch_history():
-                    history_holder[0] = get_chat_history(conversation_id, current_system_prompt)
-                
-                def fetch_rag():
-                    if role != 'repostero' and db is not None and not _should_skip_rag(question):
-                        try:
-                            docs = db.similarity_search(question, k=2)
-                            rag_context_holder[0] = "\n".join([doc.page_content for doc in docs])
-                        except Exception as e:
-                            print(f"[RAG Stream] Error Chroma: {e}", file=sys.stderr)
-                
-                with ThreadPoolExecutor(max_workers=2) as executor:
-                    f1 = executor.submit(fetch_history)
-                    f2 = executor.submit(fetch_rag)
-                    f1.result()
-                    f2.result()
-                
-                messages = history_holder[0] or [{"role": "system", "content": current_system_prompt}]
-                messages.append({"role": "user", "content": question})
-                add_chat_message(conversation_id, "user", question)
-                
-                if rag_context_holder[0]:
-                    messages.append({"role": "system", "content": f"Contexto adicional: {rag_context_holder[0]}"})
+                if use_tools:
+                    send_event("state", {"status": "searching", "message": "Buscando información..."})
+                    
+                    def fetch_history():
+                        history_holder[0] = get_chat_history(conversation_id, current_system_prompt, max_turns=4)
+                    
+                    def fetch_rag():
+                        if role != 'repostero' and db is not None and not _should_skip_rag(question):
+                            try:
+                                docs = db.similarity_search(question, k=1)
+                                rag_context_holder[0] = "\n".join([doc.page_content for doc in docs])
+                            except Exception as e:
+                                print(f"[RAG Stream] Error Chroma: {e}", file=sys.stderr)
+                    
+                    with ThreadPoolExecutor(max_workers=2) as executor:
+                        f1 = executor.submit(fetch_history)
+                        f2 = executor.submit(fetch_rag)
+                        f1.result()
+                        f2.result()
+                    
+                    messages = history_holder[0] or [{"role": "system", "content": current_system_prompt}]
+                    messages.append({"role": "user", "content": question})
+                    add_chat_message(conversation_id, "user", question)
+                    
+                    if rag_context_holder[0]:
+                        messages.append({"role": "system", "content": f"Contexto adicional: {rag_context_holder[0]}"})
+                else:
+                    messages = [{"role": "system", "content": current_system_prompt}, {"role": "user", "content": question}]
+                    add_chat_message(conversation_id, "user", question)
                 
                 # ── Primera llamada al LLM ────────────────────────────────────
                 send_event("state", {"status": "thinking", "message": "Analizando tu solicitud..."})
                 
                 OLLAMA_OPTIONS = _get_ollama_options()
+                tools_payload = current_tools_schema if use_tools else None
                 
                 try:
                     response = ollama_sdk.chat(
                         model=llm_model,
                         messages=messages,
-                        tools=current_tools_schema,
-                        options=OLLAMA_OPTIONS
+                        tools=tools_payload,
+                        options=OLLAMA_OPTIONS,
+                        keep_alive="5m"
                     )
                 except Exception as e:
                     send_event("error", {"content": "Error interno del modelo de IA local."})
@@ -2246,7 +2263,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 tool_calls = assistant_message.get("tool_calls", [])
                 final_response_text = ""
                 
-                if tool_calls:
+                if use_tools and tool_calls:
                     messages.append({
                         "role": "assistant",
                         "content": assistant_message.get("content", ""),
@@ -2311,7 +2328,8 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                             model=llm_model,
                             messages=messages,
                             stream=True,
-                            options=OLLAMA_OPTIONS
+                            options=OLLAMA_OPTIONS,
+                            keep_alive="5m"
                         )
                         for chunk in stream_response:
                             chunk_content = chunk.get("message", {}).get("content", "")

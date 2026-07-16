@@ -13,9 +13,12 @@ from mysql.connector import Error, pooling
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Cargar las variables de entorno desde el archivo .env de Node.js
+# Cargar las variables de entorno desde el archivo de entorno del proyecto
 base_dir = Path(__file__).resolve().parent.parent
-load_dotenv(base_dir / ".env")
+for env_path in [base_dir / ".env", base_dir / ".envi"]:
+    if env_path.exists():
+        load_dotenv(env_path, override=False)
+        break
 
 # ── Pool de conexiones persistente ───────────────────────────────────────────
 _pool = None
