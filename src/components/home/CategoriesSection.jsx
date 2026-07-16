@@ -31,7 +31,7 @@ const CategoriesSection = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch('http://localhost:4000/api/categories');
+        const response = await fetch('/api/categories');
         const result = await response.json();
         if (result.success) {
           setCategories(result.data);

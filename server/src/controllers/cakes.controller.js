@@ -1,5 +1,15 @@
 const db = require('../config/db');
 
+const normalizeImageUrl = (imageUrl) => {
+  if (!imageUrl) return imageUrl;
+  if (imageUrl.startsWith('/uploads/')) return imageUrl;
+  if (imageUrl.includes('/uploads/')) {
+    const filename = imageUrl.split('/uploads/').pop();
+    return `/uploads/${filename}`;
+  }
+  return imageUrl;
+};
+
 /**
  * Obtener todos los pasteles, opcionalmente filtrados por categoría o repostero.
  */
@@ -31,9 +41,13 @@ exports.getAll = async (req, res, next) => {
 
   try {
     const [cakes] = await db.execute(query, params);
+      const normalizedCakes = cakes.map((cake) => ({
+        ...cake,
+        image_url: normalizeImageUrl(cake.image_url),
+      }));
     res.json({
       success: true,
-      data: cakes
+        data: normalizedCakes
     });
   } catch (err) {
     next(err);
@@ -60,7 +74,10 @@ exports.getById = async (req, res, next) => {
 
     res.json({
       success: true,
-      data: cakes[0]
+        data: {
+          ...cakes[0],
+          image_url: normalizeImageUrl(cakes[0].image_url),
+        }
     });
   } catch (err) {
     next(err);

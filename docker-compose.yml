@@ -24,6 +24,8 @@ services:
       - ./server:/app
       - /app/node_modules
     restart: always
+    depends_on:
+      - database
 
   database:
     image: postgres:15
@@ -35,6 +37,20 @@ services:
       - db_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    restart: always
+
+  ngrok_tunnel:
+    image: ngrok/ngrok:latest
+    container_name: ngrok_tunnel
+    restart: always
+    command:
+      - "http"
+      - "frontend:80" 
+      - "--domain=unspoken-resurrect-bountiful.ngrok-free.dev" 
+    environment:
+      NGROK_AUTHTOKEN: "3Gaoq1v9kxSDAO5NNQ8uoyexZC8_2r9Ps6arERFBavWbTQsni" 
+    depends_on:
+      - frontend
 
 # Volumen definido para la persistencia de datos
 volumes:

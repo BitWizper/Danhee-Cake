@@ -198,6 +198,11 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+/* Hide mobile-only actions by default to prevent duplicate auth buttons on desktop */
+.navbar__mobile-actions {
+  display: none;
+}
+
 .navbar__cart-dropdown__header h4 {
   font-family: var(--font-serif);
   font-size: var(--text-sm);
@@ -323,27 +328,123 @@
 .navbar__hamburger--open span:nth-child(2) { opacity: 0; }
 .navbar__hamburger--open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
 
-/* Responsive */
+/* Responsive / Mobile Styles */
 @media (max-width: 768px) {
-  .navbar__hamburger { display: flex; }
-  .navbar__actions { display: none; }
+  .navbar__inner {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 var(--space-4) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: var(--space-4) !important;
+    box-sizing: border-box !important;
+  }
+
+  .navbar__logo {
+    margin-right: 0 !important;
+    min-width: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  .navbar__logo-text {
+    font-size: 1.3rem !important;
+  }
+
+  .navbar__actions {
+    display: none !important;
+  }
+
+  .navbar__cart-wrapper {
+    order: 2 !important;
+    margin-left: auto !important;
+    margin-right: var(--space-3) !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .navbar__cart-btn {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 1.1rem !important;
+    border-radius: var(--radius-md) !important;
+  }
+
+  .navbar__hamburger {
+    display: flex !important;
+    order: 3 !important;
+    margin-left: 0 !important;
+  }
 
   .navbar__links {
-    position: fixed;
-    top: var(--navbar-height);
-    left: 0; right: 0;
-    flex-direction: column;
-    background: rgba(13,10,8,0.97);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--color-border);
-    padding: var(--space-6);
-    gap: var(--space-6);
-    transform: translateY(-120%);
-    transition: transform var(--transition-slow);
-    margin-left: 0;
+    position: fixed !important;
+    top: var(--navbar-height, 72px) !important;
+    left: 0 !important;
+    right: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    background: rgba(13, 10, 8, 0.98) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-bottom: 1px solid rgba(201, 169, 110, 0.1) !important;
+    padding: var(--space-6) var(--space-4) !important;
+    gap: var(--space-4) !important;
+    transform: translateY(-120%) !important;
+    transition: transform var(--transition-slow) !important;
+    margin-left: 0 !important;
+    z-index: 999 !important;
+    max-height: calc(100vh - var(--navbar-height, 72px));
+    overflow-y: auto !important;
   }
 
   .navbar__links--open {
-    transform: translateY(0);
+    transform: translateY(0) !important;
+  }
+
+  .navbar__links .navbar__link {
+    width: 100% !important;
+    padding: 0.75rem 0 !important;
+  }
+
+  .navbar__mobile-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: var(--space-4) !important;
+    padding-top: var(--space-4) !important;
+    border-top: 1px solid rgba(201, 169, 110, 0.08) !important;
+  }
+
+  .navbar__mobile-user {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: var(--space-3) !important;
+    width: 100% !important;
+  }
+
+  .navbar__mobile-user-name {
+    color: var(--color-gold-light) !important;
+    font-size: var(--text-sm) !important;
+    font-weight: 500 !important;
+  }
+
+  .navbar__mobile-btn,
+  .navbar__mobile-link {
+    width: 100% !important;
+    text-align: center !important;
+  }
+
+  .navbar__mobile-link {
+    padding: 0.75rem 0 !important;
+  }
+
+  .navbar__cart-dropdown {
+    position: fixed !important;
+    top: calc(var(--navbar-height, 72px) + 10px) !important;
+    left: var(--space-4) !important;
+    right: var(--space-4) !important;
+    min-width: unset !important;
+    width: auto !important;
   }
 }

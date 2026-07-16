@@ -48,6 +48,31 @@ const Navbar = () => {
               {link.label}
             </Link>
           ))}
+
+          <div className="navbar__mobile-actions">
+            {isAuthenticated ? (
+              <div className="navbar__mobile-user">
+                {user.role === 'repostero' && (
+                  <Link to="/dashboard" className="navbar__link navbar__mobile-link">
+                    Panel de Control
+                  </Link>
+                )}
+                <span className="navbar__user-name navbar__mobile-user-name">Hola, {user?.name?.split(' ')[0]}</span>
+                <button onClick={logout} className="navbar__btn navbar__btn--outline navbar__mobile-btn" type="button">
+                  Cerrar sesión
+                </button>
+              </div>
+            ) : (
+              <div className="navbar__mobile-user">
+                <Link to="/login" className="navbar__btn navbar__btn--outline navbar__mobile-btn">
+                  Iniciar sesión
+                </Link>
+                <Link to="/registro" className="navbar__btn navbar__btn--gold navbar__mobile-btn">
+                  Registrarse
+                </Link>
+              </div>
+            )}
+          </div>
         </nav>
 
         {/* Carrito - Visible solo si el usuario no es repostero */}

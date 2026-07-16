@@ -19,8 +19,8 @@ const BakerProfilePage = () => {
     const fetchBakerData = async () => {
       try {
         const [profileRes, cakesRes] = await Promise.all([
-          fetch(`http://localhost:4000/api/bakers/${id}`),
-          fetch(`http://localhost:4000/api/cakes?baker=${id}`)
+          fetch(`/api/bakers/${id}`),
+          fetch(`/api/cakes?baker=${id}`)
         ]);
 
         const profileData = await profileRes.json();

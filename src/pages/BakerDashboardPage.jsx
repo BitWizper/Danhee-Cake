@@ -27,10 +27,10 @@ const BakerDashboardPage = () => {
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [statsRes, appRes, catRes, cakesRes] = await Promise.all([
-        fetch('http://localhost:4000/api/bakers/stats', { headers }),
-        fetch('http://localhost:4000/api/bakers/appointments', { headers }),
-        fetch('http://localhost:4000/api/categories'),
-        fetch('http://localhost:4000/api/bakers/cakes', { headers })
+        fetch('/api/bakers/stats', { headers }),
+        fetch('/api/bakers/appointments', { headers }),
+        fetch('/api/categories'),
+        fetch('/api/bakers/cakes', { headers })
       ]);
 
       const statsData = await statsRes.json();
@@ -63,7 +63,7 @@ const BakerDashboardPage = () => {
       if (activeTab === 'profile' && token) {
         try {
           const headers = { 'Authorization': `Bearer ${token}` };
-          const response = await fetch('http://localhost:4000/api/bakers/profile/me', { headers });
+          const response = await fetch('/api/bakers/profile/me', { headers });
           const result = await response.json();
           if (result.success) {
             setBakerProfile(result.data);
@@ -79,8 +79,8 @@ const BakerDashboardPage = () => {
   const handleSaveCake = async (cakeData) => {
     try {
       const url = editingCake 
-        ? `http://localhost:4000/api/bakers/cakes/${editingCake.id}`
-        : 'http://localhost:4000/api/bakers/cakes';
+        ? `/api/bakers/cakes/${editingCake.id}`
+        : '/api/bakers/cakes';
       
       const method = editingCake ? 'PUT' : 'POST';
 
@@ -108,7 +108,7 @@ const BakerDashboardPage = () => {
     if (!window.confirm('¿Estás seguro de que quieres eliminar este pastel?')) return;
     
     try {
-      const response = await fetch(`http://localhost:4000/api/bakers/cakes/${id}`, {
+      const response = await fetch(`/api/bakers/cakes/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -127,7 +127,7 @@ const BakerDashboardPage = () => {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      const response = await fetch('http://localhost:4000/api/bakers/profile', {
+      const response = await fetch('/api/bakers/profile', {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',

@@ -28,7 +28,7 @@ const AppointmentPage = () => {
 
     const fetchBaker = async () => {
       try {
-        const response = await fetch(`http://localhost:4000/api/bakers/${id}`);
+        const response = await fetch(`/api/bakers/${id}`);
         const result = await response.json();
         if (result.success) setBaker(result.data);
       } catch (err) {
@@ -47,7 +47,7 @@ const AppointmentPage = () => {
     setSubmitting(true);
     
     try {
-      const response = await fetch('http://localhost:4000/api/appointments', {
+      const response = await fetch('/api/appointments', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

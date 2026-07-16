@@ -18,7 +18,7 @@ const CakeDetailPage = () => {
   useEffect(() => {
     const fetchCake = async () => {
       try {
-        const response = await fetch(`http://localhost:4000/api/cakes/${id}`);
+        const response = await fetch(`/api/cakes/${id}`);
         const data = await response.json();
         
         if (data.success) {

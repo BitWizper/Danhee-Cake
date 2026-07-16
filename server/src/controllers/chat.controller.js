@@ -57,6 +57,36 @@ const askChatbot = async (req, res) => {
   }
 };
 
+const getChatHistory = async (req, res) => {
+  const { conversation_id, client_id } = req.query;
+
+  if (!conversation_id && !client_id) {
+    return res.status(400).json({ error: "Se requiere conversation_id o client_id" });
+  }
+
+  try {
+    const params = new URLSearchParams();
+    if (conversation_id) params.set("conversation_id", conversation_id);
+    if (client_id) params.set("client_id", client_id);
+
+    const response = await fetch(`http://127.0.0.1:5005/chat/history?${params.toString()}`);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("[Node Server] Error del historial RAG Python:", errText);
+      return res.status(response.status).json({ error: "Error en el servicio RAG" });
+    }
+
+    const data = await response.json();
+    return res.json(data);
+  } catch (error) {
+    console.error("[Node Server] No se pudo conectar con el historial RAG Python:", error.message);
+    return res.status(500).json({
+      error: "El asistente de IA se está iniciando. Por favor, intenta de nuevo en unos segundos."
+    });
+  }
+};
+
 const streamChatbot = async (req, res) => {
   const { message, conversation_id } = req.body;
 
@@ -84,7 +114,8 @@ const streamChatbot = async (req, res) => {
   // Configurar cabeceras de Server-Sent Events (SSE)
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Connection', 'close');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
@@ -143,4 +174,4 @@ const streamChatbot = async (req, res) => {
   }
 };
 
-module.exports = { askChatbot, streamChatbot };
+module.exports = { askChatbot, streamChatbot, getChatHistory };

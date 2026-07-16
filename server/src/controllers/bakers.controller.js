@@ -1,5 +1,15 @@
 const db = require('../config/db');
 
+const normalizeImageUrl = (imageUrl) => {
+  if (!imageUrl) return imageUrl;
+  if (imageUrl.startsWith('/uploads/')) return imageUrl;
+  if (imageUrl.includes('/uploads/')) {
+    const filename = imageUrl.split('/uploads/').pop();
+    return `/uploads/${filename}`;
+  }
+  return imageUrl;
+};
+
 /**
  * Obtener todos los reposteros (PÚBLICO - sin autenticación)
  * GET /api/bakers
@@ -155,7 +165,11 @@ exports.getMyCakes = async (req, res, next) => {
     `, [bakerId]);
 
     console.log('DEBUG: Pasteles encontrados:', cakes.length);
-    res.json({ success: true, data: cakes });
+      const normalizedCakes = cakes.map((cake) => ({
+        ...cake,
+        image_url: normalizeImageUrl(cake.image_url),
+      }));
+      res.json({ success: true, data: normalizedCakes });
   } catch (err) {
     next(err);
   }
@@ -178,9 +192,9 @@ exports.updateCake = async (req, res, next) => {
     const [cakes] = await db.execute('SELECT image_url FROM cakes WHERE id = ? AND baker_id = ?', [id, bakerId]);
     if (cakes.length === 0) return res.status(403).json({ success: false, message: 'No tienes permiso o el pastel no existe.' });
 
-    let imageUrl = cakes[0].image_url;
+      let imageUrl = normalizeImageUrl(cakes[0].image_url);
     if (req.file) {
-      imageUrl = `http://localhost:4000/uploads/${req.file.filename}`;
+        imageUrl = `/uploads/${req.file.filename}`;
     }
 
     await db.execute(

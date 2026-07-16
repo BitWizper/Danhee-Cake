@@ -17,8 +17,8 @@ const UIWedding = () => {
     const fetchData = async () => {
       try {
         const [cakesRes, catsRes] = await Promise.all([
-          fetch('http://localhost:4000/api/cakes'),
-          fetch('http://localhost:4000/api/categories')
+          fetch('/api/cakes'),
+          fetch('/api/categories')
         ]);
         
         if (!cakesRes.ok || !catsRes.ok) {

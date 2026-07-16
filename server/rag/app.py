@@ -1748,8 +1748,19 @@ BAKER_TOOLS_SCHEMA = [
 def get_tools_model() -> str:
     """Detecta el mejor modelo con soporte de tools en Ollama."""
     try:
-        ollama_host = os.getenv('OLLAMA_HOST', 'localhost')
-        req = urllib.request.Request(f"http://{ollama_host}:11434/api/tags")
+        ollama_host = os.getenv('OLLAMA_HOST', 'localhost').strip()
+
+        if ollama_host.startswith(('http://', 'https://')):
+            from urllib.parse import urlparse
+
+            parsed = urlparse(ollama_host)
+            host = parsed.hostname or 'localhost'
+            port = parsed.port or 11434
+        else:
+            host = ollama_host
+            port = 11434
+
+        req = urllib.request.Request(f"http://{host}:{port}/api/tags")
         with urllib.request.urlopen(req, timeout=3) as response:
             data = json.loads(response.read().decode('utf-8'))
             models = [m['name'] for m in data.get('models', [])]
@@ -2307,7 +2318,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_server(port=5005):
-    server_address = ('127.0.0.1', port)
+    server_address = ('0.0.0.0', port)
     httpd = HTTPServer(server_address, RAGRequestHandler)
     print(f"\n[RAG Server] 🚀 Servidor listo en http://localhost:{port}", file=sys.stderr)
     print(f"[RAG Server] 🎂 Asistente EXCLUSIVO de Danhee Cake", file=sys.stderr)

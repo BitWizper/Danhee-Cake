@@ -31,7 +31,7 @@ const UI_editproduct = () => {
         setError(null);
 
         // Cargar perfil del repostero
-        const profileRes = await fetch('http://localhost:4000/api/bakers/profile/me', {
+        const profileRes = await fetch('/api/bakers/profile/me', {
           headers: { Authorization: `Bearer ${token}` }
         });
         const profileData = await profileRes.json();
@@ -40,10 +40,10 @@ const UI_editproduct = () => {
         }
 
         const [cakesRes, categoriesRes] = await Promise.all([
-          fetch('http://localhost:4000/api/bakers/cakes', {
+          fetch('/api/bakers/cakes', {
             headers: { Authorization: `Bearer ${token}` }
           }),
-          fetch('http://localhost:4000/api/categories')
+          fetch('/api/categories')
         ]);
 
         const cakesData = await cakesRes.json();
@@ -92,8 +92,8 @@ const UI_editproduct = () => {
 
     const method = editingCake ? 'PUT' : 'POST';
     const url = editingCake
-      ? `http://localhost:4000/api/bakers/cakes/${editingCake.id}`
-      : 'http://localhost:4000/api/bakers/cakes';
+      ? `/api/bakers/cakes/${editingCake.id}`
+      : '/api/bakers/cakes';
 
     try {
       const response = await fetch(url, {
@@ -119,7 +119,7 @@ const UI_editproduct = () => {
 
   const refreshMyCakes = async () => {
     try {
-      const cakesRes = await fetch('http://localhost:4000/api/bakers/cakes', {
+      const cakesRes = await fetch('/api/bakers/cakes', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const cakesData = await cakesRes.json();

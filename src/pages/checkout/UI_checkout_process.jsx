@@ -33,7 +33,7 @@ const UICheckout = () => {
       // Si es OXXO, generar comprobante mock desde el servidor antes de avanzar
       if (paymentMethod === 'oxxo' && !oxxoTicket) {
         try {
-          const resp = await fetch('http://localhost:4000/api/payments/oxxo-ticket', {
+          const resp = await fetch('/api/payments/oxxo-ticket', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ orderId: `TEMP-${Date.now()}`, amount: total })

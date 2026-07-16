@@ -15,7 +15,7 @@ const FeaturedCakes = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('http://localhost:4000/api/cakes?featured=true');
+      const response = await fetch('/api/cakes?featured=true');
       if (!response.ok) {
         throw new Error(`Error de red: ${response.status} ${response.statusText}`);
       }

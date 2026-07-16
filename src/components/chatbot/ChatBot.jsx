@@ -188,7 +188,7 @@ function ChatBot() {
       const storedUser = JSON.parse(localStorage.getItem("user") || "null");
       if (!storedUser?.id) return;
 
-      const response = await fetch(`http://localhost:5005/chat/history?client_id=${storedUser.id}`);
+      const response = await fetch(`/api/chat/history?client_id=${storedUser.id}`);
       const welcomeMsg = storedUser?.role === 'repostero' ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
 
       if (response.ok) {
@@ -282,7 +282,7 @@ function ChatBot() {
       }
 
       // Conectarse al endpoint de streaming del Node Server
-      const res = await fetch("http://localhost:4000/api/chat/stream", {
+      const res = await fetch("/api/chat/stream", {
         method: "POST",
         headers: headers,
         body: JSON.stringify({
