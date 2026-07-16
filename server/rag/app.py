@@ -8,6 +8,7 @@ from datetime import date, datetime
 import unicodedata
 import threading
 import os
+import time
 
 def quitar_acentos(texto: str) -> str:
     if not texto: return ""
@@ -68,6 +69,54 @@ _last_search_result = {}
 _pdf_cache = {}
 # Contexto adicional: última empresa o pasteles mencionados
 _last_context = {}
+
+# Cache simple en memoria para respuestas rápidas repetidas
+_RESPONSE_CACHE = {}
+_RESPONSE_CACHE_TTL_SECONDS = 60
+
+
+def _normalize_question(question: str) -> str:
+    return " ".join((question or "").strip().lower().split())
+
+
+def _get_cached_response(question: str, role: str, conversation_id: str | None = None) -> str | None:
+    if conversation_id or role == 'repostero':
+        return None
+    key = f"{role}:{_normalize_question(question)}"
+    entry = _RESPONSE_CACHE.get(key)
+    if entry and (time.time() - entry["ts"]) < _RESPONSE_CACHE_TTL_SECONDS:
+        return entry["value"]
+    return None
+
+
+def _set_cached_response(question: str, role: str, response: str, conversation_id: str | None = None) -> None:
+    if conversation_id or role == 'repostero':
+        return
+    key = f"{role}:{_normalize_question(question)}"
+    _RESPONSE_CACHE[key] = {"ts": time.time(), "value": response}
+
+
+def _should_skip_rag(question: str) -> bool:
+    q = _normalize_question(question)
+    if not q:
+        return True
+
+    greetings = ["hola", "buenos dias", "buenas tardes", "buenas noches", "gracias", "adios", "bye", "hola!", "qué tal", "como estas"]
+    if q in greetings or q.startswith(tuple(greetings)):
+        return True
+
+    keywords = ["pastel", "cake", "cita", "repostero", "precio", "categoria", "disponibilidad", "pedido", "comprar", "buscar", "catalogo", "catálogo", "ayuda", "información", "pregunta"]
+    return not any(keyword in q for keyword in keywords)
+
+
+def _get_ollama_options() -> dict:
+    return {
+        "num_predict": 280,
+        "num_ctx": 2048,
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "repeat_penalty": 1.1,
+    }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECCIÓN 1: FUNCIONES LOCALES DE DANHEE CAKE
@@ -1765,17 +1814,17 @@ def get_tools_model() -> str:
             data = json.loads(response.read().decode('utf-8'))
             models = [m['name'] for m in data.get('models', [])]
             print(f"[RAG Server] Modelos detectados: {models}", file=sys.stderr)
-            
-            priority = ["llama3.1", "llama3.2", "mistral-nemo", "mistral:latest", "mistral"]
+
+            priority = ["llama3:latest", "llama3.1", "llama3.2", "mistral-nemo", "mistral:latest", "mistral"]
             for pref in priority:
                 for m in models:
                     if pref in m or pref.split(':')[0] in m:
                         print(f"[RAG Server] ✅ Usando modelo: {m}", file=sys.stderr)
                         return m
-            return models[0] if models else "llama3.1"
+            return "llama3:latest"
     except Exception as e:
         print(f"[RAG Server] No se pudo conectar a Ollama: {e}", file=sys.stderr)
-    return "llama3.1"
+    return "llama3:latest"
 
 
 print("[RAG Server] Cargando Chroma DB...", file=sys.stderr)
@@ -1813,6 +1862,10 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
             
     current_system_prompt = BAKER_SYSTEM_PROMPT if role == 'repostero' else SYSTEM_PROMPT
     current_tools_schema = BAKER_TOOLS_SCHEMA if role == 'repostero' else TOOLS_SCHEMA
+
+    cached_response = _get_cached_response(question, role, conversation_id)
+    if cached_response is not None:
+        return cached_response
     
     # Obtener el historial actual de la base de datos
     messages = get_chat_history(conversation_id, current_system_prompt)
@@ -1824,7 +1877,7 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
     
     # Búsqueda RAG limitada a k=2 para reducir latencia (solo para clientes)
     rag_context = ""
-    if role != 'repostero' and db is not None:
+    if role != 'repostero' and db is not None and not _should_skip_rag(question):
         try:
             docs = db.similarity_search(question, k=2)
             rag_context = "\n".join([doc.page_content for doc in docs])
@@ -1839,7 +1892,8 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
         response = ollama_sdk.chat(
             model=llm_model,
             messages=messages,
-            tools=current_tools_schema
+            tools=current_tools_schema,
+            options=_get_ollama_options()
         )
     except Exception as e:
         print(f"[RAG] Error en Ollama: {e}", file=sys.stderr)
@@ -1928,7 +1982,8 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
         try:
             final_response = ollama_sdk.chat(
                 model=llm_model,
-                messages=messages
+                messages=messages,
+                options=_get_ollama_options()
             )
             final_content = final_response.get("message", {}).get("content", "").strip()
             
@@ -1948,6 +2003,7 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
                 messages.append({"role": "assistant", "content": final_content})
                 add_chat_message(conversation_id, "assistant", final_content)
             
+            _set_cached_response(question, role, final_content, conversation_id)
             return final_content
                     
         except Exception as e:
@@ -1965,6 +2021,7 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
         messages.append({"role": "assistant", "content": direct_content})
         add_chat_message(conversation_id, "assistant", direct_content)
         
+        _set_cached_response(question, role, direct_content, conversation_id)
         return direct_content
 
 
@@ -2130,16 +2187,25 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 send_event("conversation_id", {"conversation_id": conversation_id})
                 
                 # ── Cargar historial + Chroma en paralelo ─────────────────────
-                send_event("state", {"status": "searching", "message": "Buscando información..."})
-                
                 rag_context_holder = [""]
                 history_holder = [None]
+
+                if not client_id and not conversation_id and role != 'repostero':
+                    cached_response = _get_cached_response(question, role)
+                    if cached_response is not None:
+                        send_event("state", {"status": "ready", "message": "Respuesta rápida"})
+                        for word in re.findall(r'\S+\s*', cached_response):
+                            send_event("token", {"content": word})
+                        send_event("done", {})
+                        return
+
+                send_event("state", {"status": "searching", "message": "Buscando información..."})
                 
                 def fetch_history():
                     history_holder[0] = get_chat_history(conversation_id, current_system_prompt)
                 
                 def fetch_rag():
-                    if role != 'repostero' and db is not None:
+                    if role != 'repostero' and db is not None and not _should_skip_rag(question):
                         try:
                             docs = db.similarity_search(question, k=2)
                             rag_context_holder[0] = "\n".join([doc.page_content for doc in docs])
@@ -2162,12 +2228,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 # ── Primera llamada al LLM ────────────────────────────────────
                 send_event("state", {"status": "thinking", "message": "Analizando tu solicitud..."})
                 
-                OLLAMA_OPTIONS = {
-                    "num_predict": 512,
-                    "temperature": 0.3,
-                    "top_p": 0.9,
-                    "repeat_penalty": 1.1,
-                }
+                OLLAMA_OPTIONS = _get_ollama_options()
                 
                 try:
                     response = ollama_sdk.chat(
@@ -2260,6 +2321,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                                 final_response_text += chunk_content
                                 send_event("token", {"content": chunk_content})
                         add_chat_message(conversation_id, "assistant", final_response_text)
+                        _set_cached_response(question, role, final_response_text, conversation_id)
                     except Exception as e:
                         send_event("error", {"content": "Error generando la respuesta final."})
                 
@@ -2273,6 +2335,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     for word in re.findall(r'\S+\s*', direct_content):
                         send_event("token", {"content": word})
                     add_chat_message(conversation_id, "assistant", direct_content)
+                    _set_cached_response(question, role, direct_content, conversation_id)
                 
                 # ── CIERRE REQUERIDO Y OBLIGATORIO PARA SSE ───────────────────
                 send_event("done", {})
