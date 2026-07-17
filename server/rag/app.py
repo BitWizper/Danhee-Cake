@@ -48,7 +48,8 @@ from db_config import (
     get_chat_messages,                    # <-- NUEVA
     add_observability_log,
     get_baker_profile_by_user_id, get_baker_cakes,
-    add_baker_cake, update_baker_cake, delete_baker_cake
+    add_baker_cake, update_baker_cake, delete_baker_cake,
+    get_client_appointments, get_baker_appointments, get_client_designs
 )
 
 base_dir = Path(__file__).resolve().parent
@@ -1295,6 +1296,89 @@ def listar_categorias_disponibles() -> dict:
     }
 
 
+def consultar_mis_citas() -> dict:
+    """
+    Consulta las citas programadas para el usuario actual (cliente o repostero) en Danhee Cake.
+    """
+    client_id = _get_current_client_id()
+    if not client_id:
+        return {"mensaje": "No has iniciado sesión. Por favor inicia sesión para consultar tus citas. 🍰"}
+    
+    # Determinar si es cliente o repostero
+    user = get_user_by_id(client_id)
+    if not user:
+        return {"mensaje": "Usuario no encontrado."}
+    
+    role = user.get("role", "cliente")
+    if role == "repostero":
+        citas = get_baker_appointments(client_id)
+        if not citas:
+            return {"mensaje": "👨‍🍳 No tienes citas de degustación o asesoría programadas actualmente en Danhee Cake."}
+        
+        lista_citas = []
+        for c in citas:
+            fecha_formateada = str(c.get("date"))
+            hora_formateada = str(c.get("time_slot"))
+            status = c.get("status")
+            cliente = c.get("client_name")
+            notas = c.get("notes") or "Sin notas"
+            lista_citas.append(f"• 📅 {fecha_formateada} a las {hora_formateada} con cliente **{cliente}** - Estado: {status} (Notas: {notas})")
+        
+        mensaje = "📅 **Tus citas programadas como repostero:**\n\n" + "\n".join(lista_citas)
+        return {"citas": citas, "mensaje": mensaje}
+    else:
+        citas = get_client_appointments(client_id)
+        if not citas:
+            return {"mensaje": "🧁 No tienes ninguna cita programada actualmente en Danhee Cake. ¿Te gustaría agendar una cita para degustación con alguno de nuestros reposteros?"}
+        
+        lista_citas = []
+        for c in citas:
+            fecha_formateada = str(c.get("date"))
+            hora_formateada = str(c.get("time_slot"))
+            status = c.get("status")
+            repostero = c.get("baker_business_name")
+            notas = c.get("notes") or "Sin notas"
+            lista_citas.append(f"• 📅 {fecha_formateada} a las {hora_formateada} con la pastelería **{repostero}** - Estado: {status} (Notas: {notas})")
+            
+        mensaje = "📅 **Tus citas de degustación programadas:**\n\n" + "\n".join(lista_citas)
+        return {"citas": citas, "mensaje": mensaje}
+
+
+def consultar_mis_disenos() -> dict:
+    """
+    Consulta los diseños de pasteles personalizados del cliente actual en Danhee Cake.
+    """
+    client_id = _get_current_client_id()
+    if not client_id:
+        return {"mensaje": "No has iniciado sesión. Por favor inicia sesión para consultar tus diseños. 🎨"}
+        
+    user = get_user_by_id(client_id)
+    if not user:
+        return {"mensaje": "Usuario no encontrado."}
+        
+    role = user.get("role", "cliente")
+    if role == "repostero":
+        return {"mensaje": "Los reposteros no diseñan pasteles propios, sino que gestionan los pasteles de su catálogo o reciben solicitudes de clientes."}
+        
+    disenos = get_client_designs(client_id)
+    if not disenos:
+        return {"mensaje": "🎨 Aún no tienes diseños personalizados guardados en Danhee Cake. Puedes ir a la sección 'Diseña tu pastel' para crear el tuyo."}
+        
+    lista_disenos = []
+    tamanio_map = {"sm": "Pequeño", "md": "Mediano", "lg": "Grande"}
+    for d in disenos:
+        tamanio = tamanio_map.get(d.get("size"), d.get("size"))
+        bizcocho = d.get("sponge")
+        relleno = d.get("filling")
+        decoracion = d.get("decoration")
+        estado = d.get("status")
+        notas = d.get("notes") or "Sin notas"
+        lista_disenos.append(f"• **ID: {d['id']}** - Pastel {tamanio} (Bizcocho: {bizcocho}, Relleno: {relleno}, Decoración: {decoracion}) - Estado: {estado} (Notas: {notas})")
+        
+    mensaje = "🎨 **Tus diseños de pasteles personalizados:**\n\n" + "\n".join(lista_disenos)
+    return {"disenos": disenos, "mensaje": mensaje}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SECCIÓN 2: MAPA DE FUNCIONES
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1323,12 +1407,25 @@ FUNCTIONS_MAP = {
     "consultar_empresas_por_ubicacion": consultar_empresas_por_ubicacion,
     "consultar_pasteles_por_empresa": consultar_pasteles_por_empresa,
     
+    # New user tools
+    "consultar_mis_citas": consultar_mis_citas,
+    "consultar_mis_disenos": consultar_mis_disenos,
+    
     # Baker functions
     "listar_mis_pasteles": listar_mis_pasteles,
     "agregar_nuevo_pastel": agregar_nuevo_pastel,
     "actualizar_mi_pastel": actualizar_mi_pastel,
     "eliminar_mi_pastel": eliminar_mi_pastel,
     "listar_categorias_disponibles": listar_categorias_disponibles,
+    
+    # Robust aliases to handle model tool name hallucinations
+    "obtener_precios": obtener_precios_por_categoria,
+    "consultar_catalogo": consultar_catalogo_pasteles,
+    "consultar_pasteles": consultar_catalogo_pasteles,
+    "consultar_citas": consultar_mis_citas,
+    "citas": consultar_mis_citas,
+    "consultar_disenos": consultar_mis_disenos,
+    "disenos": consultar_mis_disenos,
 }
 
 
@@ -1665,6 +1762,30 @@ TOOLS_SCHEMA = [
                 "required": []
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_mis_citas",
+            "description": "Consulta las citas programadas (degustaciones, asesorías) del cliente o repostero actual en Danhee Cake.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_mis_disenos",
+            "description": "Consulta los diseños de pasteles personalizados creados por el cliente actual en Danhee Cake.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
     }
 ]
 
@@ -1702,6 +1823,8 @@ REGLAS:
 - consultar_tamanos_pasteles → tamaños disponibles.
 - consultar_empresas_por_ubicacion → empresas por ciudad.
 - consultar_pasteles_por_empresa → pasteles de una empresa.
+- consultar_mis_citas → Consulta las citas programadas del cliente.
+- consultar_mis_disenos → Consulta los diseños de pasteles personalizados del cliente.
 - extraer_texto_pdf(nombre_archivo='faq.pdf') → políticas, pagos, envíos.
 - consultar_politicas_pasteleria(tema='danhee') → info general de Danhee.
 - registrar_solicitud_cita → SOLO si el usuario da nombre, baker_id, fecha Y hora.
@@ -1716,6 +1839,7 @@ REGLAS:
 - Usa SIEMPRE las herramientas exclusivas de repostero para responder.
 - Responde en español, de manera atenta, clara y concisa.
 - listar_mis_pasteles → Muestra los pasteles del catálogo del repostero.
+- consultar_mis_citas → Muestra las citas agendadas con los clientes.
 - agregar_nuevo_pastel → Agrega un nuevo pastel al catálogo (requiere al menos nombre y precio, y puedes deducir o preguntar la categoría y descripción).
 - actualizar_mi_pastel → Modifica los datos de un pastel existente del repostero (necesitas el pastel_id).
 - eliminar_mi_pastel → Elimina un pastel del catálogo usando su ID.
@@ -1791,6 +1915,18 @@ BAKER_TOOLS_SCHEMA = [
         "function": {
             "name": "listar_categorias_disponibles",
             "description": "Muestra la lista de categorías activas en Danhee Cake para saber cuáles puedes asociar a tus pasteles.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_mis_citas",
+            "description": "Consulta las citas de degustación o asesoría agendadas con los clientes.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -1911,6 +2047,38 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
     assistant_message = response.get("message", {})
     tool_calls = assistant_message.get("tool_calls", [])
     
+    content = assistant_message.get("content", "").strip()
+    parsed_tool_call = None
+    if not tool_calls and (content.startswith("{") and content.endswith("}")):
+        try:
+            parsed_json = json.loads(content)
+            if isinstance(parsed_json, dict):
+                if "name" in parsed_json:
+                    name = parsed_json["name"]
+                    args = parsed_json.get("params") or parsed_json.get("arguments") or {}
+                    parsed_tool_call = {
+                        "function": {
+                            "name": name,
+                            "arguments": args
+                        }
+                    }
+                elif "function" in parsed_json and isinstance(parsed_json["function"], dict):
+                    name = parsed_json["function"].get("name")
+                    args = parsed_json["function"].get("arguments") or {}
+                    if name:
+                        parsed_tool_call = {
+                            "function": {
+                                "name": name,
+                                "arguments": args
+                            }
+                        }
+        except Exception:
+            pass
+            
+    if parsed_tool_call:
+        tool_calls = [parsed_tool_call]
+        print(f"[RAG] 🔧 Detectado tool_call en texto content parseado (non-stream): {parsed_tool_call}", file=sys.stderr)
+        
     if tool_calls:
         print(f"[RAG] 🔧 Ejecutando {len(tool_calls)} herramienta(s)...", file=sys.stderr)
         
@@ -2133,7 +2301,38 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
         from datetime import datetime
         from concurrent.futures import ThreadPoolExecutor
         
-        if self.path == '/chat/stream':
+        if self.path == '/chat':
+            try:
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length)
+                req_data = json.loads(post_data.decode('utf-8'))
+                question = req_data.get('message', '').strip()
+                client_id = req_data.get('client_id')
+                conversation_id = req_data.get('conversation_id')
+                
+                # Configurar client_id en thread-local
+                _set_current_client_id(client_id)
+                
+                # Cargar/crear sesión
+                if not conversation_id and client_id:
+                    conversation_id = get_last_conversation_by_client(client_id)
+                if not conversation_id:
+                    import uuid
+                    conversation_id = str(uuid.uuid4())
+                get_or_create_chat_session(conversation_id, client_id)
+                
+                response_text = generate_response_with_tools(question, client_id, conversation_id)
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"response": response_text, "conversation_id": conversation_id}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self._send_error(500, f"Error en chat: {str(e)}")
+            return
+            
+        elif self.path == '/chat/stream':
             try:
                 content_length = int(self.headers['Content-Length'])
                 post_data = self.rfile.read(content_length)
@@ -2263,6 +2462,38 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 tool_calls = assistant_message.get("tool_calls", [])
                 final_response_text = ""
                 
+                content = assistant_message.get("content", "").strip()
+                parsed_tool_call = None
+                if not tool_calls and (content.startswith("{") and content.endswith("}")):
+                    try:
+                        parsed_json = json.loads(content)
+                        if isinstance(parsed_json, dict):
+                            if "name" in parsed_json:
+                                name = parsed_json["name"]
+                                args = parsed_json.get("params") or parsed_json.get("arguments") or {}
+                                parsed_tool_call = {
+                                    "function": {
+                                        "name": name,
+                                        "arguments": args
+                                    }
+                                }
+                            elif "function" in parsed_json and isinstance(parsed_json["function"], dict):
+                                name = parsed_json["function"].get("name")
+                                args = parsed_json["function"].get("arguments") or {}
+                                if name:
+                                    parsed_tool_call = {
+                                        "function": {
+                                            "name": name,
+                                            "arguments": args
+                                        }
+                                    }
+                    except Exception:
+                        pass
+                
+                if parsed_tool_call:
+                    tool_calls = [parsed_tool_call]
+                    print(f"[RAG] 🔧 Detectado tool_call en texto content parseado (stream): {parsed_tool_call}", file=sys.stderr)
+                    
                 if use_tools and tool_calls:
                     messages.append({
                         "role": "assistant",

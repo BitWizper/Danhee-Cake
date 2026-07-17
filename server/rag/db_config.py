@@ -350,53 +350,49 @@ def custom_serializer(obj):
 
 
 def add_chat_message(conversation_id, role, content, tool_calls=None):
-    """Versión no bloqueante: escribe el mensaje en un thread separado."""
-    import threading
-    def _write():
-        conn = get_connection()
-        if not conn: return
-        try:
-            cursor = conn.cursor()
-            tool_calls_json = json.dumps(tool_calls, default=custom_serializer) if tool_calls else None
-            cursor.execute('''
-                INSERT INTO chat_messages (conversation_id, role, content, tool_calls)
-                VALUES (%s, %s, %s, %s)
-            ''', (conversation_id, role, content, tool_calls_json))
-            conn.commit()
-        except Error as e:
-            print(f"[db_config] Error en add_chat_message: {e}", file=sys.stderr)
-        finally:
-            cursor.close()
-            conn.close()
-    threading.Thread(target=_write, daemon=True).start()
-    return True
+    """Versión síncrona: escribe el mensaje de forma segura para evitar problemas de conexión y FK."""
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        tool_calls_json = json.dumps(tool_calls, default=custom_serializer) if tool_calls else None
+        cursor.execute('''
+            INSERT INTO chat_messages (conversation_id, role, content, tool_calls)
+            VALUES (%s, %s, %s, %s)
+        ''', (conversation_id, role, content, tool_calls_json))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"[db_config] Error en add_chat_message: {e}", file=sys.stderr)
+        return False
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def add_observability_log(session_id, user_prompt, system_response, ttft_ms,
                            total_latency_ms, tokens_per_second, was_blocked, tools_executed):
-    """Versión no bloqueante: escribe el log en un thread separado."""
-    import threading
-    def _write():
-        conn = get_connection()
-        if not conn: return
-        try:
-            cursor = conn.cursor()
-            tools_json = json.dumps(tools_executed, default=custom_serializer) if tools_executed else None
-            cursor.execute('''
-                INSERT INTO observability_logs
-                  (session_id, user_prompt, system_response, ttft_ms,
-                   total_latency_ms, tokens_per_second, was_blocked, tools_executed)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ''', (session_id, user_prompt, system_response, ttft_ms,
-                  total_latency_ms, tokens_per_second, int(was_blocked), tools_json))
-            conn.commit()
-        except Error as e:
-            print(f"[db_config] Error en add_observability_log: {e}", file=sys.stderr)
-        finally:
-            cursor.close()
-            conn.close()
-    threading.Thread(target=_write, daemon=True).start()
-    return True
+    """Versión síncrona: escribe el log de observabilidad de forma segura."""
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        tools_json = json.dumps(tools_executed, default=custom_serializer) if tools_executed else None
+        cursor.execute('''
+            INSERT INTO observability_logs
+              (session_id, user_prompt, system_response, ttft_ms,
+               total_latency_ms, tokens_per_second, was_blocked, tools_executed)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (session_id, user_prompt, system_response, ttft_ms,
+              total_latency_ms, tokens_per_second, int(was_blocked), tools_json))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"[db_config] Error en add_observability_log: {e}", file=sys.stderr)
+        return False
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def get_baker_profile_by_user_id(user_id):
@@ -481,6 +477,69 @@ def delete_baker_cake(baker_id, cake_id):
     except Error as e:
         print(f"[db_config] Error en delete_baker_cake: {e}", file=sys.stderr)
         return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_client_appointments(client_id):
+    conn = get_connection()
+    if not conn: return []
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('''
+            SELECT a.id, a.date, a.time_slot, a.notes, a.status, b.business_name as baker_business_name
+            FROM appointments a
+            JOIN baker_profiles b ON a.baker_id = b.id
+            WHERE a.client_id = %s
+            ORDER BY a.date ASC, a.time_slot ASC
+        ''', (client_id,))
+        return cursor.fetchall()
+    except Error as e:
+        print(f"[db_config] Error en get_client_appointments: {e}", file=sys.stderr)
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_baker_appointments(baker_user_id):
+    conn = get_connection()
+    if not conn: return []
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('''
+            SELECT a.id, a.date, a.time_slot, a.notes, a.status, u.name as client_name
+            FROM appointments a
+            JOIN users u ON a.client_id = u.id
+            JOIN baker_profiles b ON a.baker_id = b.id
+            WHERE b.user_id = %s
+            ORDER BY a.date ASC, a.time_slot ASC
+        ''', (baker_user_id,))
+        return cursor.fetchall()
+    except Error as e:
+        print(f"[db_config] Error en get_baker_appointments: {e}", file=sys.stderr)
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_client_designs(client_id):
+    conn = get_connection()
+    if not conn: return []
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('''
+            SELECT id, sponge, filling, decoration, size, notes, status, created_at
+            FROM cake_designs
+            WHERE client_id = %s
+            ORDER BY created_at DESC
+        ''', (client_id,))
+        return cursor.fetchall()
+    except Error as e:
+        print(f"[db_config] Error en get_client_designs: {e}", file=sys.stderr)
+        return []
     finally:
         cursor.close()
         conn.close()
