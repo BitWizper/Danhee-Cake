@@ -120,8 +120,8 @@ def _get_ollama_options() -> dict:
     return {
         "num_predict": 180,
         "num_ctx": 1024,
-        "temperature": 0.2,
-        "top_p": 0.9,
+        "temperature": 0.5,
+        "top_p": 0.95,
         "repeat_penalty": 1.1,
     }
 
@@ -1815,6 +1815,8 @@ SYSTEM_PROMPT = f"""Eres el asistente exclusivo de DANHEE CAKE. Solo hablas sobr
 REGLAS:
 - Usa SIEMPRE las herramientas disponibles para responder.
 - Responde en español, cálido y breve.
+- Si la pregunta es ambigua o falta información, solicita una clarificación breve antes de responder.
+- Resume brevemente el contexto relevante antes de dar la respuesta para mantener el foco principal.
 - recomendar_pastel → recomendaciones por ocasión.
 - consultar_pasteles_por_categoria → pasteles por categoría.
 - buscar_pastel_por_nombre → buscar por nombre.
@@ -2022,8 +2024,11 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
     rag_context = ""
     if use_tools and role != 'repostero' and db is not None and not _should_skip_rag(question):
         try:
-            docs = db.similarity_search(question, k=1)
-            rag_context = "\n".join([doc.page_content for doc in docs])
+            docs = db.similarity_search(question, k=2)
+            rag_context = "\n\n".join([
+                f"Fuente: {doc.metadata.get('source','desconocida')}\n{doc.page_content}"
+                for doc in docs
+            ])
             if rag_context:
                 messages.append({"role": "system", "content": f"Contexto adicional: {rag_context}"})
         except Exception as e:
