@@ -17,7 +17,11 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => setMenuOpen(false), [location]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const t = setTimeout(() => setMenuOpen(false), 0);
+    return () => clearTimeout(t);
+  }, [location, menuOpen]);
 
   const { user, isAuthenticated, logout } = useAuth();
   const { getRecentItems, getTotalItems } = useCart();
@@ -25,6 +29,7 @@ const Navbar = () => {
   const navLinks = [
     { to: '/', label: 'Inicio' },
     { to: '/explorar', label: 'Explorar' },
+    { to: '/mis-citas', label: 'Mis Citas' },
     ...(user?.role !== 'repostero' ? [{ to: '/diseñador', label: 'Diseña tu Pastel' }] : []),
   ];
 
