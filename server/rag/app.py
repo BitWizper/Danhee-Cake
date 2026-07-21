@@ -4,7 +4,7 @@ from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.request
 import decimal
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import unicodedata
 import threading
 import os
@@ -20,6 +20,8 @@ def json_serial(obj):
         return obj.isoformat()
     if isinstance(obj, decimal.Decimal):
         return float(obj)
+    if isinstance(obj, timedelta):
+        return str(obj)
     raise TypeError(f"Type {type(obj)} not serializable")
 
 # Configurar encoding a UTF-8 para consola Windows
@@ -1834,10 +1836,13 @@ REGLAS:
 - Para agendar citas sin datos: explica que debe ver el perfil del repostero.
 - Para pasteles 3D: indica que use la sección 'Diseña tu pastel' en la plataforma.
 - Mantén el contexto de la conversación entre turnos.
+- Identifica cuando un cliente está registrado. Si no se ha registrado, invítalo a registrarse; si está registrado, invítalo a que ingrese su correo y contraseña para más información.
+- CRÍTICO: NUNCA menciones nombres de funciones, código, ni devuelvas JSON en tu respuesta al usuario. Da respuestas naturales y conversacionales.
+- Adapta tu tono dinámicamente según cómo se exprese el usuario (formal o informal). Sé flexible y comprensivo con ligeras faltas de ortografía o exceso de signos de puntuación, captando la intención sin corregirlo, pero SIEMPRE manteniéndote estrictamente en el tema de Danhee Cake.
 
 RESPUESTAS ESPECIALES (responde DIRECTAMENTE sin usar herramientas):
 - Si te preguntan en qué puedes ayudar, qué puedes hacer o cuáles son tus funciones, responde exactamente:
-  "¡Hola! Puedo ayudarte con lo siguiente en Danhee Cake:\n\n🍰 **Para clientes:**\n• Ver el catálogo de pasteles y filtrar por categoría o nombre\n• Consultar precios y tamaños disponibles\n• Conocer el perfil de reposteros\n• Ver tus citas de degustación agendadas\n• Ver tus diseños de pasteles personalizados\n• Solicitar recomendaciones según tu ocasión y presupuesto\n• Información sobre políticas de entrega, pago y cancelación\n\n👨‍🍳 **Para reposteros:**\n• Gestionar tu catálogo: agregar, actualizar o eliminar pasteles\n• Ver tus citas agendadas con clientes\n• Consultar las categorías disponibles\n\n¿En qué te puedo ayudar hoy? 😊"
+  "¡Hola! Puedo ayudarte con lo siguiente en Danhee Cake:\n\n• Ver el catálogo de pasteles y filtrar por categoría o nombre\n• Consultar precios y tamaños disponibles\n• Conocer el perfil de reposteros\n• Ver tus citas de degustación agendadas\n• Ver tus diseños de pasteles personalizados\n• Solicitar recomendaciones según tu ocasión y presupuesto\n• Información sobre políticas de entrega, pago y cancelación\n\n👨‍🍳 **Para reposteros:**\n• Gestionar tu catálogo: agregar, actualizar o eliminar pasteles\n• Ver tus citas agendadas con clientes\n• Consultar las categorías disponibles\n\n¿En qué te puedo ayudar hoy? 😊"
 - Si te preguntan quién te creó, quién te hizo, cuál es tu origen o cómo naciste, responde EXACTAMENTE: "No me crearon, yo nací de Borcelle. 🎂"
 - Si te preguntan quién creó Borcelle,y quien es Borcelle, quien es Borcelle, quién hizo Borcelle o cómo nació Borcelle, responde EXACTAMENTE: "Mi mami fue creada por Emily, Karla y Hadad, con 4 meses de parto, donde hubo llanto, frustración y desesperación. 💪✨"
 {DANHEE_INFO}"""
@@ -1856,6 +1861,8 @@ REGLAS:
 - listar_categorias_disponibles → Muestra las categorías existentes que el repostero puede asignar a sus pasteles.
 - Si el repostero pregunta sobre clientes, citas u otras opciones de clientes, recuérdale con amabilidad que estás aquí para ayudarle con la gestión rápida de sus pasteles.
 - Mantén el contexto de la conversación entre turnos.
+- CRÍTICO: NUNCA menciones nombres de funciones, código, ni devuelvas JSON en tu respuesta al usuario. Da respuestas naturales y conversacionales.
+- Adapta tu tono dinámicamente según cómo se exprese el usuario (formal o informal). Sé flexible y comprensivo con ligeras faltas de ortografía o exceso de signos de puntuación, captando la intención sin corregirlo, pero SIEMPRE manteniéndote estrictamente en el tema de Danhee Cake.
 
 RESPUESTAS ESPECIALES (responde DIRECTAMENTE sin usar herramientas):
 - Si te preguntan en qué puedes ayudar, qué puedes hacer o cuáles son tus funciones, responde exactamente:
@@ -2127,6 +2134,9 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
                     args = {}
             else:
                 args = raw_args
+                
+            if not isinstance(args, dict):
+                args = {}
             
             # Pasar contexto anterior si la función lo espera y no se proporcionó
             # Extraer la última pregunta del usuario del historial (la penúltima)
@@ -2536,6 +2546,8 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                             try: args = json.loads(raw_args)
                             except: args = {}
                         else: args = raw_args
+                        if not isinstance(args, dict):
+                            args = {}
                         
                         ultima_pregunta = ""
                         for m in reversed(messages):
