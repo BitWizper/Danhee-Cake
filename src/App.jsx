@@ -25,6 +25,7 @@ import UIXV from './pages/XV/UI_xv';
 import CakeDetailPage from './pages/CakeDetailPage';
 import UICart from './pages/cart/UI_cart';
 import UICheckout from './pages/checkout/UI_checkout_process';
+import MyAppointmentsPage from './pages/MyAppointmentsPage';
 
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
@@ -82,6 +83,9 @@ const App = () => {
             {/* RQF04.2 – Agendar cita con repostero */}
             <Route path="/agenda/:id" element={<AppointmentPage />} />
             <Route path="/agenda" element={<AppointmentPage />} />
+
+            {/* Mis Citas del cliente */}
+            <Route path="/mis-citas" element={<MyAppointmentsPage />} />
 
             {/* Dashboard de repostero */}
             <Route path="/dashboard" element={<BakerDashboardPage />} />

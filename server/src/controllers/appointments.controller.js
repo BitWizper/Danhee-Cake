@@ -191,3 +191,42 @@ exports.getBakerAvailability = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * Cancelar una cita (solo el dueño puede cancelarla).
+ * Endpoint: DELETE /api/appointments/:id
+ * Headers: Authorization: Bearer <token>
+ */
+exports.cancelAppointment = async (req, res, next) => {
+  const client_id = req.user.id;
+  const { id } = req.params;
+
+  try {
+    // Verificar que la cita existe y pertenece al cliente
+    const [rows] = await db.execute(
+      'SELECT id, status FROM appointments WHERE id = ? AND client_id = ?',
+      [id, client_id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cita no encontrada o no tienes permiso para cancelarla.'
+      });
+    }
+
+    // Actualizar estado a 'cancelled'
+    await db.execute(
+      'UPDATE appointments SET status = ? WHERE id = ?',
+      ['cancelled', id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Cita cancelada exitosamente.'
+    });
+  } catch (err) {
+    console.error('[Appointment] Error cancelando cita:', err);
+    next(err);
+  }
+};

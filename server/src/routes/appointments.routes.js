@@ -29,4 +29,7 @@ router.post('/', appointmentsController.create);
 // Obtener citas del usuario autenticado
 router.get('/my-appointments', appointmentsController.getUserAppointments);
 
+// Cancelar una cita (solo el dueño)
+router.delete('/:id', appointmentsController.cancelAppointment);
+
 module.exports = router;
