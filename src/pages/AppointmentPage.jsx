@@ -3,15 +3,75 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './AppointmentPage.css';
 
-const TIME_SLOTS = [
-  { value: '10:00:00', label: '10:00 AM', icon: '🌅' },
-  { value: '11:00:00', label: '11:00 AM', icon: '☀️' },
-  { value: '12:00:00', label: '12:00 PM', icon: '🌤️' },
-  { value: '16:00:00', label: '04:00 PM', icon: '🌇' },
-  { value: '17:00:00', label: '05:00 PM', icon: '🌆' },
-];
-
 const STEPS = ['Fecha', 'Horario', 'Detalles', 'Confirmar'];
+
+// Función auxiliar para parsear y generar horarios agrupados según las especificaciones del repostero
+const getBakerSlotsForDate = (businessHoursStr, dateStr) => {
+  if (!dateStr) return { isClosed: false, groupedSlots: [] };
+  const dateObj = new Date(dateStr + 'T00:00:00');
+  const dayIndex = dateObj.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+
+  let startHour = 9;
+  let endHour = 18;
+  let isClosed = false;
+
+  const text = (businessHoursStr || '').toLowerCase();
+
+  // Verificar si es Domingo (0) y el horario no menciona Domingo o Todos los días
+  if (dayIndex === 0) {
+    if (!text.includes('domingo') && !text.includes('dom') && !text.includes('todos los días')) {
+      isClosed = true;
+    }
+  }
+
+  // Verificar si es Sábado (6) y hay especificación para Sábado
+  if (dayIndex === 6 && text.includes('sábado')) {
+    const sabPart = text.split(/sábado|sáb/i)[1] || '';
+    const sabTimes = sabPart.match(/(\d{1,2})(?::\d{2})?\s*-\s*(\d{1,2})/);
+    if (sabTimes) {
+      startHour = parseInt(sabTimes[1], 10);
+      let end = parseInt(sabTimes[2], 10);
+      if (end < startHour && end <= 12) end += 12; // Formato 12 horas (ej. 2 -> 14)
+      endHour = end;
+    }
+  } else if (!isClosed) {
+    // Buscar rango general de horario (ej. 9:00 - 18:00, 8:00 - 20:00, 10:00 - 19:00)
+    const match = text.match(/(\d{1,2})(?::\d{2})?\s*-\s*(\d{1,2})/);
+    if (match) {
+      startHour = parseInt(match[1], 10);
+      let end = parseInt(match[2], 10);
+      if (end < startHour && end <= 12) end += 12;
+      endHour = end;
+    }
+  }
+
+  if (isClosed) return { isClosed: true, groupedSlots: [] };
+
+  const groupedSlots = [];
+  for (let h = startHour; h < endHour; h++) {
+    const hour12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hourLabel = `${String(hour12).padStart(2, '0')}:00 ${ampm}`;
+    const icon = h < 12 ? '🌅' : (h === 12 ? '☀️' : (h < 17 ? '🌇' : '🌆'));
+
+    const minuteSlots = [];
+    // Intervalos de 10 minutos
+    for (let m = 0; m < 60; m += 10) {
+      const timeValue = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+      const label = `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+      minuteSlots.push({ value: timeValue, label, icon });
+    }
+
+    groupedSlots.push({
+      hour: h,
+      hourLabel,
+      icon,
+      minuteSlots
+    });
+  }
+
+  return { isClosed: false, groupedSlots };
+};
 
 const AppointmentPage = () => {
   const { id } = useParams();
@@ -25,6 +85,9 @@ const AppointmentPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [takenSlots, setTakenSlots] = useState([]);
+  
+  // Estado para controlar qué grupo de horas está seleccionado (para mostrar sus minutos)
+  const [selectedHourGroup, setSelectedHourGroup] = useState(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -46,8 +109,11 @@ const AppointmentPage = () => {
     else setLoading(false);
   }, [id, isAuthenticated, authLoading, navigate]);
 
-  // Obtener horarios ocupados al elegir fecha
+  // Al cambiar la fecha, reiniciar hora seleccionada y slots ocupados
   useEffect(() => {
+    setSelectedHourGroup(null);
+    setForm(f => ({ ...f, time_slot: '' }));
+    
     if (!form.date || !id) return;
     const fetchAvailability = async () => {
       try {
@@ -89,7 +155,21 @@ const AppointmentPage = () => {
     return date.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   };
 
-  const selectedSlot = TIME_SLOTS.find(s => s.value === form.time_slot);
+  const bakerAvailability = getBakerSlotsForDate(baker?.business_hours, form.date);
+  const groupedSlots = bakerAvailability.groupedSlots;
+  const isClosedDay = bakerAvailability.isClosed;
+  
+  // Buscar el label e ícono de la hora seleccionada finalmente para mostrar en resumen
+  let selectedSlot = null;
+  if (form.time_slot) {
+    for (const group of groupedSlots) {
+      const match = group.minuteSlots.find(s => s.value === form.time_slot);
+      if (match) {
+        selectedSlot = match;
+        break;
+      }
+    }
+  }
 
   if (loading) return (
     <div className="appt-page-loading">
@@ -114,7 +194,7 @@ const AppointmentPage = () => {
           </div>
           <div className="appt-success-row">
             <span>🕐 Horario</span>
-            <span>{selectedSlot?.label}</span>
+            <span>{selectedSlot?.label || form.time_slot}</span>
           </div>
         </div>
         <div className="appt-success-actions">
@@ -150,6 +230,9 @@ const AppointmentPage = () => {
                 <p className="appt-baker-card__name font-serif">{baker.business_name}</p>
                 {baker.specialty && <p className="appt-baker-card__spec">{baker.specialty}</p>}
                 {baker.location && <p className="appt-baker-card__loc">📍 {baker.location}</p>}
+                <p className="appt-baker-card__hours" style={{ fontSize: '0.75rem', color: 'var(--color-gold)', marginTop: '0.4rem' }}>
+                  🕒 Horario: {baker.business_hours || 'Lunes a Viernes: 9:00 - 18:00 | Sábado: 10:00 - 14:00'}
+                </p>
               </div>
             </div>
           )}
@@ -166,8 +249,8 @@ const AppointmentPage = () => {
               )}
               {form.time_slot && (
                 <div className="appt-summary__row">
-                  <span>{selectedSlot?.icon}</span>
-                  <span>{selectedSlot?.label}</span>
+                  <span>{selectedSlot?.icon || '🕒'}</span>
+                  <span>{selectedSlot?.label || form.time_slot}</span>
                 </div>
               )}
             </div>
@@ -215,34 +298,88 @@ const AppointmentPage = () => {
             </div>
           )}
 
-          {/* Paso 1: Horario */}
+          {/* Paso 1: Horario Dinámico */}
           {step === 1 && (
             <div className="appt-step-panel animate-fadeUp">
               <h2 className="appt-step-title font-serif">Selecciona tu horario</h2>
-              <p className="appt-step-desc">Horarios disponibles para el {formatDate(form.date)}.</p>
-              <div className="appt-slots-grid">
-                {TIME_SLOTS.map(slot => {
-                  const taken = takenSlots.includes(slot.value);
-                  return (
-                    <button
-                      key={slot.value}
-                      disabled={taken}
-                      className={`appt-slot-btn
-                        ${form.time_slot === slot.value ? 'appt-slot-btn--active' : ''}
-                        ${taken ? 'appt-slot-btn--taken' : ''}
-                      `}
-                      onClick={() => !taken && setForm({ ...form, time_slot: slot.value })}
-                    >
-                      <span className="appt-slot-btn__icon">{slot.icon}</span>
-                      <span className="appt-slot-btn__label">{slot.label}</span>
-                      {taken && <span className="appt-slot-btn__taken">Ocupado</span>}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="appt-step-nav">
+              <p className="appt-step-desc" style={{ marginBottom: '1.5rem' }}>
+                Horarios de atención de <strong>{baker?.business_name}</strong> para el {formatDate(form.date)}.
+              </p>
+
+              {isClosedDay ? (
+                <div className="appts-empty glass" style={{ padding: '1.5rem', textAlign: 'center' }}>
+                  <span style={{ fontSize: '2rem' }}>🕒</span>
+                  <h3 className="font-serif" style={{ color: 'var(--color-gold)', marginTop: '0.5rem' }}>Día no laboral</h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--color-muted)' }}>
+                    El repostero no atiende en el día seleccionado según su horario registrado:
+                    <br />
+                    <strong style={{ color: 'var(--color-cream)' }}>{baker?.business_hours || 'Lunes a Viernes: 9:00 - 18:00'}</strong>
+                  </p>
+                </div>
+              ) : (
+                <div className="appt-time-selection">
+                  {!selectedHourGroup ? (
+                    <div className="appt-hours-view animate-fadeUp">
+                      <h3 className="appt-step-subtitle" style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--color-cream)' }}>
+                        Paso 1: Elige la Hora
+                      </h3>
+                      <div className="appt-slots-grid">
+                        {groupedSlots.map(group => (
+                          <button
+                            key={group.hour}
+                            className="appt-slot-btn"
+                            onClick={() => setSelectedHourGroup(group)}
+                          >
+                            <span className="appt-slot-btn__icon">{group.icon}</span>
+                            <span className="appt-slot-btn__label">{group.hourLabel}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="appt-minutes-view animate-fadeUp">
+                      <div className="appt-minutes-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h3 className="appt-step-subtitle" style={{ fontSize: '1.1rem', color: 'var(--color-cream)', margin: 0 }}>
+                          Paso 2: Elige los Minutos
+                        </h3>
+                        <button 
+                          onClick={() => {
+                            setSelectedHourGroup(null);
+                            setForm({ ...form, time_slot: '' });
+                          }} 
+                          style={{ color: 'var(--color-gold)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'underline' }}
+                        >
+                          Volver a elegir hora
+                        </button>
+                      </div>
+                      
+                      <div className="appt-slots-grid">
+                        {selectedHourGroup.minuteSlots.map(slot => {
+                          const taken = takenSlots.includes(slot.value);
+                          return (
+                            <button
+                              key={slot.value}
+                              disabled={taken}
+                              className={`appt-slot-btn
+                                ${form.time_slot === slot.value ? 'appt-slot-btn--active' : ''}
+                                ${taken ? 'appt-slot-btn--taken' : ''}
+                              `}
+                              onClick={() => !taken && setForm({ ...form, time_slot: slot.value })}
+                            >
+                              <span className="appt-slot-btn__label">{slot.label}</span>
+                              {taken && <span className="appt-slot-btn__taken">Ocupado</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="appt-step-nav" style={{ marginTop: '2rem' }}>
                 <button className="appt-btn-outline" onClick={() => setStep(0)}>← Atrás</button>
-                <button className="appt-btn-gold" disabled={!form.time_slot} onClick={() => setStep(2)}>
+                <button className="appt-btn-gold" disabled={!form.time_slot || isClosedDay} onClick={() => setStep(2)}>
                   Continuar →
                 </button>
               </div>
@@ -289,7 +426,7 @@ const AppointmentPage = () => {
                 <div className="appt-confirm-divider" />
                 <div className="appt-confirm-row">
                   <span className="appt-confirm-label">Horario</span>
-                  <span className="appt-confirm-val">{selectedSlot?.icon} {selectedSlot?.label}</span>
+                  <span className="appt-confirm-val">{selectedSlot?.icon || '🕒'} {selectedSlot?.label || form.time_slot}</span>
                 </div>
                 {form.notes && (
                   <>

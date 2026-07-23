@@ -1,5 +1,5 @@
 import { useState, Suspense } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stage, ContactShadows } from '@react-three/drei';
 import { useAuth } from '../context/AuthContext';
@@ -55,18 +55,59 @@ const options = {
 };
 
 const CakeDesignerPage = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   const [design, setDesign] = useState({ sponge: 'vainilla', filling: 'crema', decoration: 'flores', size: 'mediano', tiers: 2 });
+  
+  // Modal de inicio de sesión para usuarios no registrados
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
 
   const currentSponge = options.sponge.find(s => s.id === design.sponge);
 
   const handleAction = (type) => {
     if (!isAuthenticated) {
-      navigate('/login');
+      setPendingAction(type);
+      setShowLoginModal(true);
       return;
     }
     alert(`Acción: ${type} iniciada para tu pastel personalizado.`);
+  };
+
+  const handleModalLoginSubmit = async (e) => {
+    e.preventDefault();
+    if (!loginForm.email || !loginForm.password) {
+      setLoginError('Por favor completa todos los campos.');
+      return;
+    }
+    setLoginLoading(true);
+    setLoginError('');
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginForm)
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        login(result.user, result.token);
+        setShowLoginModal(false);
+        if (pendingAction) {
+          alert(`¡Sesión iniciada! Solicitud de ${pendingAction} procesada.`);
+          setPendingAction(null);
+        }
+      } else {
+        setLoginError(result.message || 'Credenciales incorrectas. Intenta de nuevo.');
+      }
+    } catch (err) {
+      setLoginError('Error de conexión con el servidor.');
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
   return (
@@ -144,6 +185,68 @@ const CakeDesignerPage = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL DE INICIO DE SESIÓN PARA USUARIOS NO REGISTRADOS */}
+      {showLoginModal && (
+        <div className="modal-overlay animate-fadeIn" onClick={() => setShowLoginModal(false)}>
+          <div className="modal-content glass animate-scaleIn" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-header" style={{ marginBottom: '1.2rem' }}>
+              <div className="modal-title-area">
+                <span className="modal-subtitle">Acceso Requerido</span>
+                <h2 className="font-serif" style={{ fontSize: '1.5rem' }}>Iniciar Sesión</h2>
+              </div>
+              <button className="modal-close" onClick={() => setShowLoginModal(false)}>✕</button>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-muted)', marginBottom: '1.5rem', lineHeight: 1.4 }}>
+              Para solicitar tu diseño 3D personalizado o agendar una cita de degustación, por favor inicia sesión en tu cuenta.
+            </p>
+
+            <form onSubmit={handleModalLoginSubmit} className="auth-form" noValidate>
+              <div className="form-group">
+                <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--color-gold-dim)' }}>Correo electrónico</label>
+                <input 
+                  type="email" 
+                  className="premium-input"
+                  placeholder="tu@correo.com"
+                  value={loginForm.email}
+                  onChange={e => setLoginForm({ ...loginForm, email: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ marginTop: '1rem' }}>
+                <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--color-gold-dim)' }}>Contraseña</label>
+                <input 
+                  type="password" 
+                  className="premium-input"
+                  placeholder="••••••••"
+                  value={loginForm.password}
+                  onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                  required
+                />
+              </div>
+
+              {loginError && (
+                <p style={{ color: '#ff6666', fontSize: '0.8rem', marginTop: '0.5rem' }}>{loginError}</p>
+              )}
+
+              <div style={{ marginTop: '1.5rem' }}>
+                <Button type="submit" variant="gold" fullWidth disabled={loginLoading}>
+                  {loginLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+                </Button>
+              </div>
+            </form>
+
+            <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--color-muted)', marginTop: '1.2rem' }}>
+              ¿No tienes cuenta?{' '}
+              <Link to="/registro" style={{ color: 'var(--color-gold)', textDecoration: 'underline' }}>
+                Regístrate aquí
+              </Link>
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
