@@ -2083,33 +2083,38 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
     tool_calls = assistant_message.get("tool_calls", [])
     
     content = assistant_message.get("content", "").strip()
-    parsed_tool_call = None
-    if not tool_calls and (content.startswith("{") and content.endswith("}")):
+
+    def _parse_tool_call_from_text(raw_text: str):
+        if not raw_text or "{" not in raw_text:
+            return None
+        import re
+        json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+        if not json_match:
+            return None
         try:
-            parsed_json = json.loads(content)
-            if isinstance(parsed_json, dict):
-                if "name" in parsed_json:
-                    name = parsed_json["name"]
-                    args = parsed_json.get("params") or parsed_json.get("arguments") or {}
-                    parsed_tool_call = {
-                        "function": {
-                            "name": name,
-                            "arguments": args
-                        }
-                    }
-                elif "function" in parsed_json and isinstance(parsed_json["function"], dict):
-                    name = parsed_json["function"].get("name")
-                    args = parsed_json["function"].get("arguments") or {}
-                    if name:
-                        parsed_tool_call = {
-                            "function": {
-                                "name": name,
-                                "arguments": args
-                            }
-                        }
-        except Exception:
-            pass
-            
+            parsed_json = json.loads(json_match.group(0))
+        except json.JSONDecodeError:
+            return None
+
+        if not isinstance(parsed_json, dict):
+            return None
+
+        if "function" in parsed_json and isinstance(parsed_json["function"], dict):
+            name = parsed_json["function"].get("name")
+            args = parsed_json["function"].get("arguments") or parsed_json["function"].get("parameters") or parsed_json["function"].get("params") or {}
+            if name:
+                return {"function": {"name": name, "arguments": args}}
+
+        if "name" in parsed_json:
+            name = parsed_json["name"]
+            args = parsed_json.get("params") or parsed_json.get("arguments") or parsed_json.get("parameters") or {}
+            return {"function": {"name": name, "arguments": args}}
+
+        return None
+
+    parsed_tool_call = None
+    if not tool_calls:
+        parsed_tool_call = _parse_tool_call_from_text(content)
     if parsed_tool_call:
         tool_calls = [parsed_tool_call]
         print(f"[RAG] 🔧 Detectado tool_call en texto content parseado (non-stream): {parsed_tool_call}", file=sys.stderr)
