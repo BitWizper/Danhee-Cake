@@ -24,6 +24,7 @@ exports.getAllPublic = async (req, res, next) => {
         bp.specialty,
         bp.bio,
         bp.portfolio_url,
+        bp.business_hours,
         bp.is_verified,
         bp.rating_avg,
         bp.total_reviews,
@@ -74,6 +75,7 @@ exports.getStats = async (req, res, next) => {
     res.json({
       success: true,
       data: {
+        baker_id: bakerId,
         cakes: cakesCount[0].total,
         appointments: appCount[0].total,
         rating: ratingData[0].rating_avg
@@ -96,17 +98,51 @@ exports.getAppointments = async (req, res, next) => {
     const bakerId = profiles[0].id;
 
     const [appointments] = await db.execute(`
-      SELECT a.*, u.name as client_name, u.email as client_email
+      SELECT a.*, u.name as client_name, u.email as client_email, u.phone as client_phone
       FROM appointments a
-      JOIN users u ON a.client_id = u.id
+      LEFT JOIN users u ON a.client_id = u.id
       WHERE a.baker_id = ?
-      ORDER BY a.date ASC, a.time_slot ASC
+      ORDER BY a.date DESC, a.time_slot ASC
     `, [bakerId]);
 
     res.json({
       success: true,
       data: appointments
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Actualizar el estado de una cita asignada al repostero.
+ * PUT /api/bakers/appointments/:id/status
+ */
+exports.updateAppointmentStatus = async (req, res, next) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const userId = req.user.id;
+
+  const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ success: false, message: 'Estado no válido.' });
+  }
+
+  try {
+    const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
+    if (profiles.length === 0) return res.status(404).json({ success: false, message: 'Perfil no encontrado.' });
+    const bakerId = profiles[0].id;
+
+    const [result] = await db.execute(
+      'UPDATE appointments SET status = ? WHERE id = ? AND baker_id = ?',
+      [status, id, bakerId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Cita no encontrada o sin permiso.' });
+    }
+
+    res.json({ success: true, message: `Estado de cita actualizado a ${status}.` });
   } catch (err) {
     next(err);
   }
@@ -154,7 +190,6 @@ exports.getMyCakes = async (req, res, next) => {
     const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
     if (profiles.length === 0) return res.status(404).json({ success: false, message: 'Perfil no encontrado.' });
     const bakerId = profiles[0].id;
-    console.log('DEBUG: Obteniendo pasteles para bakerId:', bakerId);
 
     const [cakes] = await db.execute(`
       SELECT c.*, cat.name as category_name 
@@ -164,12 +199,11 @@ exports.getMyCakes = async (req, res, next) => {
       ORDER BY c.created_at DESC
     `, [bakerId]);
 
-    console.log('DEBUG: Pasteles encontrados:', cakes.length);
-      const normalizedCakes = cakes.map((cake) => ({
-        ...cake,
-        image_url: normalizeImageUrl(cake.image_url),
-      }));
-      res.json({ success: true, data: normalizedCakes });
+    const normalizedCakes = cakes.map((cake) => ({
+      ...cake,
+      image_url: normalizeImageUrl(cake.image_url),
+    }));
+    res.json({ success: true, data: normalizedCakes });
   } catch (err) {
     next(err);
   }
@@ -192,9 +226,9 @@ exports.updateCake = async (req, res, next) => {
     const [cakes] = await db.execute('SELECT image_url FROM cakes WHERE id = ? AND baker_id = ?', [id, bakerId]);
     if (cakes.length === 0) return res.status(403).json({ success: false, message: 'No tienes permiso o el pastel no existe.' });
 
-      let imageUrl = normalizeImageUrl(cakes[0].image_url);
+    let imageUrl = normalizeImageUrl(cakes[0].image_url);
     if (req.file) {
-        imageUrl = `/uploads/${req.file.filename}`;
+      imageUrl = `/uploads/${req.file.filename}`;
     }
 
     await db.execute(
@@ -258,17 +292,25 @@ exports.getProfile = async (req, res, next) => {
  * Actualizar perfil de negocio del repostero logueado.
  */
 exports.updateProfile = async (req, res, next) => {
-  const { business_name, location, specialty, bio } = req.body;
+  const { business_name, location, specialty, bio, business_hours } = req.body;
   const userId = req.user.id;
 
   try {
-    const [result] = await db.execute(
-      'UPDATE baker_profiles SET business_name = ?, location = ?, specialty = ?, bio = ? WHERE user_id = ?',
-      [business_name, location, specialty, bio, userId]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: 'Perfil no encontrado.' });
+    try {
+      await db.execute(
+        'UPDATE baker_profiles SET business_name = ?, location = ?, specialty = ?, bio = ?, business_hours = ? WHERE user_id = ?',
+        [business_name, location, specialty, bio, business_hours || null, userId]
+      );
+    } catch (dbErr) {
+      if (dbErr.code === 'ER_BAD_FIELD_ERROR' || dbErr.message.includes('business_hours')) {
+        await db.execute('ALTER TABLE baker_profiles ADD COLUMN business_hours VARCHAR(255) DEFAULT "Lunes a Viernes: 9:00 - 18:00 | Sábado: 10:00 - 14:00"');
+        await db.execute(
+          'UPDATE baker_profiles SET business_name = ?, location = ?, specialty = ?, bio = ?, business_hours = ? WHERE user_id = ?',
+          [business_name, location, specialty, bio, business_hours || null, userId]
+        );
+      } else {
+        throw dbErr;
+      }
     }
 
     res.json({ success: true, message: 'Perfil actualizado correctamente.' });

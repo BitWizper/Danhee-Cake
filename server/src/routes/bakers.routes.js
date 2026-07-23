@@ -14,6 +14,7 @@ router.get('/', bakersController.getAllPublic);  // ← Obtener TODOS los repost
 // ============================================
 router.get('/stats', authMiddleware, authorize('repostero'), bakersController.getStats);
 router.get('/appointments', authMiddleware, authorize('repostero'), bakersController.getAppointments);
+router.put('/appointments/:id/status', authMiddleware, authorize('repostero'), bakersController.updateAppointmentStatus);
 router.get('/cakes', authMiddleware, authorize('repostero'), bakersController.getMyCakes);
 router.post('/cakes', authMiddleware, authorize('repostero'), upload.single('image'), bakersController.addCake);
 router.put('/cakes/:id', authMiddleware, authorize('repostero'), upload.single('image'), bakersController.updateCake);
