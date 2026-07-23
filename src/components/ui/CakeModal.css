@@ -54,6 +54,34 @@
   outline: none;
 }
 
+select.premium-input {
+  color-scheme: dark;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23c9a96e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 1rem center !important;
+  background-size: 1.1rem !important;
+  padding-right: 2.5rem !important;
+  background-color: #16120e !important;
+  color: var(--color-cream, #F5EDD6) !important;
+  cursor: pointer;
+}
+
+select.premium-input option {
+  background-color: #1a1410 !important;
+  color: #f5edd6 !important;
+  padding: 10px 14px;
+}
+
+select.premium-input option:hover,
+select.premium-input option:focus,
+select.premium-input option:checked {
+  background-color: #2c231b !important;
+  color: #c9a96e !important;
+}
+
 .price-input-wrapper {
   position: relative;
   display: flex;

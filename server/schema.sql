@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS baker_profiles (
   specialty     VARCHAR(255)  DEFAULT NULL,
   bio           TEXT          DEFAULT NULL,
   portfolio_url VARCHAR(500)  DEFAULT NULL,
+  business_hours VARCHAR(255) DEFAULT NULL,
   is_verified   TINYINT(1)    DEFAULT 0,
   rating_avg    DECIMAL(3,2)  DEFAULT 0.00,
   total_reviews INT           DEFAULT 0,

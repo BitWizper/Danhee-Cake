@@ -81,6 +81,11 @@ const BakerProfilePage = () => {
                 <span className="location">📍 {baker.location}</span>
                 <span className="specialty"> • {baker.specialty || 'Repostería Creativa'}</span>
               </p>
+              {baker.business_hours && (
+                <p className="profile-schedule" style={{ color: 'var(--color-gold)', fontSize: '0.85rem', marginTop: '0.4rem' }}>
+                  🕒 <strong>Horario de Atención:</strong> {baker.business_hours}
+                </p>
+              )}
               <div className="profile-rating">
                 <StarRating rating={Number(baker.rating_avg)} />
                 <span className="rating-count">({baker.total_reviews} reseñas)</span>

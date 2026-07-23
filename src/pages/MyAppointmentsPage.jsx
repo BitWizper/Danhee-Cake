@@ -33,8 +33,8 @@ const CancelModal = ({ appointment, onConfirm, onClose, loading }) => (
       </div>
       <h2 className="modal-title font-serif">¿Cancelar esta cita?</h2>
       <p className="modal-desc">
-        Estás a punto de cancelar tu cita con{' '}
-        <strong className="modal-highlight">{appointment.business_name}</strong> el{' '}
+        Estás a punto de cancelar la cita de{' '}
+        <strong className="modal-highlight">{appointment.client_name || appointment.business_name}</strong> el{' '}
         <strong className="modal-highlight">{formatDate(appointment.date)}</strong> a las{' '}
         <strong className="modal-highlight">{formatTime(appointment.time_slot)}</strong>.
       </p>
@@ -55,8 +55,8 @@ const CancelModal = ({ appointment, onConfirm, onClose, loading }) => (
   </div>
 );
 
-/* ── Tarjeta de Cita ── */
-const AppointmentCard = ({ appt, onCancel, index }) => {
+/* ── Tarjeta para Cliente ── */
+const ClientAppointmentCard = ({ appt, onCancel, index }) => {
   const status = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
   const canCancel = appt.status === 'pending' || appt.status === 'confirmed';
 
@@ -68,7 +68,6 @@ const AppointmentCard = ({ appt, onCancel, index }) => {
       <div className={`appt-status-stripe ${status.className}`} />
 
       <div className="appt-card__inner">
-        {/* Cabecera */}
         <div className="appt-card__head">
           <div className="appt-baker-info">
             <div className="appt-baker-avatar">🎂</div>
@@ -84,10 +83,8 @@ const AppointmentCard = ({ appt, onCancel, index }) => {
           </span>
         </div>
 
-        {/* Divisor */}
         <div className="appt-divider" />
 
-        {/* Detalles */}
         <div className="appt-details">
           <div className="appt-detail-item">
             <span className="appt-detail-icon">📅</span>
@@ -105,7 +102,6 @@ const AppointmentCard = ({ appt, onCancel, index }) => {
           </div>
         </div>
 
-        {/* Notas */}
         {appt.notes && (
           <div className="appt-notes">
             <span className="appt-notes-label">Notas</span>
@@ -113,7 +109,6 @@ const AppointmentCard = ({ appt, onCancel, index }) => {
           </div>
         )}
 
-        {/* Footer */}
         <div className="appt-card__footer">
           <Link to={`/repostero/${appt.baker_id}`} className="appt-link-baker">
             Ver perfil del repostero →
@@ -129,10 +124,99 @@ const AppointmentCard = ({ appt, onCancel, index }) => {
   );
 };
 
+/* ── Tarjeta para Repostero ── */
+const BakerAppointmentCard = ({ appt, onUpdateStatus, index }) => {
+  const status = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
+
+  return (
+    <div
+      className="appt-card glass animate-fadeUp"
+      style={{ animationDelay: `${index * 0.08}s` }}
+    >
+      <div className={`appt-status-stripe ${status.className}`} />
+
+      <div className="appt-card__inner">
+        <div className="appt-card__head">
+          <div className="appt-baker-info">
+            <div className="appt-baker-avatar">👤</div>
+            <div>
+              <h3 className="appt-baker-name font-serif">{appt.client_name || 'Solicitud de Cliente'}</h3>
+              <p className="appt-baker-specialty">
+                ✉️ {appt.client_email || 'Sin correo registrado'} {appt.client_phone ? `• 📞 ${appt.client_phone}` : ''}
+              </p>
+            </div>
+          </div>
+          <span className={`appt-status-badge ${status.className}`}>
+            <span className="appt-status-badge__icon">{status.icon}</span>
+            {status.label}
+          </span>
+        </div>
+
+        <div className="appt-divider" />
+
+        <div className="appt-details">
+          <div className="appt-detail-item">
+            <span className="appt-detail-icon">📅</span>
+            <div>
+              <span className="appt-detail-label">Fecha Solicitada</span>
+              <span className="appt-detail-value">{formatDate(appt.date)}</span>
+            </div>
+          </div>
+          <div className="appt-detail-item">
+            <span className="appt-detail-icon">🕐</span>
+            <div>
+              <span className="appt-detail-label">Horario</span>
+              <span className="appt-detail-value">{formatTime(appt.time_slot)}</span>
+            </div>
+          </div>
+        </div>
+
+        {appt.notes && (
+          <div className="appt-notes">
+            <span className="appt-notes-label">Notas del Cliente</span>
+            <p className="appt-notes-text">"{appt.notes}"</p>
+          </div>
+        )}
+
+        <div className="appt-card__footer" style={{ justifyContent: 'flex-end', gap: '0.5rem' }}>
+          {appt.status === 'pending' && (
+            <button 
+              className="modal-btn modal-btn--keep" 
+              style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}
+              onClick={() => onUpdateStatus(appt.id, 'confirmed')}
+            >
+              ✅ Confirmar Cita
+            </button>
+          )}
+          {appt.status === 'confirmed' && (
+            <button 
+              className="modal-btn modal-btn--keep" 
+              style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', borderColor: '#3b82f6', color: '#60a5fa' }}
+              onClick={() => onUpdateStatus(appt.id, 'completed')}
+            >
+              🎂 Marcar Completada
+            </button>
+          )}
+          {appt.status !== 'cancelled' && (
+            <button 
+              className="appt-cancel-btn" 
+              onClick={() => onUpdateStatus(appt.id, 'cancelled')}
+            >
+              Cancelar Cita
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* ── Página principal ── */
 const MyAppointmentsPage = () => {
-  const { token, isAuthenticated, loading: authLoading } = useAuth();
+  const { user, token, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  const isBaker = user?.role === 'repostero';
 
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -144,7 +228,13 @@ const MyAppointmentsPage = () => {
   const fetchAppointments = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/appointments/my-appointments', {
+      setError(null);
+      
+      const endpoint = isBaker 
+        ? '/api/bakers/appointments'
+        : '/api/appointments/my-appointments';
+
+      const res = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const result = await res.json();
@@ -158,7 +248,7 @@ const MyAppointmentsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, isBaker]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -170,10 +260,22 @@ const MyAppointmentsPage = () => {
     if (!selectedAppt) return;
     setCancelling(true);
     try {
-      const res = await fetch(`/api/appointments/${selectedAppt.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const endpoint = isBaker 
+        ? `/api/bakers/appointments/${selectedAppt.id}/status`
+        : `/api/appointments/${selectedAppt.id}`;
+
+      const options = isBaker 
+        ? {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ status: 'cancelled' })
+          }
+        : {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          };
+
+      const res = await fetch(endpoint, options);
       const result = await res.json();
       if (result.success) {
         setAppointments(prev =>
@@ -187,6 +289,27 @@ const MyAppointmentsPage = () => {
       alert('Error de conexión.');
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleUpdateBakerStatus = async (apptId, newStatus) => {
+    try {
+      const res = await fetch(`/api/bakers/appointments/${apptId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      const result = await res.json();
+      if (result.success) {
+        setAppointments(prev => prev.map(a => a.id === apptId ? { ...a, status: newStatus } : a));
+      } else {
+        alert(result.message || 'Error al actualizar cita.');
+      }
+    } catch {
+      alert('Error de conexión.');
     }
   };
 
@@ -208,14 +331,25 @@ const MyAppointmentsPage = () => {
       <div className="my-appts-hero">
         <div className="my-appts-hero__bg" />
         <div className="container my-appts-hero__inner">
-          <span className="my-appts-overline">Mi Cuenta</span>
-          <h1 className="my-appts-title font-serif">Mis Citas</h1>
+          <span className="my-appts-overline">{isBaker ? 'Panel de Repostero' : 'Mi Cuenta'}</span>
+          <h1 className="my-appts-title font-serif">
+            {isBaker ? 'Gestión de Citas' : 'Mis Citas'}
+          </h1>
           <p className="my-appts-subtitle">
-            Gestiona tus consultas y reuniones con nuestros reposteros artesanos.
+            {isBaker 
+              ? 'Revisa, confirma y gestiona las solicitudes de citas y asesorías con tus clientes.'
+              : 'Gestiona tus consultas y reuniones con nuestros reposteros artesanos.'}
           </p>
-          <Link to="/explorar" className="my-appts-cta">
-            + Agendar nueva cita
-          </Link>
+          {!isBaker && (
+            <Link to="/explorar" className="my-appts-cta">
+              + Agendar nueva cita
+            </Link>
+          )}
+          {isBaker && (
+            <Link to="/dashboard" className="my-appts-cta">
+              ← Volver al Panel de Control
+            </Link>
+          )}
         </div>
       </div>
 
@@ -246,7 +380,7 @@ const MyAppointmentsPage = () => {
         {loading && (
           <div className="appts-loading">
             <div className="appts-spinner" />
-            <p>Cargando tus citas…</p>
+            <p>Cargando citas…</p>
           </div>
         )}
 
@@ -262,14 +396,14 @@ const MyAppointmentsPage = () => {
           <div className="appts-empty glass">
             <span className="appts-empty__icon">📅</span>
             <h3 className="font-serif">
-              {filter === 'all' ? 'No tienes citas aún' : 'Sin citas en esta categoría'}
+              {filter === 'all' ? 'No hay citas registradas' : 'Sin citas en esta categoría'}
             </h3>
             <p>
               {filter === 'all'
-                ? 'Explora nuestros reposteros y agenda tu primera consulta.'
+                ? isBaker ? 'Tus clientes podrán agendar citas desde tu perfil público.' : 'Explora nuestros reposteros y agenda tu primera consulta.'
                 : 'Cambia el filtro para ver otras citas.'}
             </p>
-            {filter === 'all' && (
+            {!isBaker && filter === 'all' && (
               <Link to="/explorar" className="appts-empty__cta">
                 Explorar Reposteros
               </Link>
@@ -280,12 +414,21 @@ const MyAppointmentsPage = () => {
         {!loading && !error && filtered.length > 0 && (
           <div className="appts-grid">
             {filtered.map((appt, i) => (
-              <AppointmentCard
-                key={appt.id}
-                appt={appt}
-                index={i}
-                onCancel={setSelectedAppt}
-              />
+              isBaker ? (
+                <BakerAppointmentCard
+                  key={appt.id}
+                  appt={appt}
+                  index={i}
+                  onUpdateStatus={handleUpdateBakerStatus}
+                />
+              ) : (
+                <ClientAppointmentCard
+                  key={appt.id}
+                  appt={appt}
+                  index={i}
+                  onCancel={setSelectedAppt}
+                />
+              )
             ))}
           </div>
         )}
