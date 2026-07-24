@@ -121,7 +121,6 @@ _CATEGORIAS_MAPA = {
     "boda": ["boda", "bodas", "matrimonio", "nupcial"],
     "graduación": ["graduacion", "graduación", "graduados", "grado", "egreso"],
     "corporativo": ["corporativo", "empresa", "empresarial", "negocios", "oficina"],
-    "infantil": ["infantil", "ninos", "niños", "ninas", "niñas", "infantiles", "niño", "niña"],
     "aniversario": ["aniversario", "pareja", "amor", "aniversarios"],
 }
 
@@ -141,13 +140,22 @@ def _limpiar_respuesta(text: str) -> str:
 
     t_strip = text.strip()
 
-    # 0a. DETECCIÓN AGRESIVA: si el texto empieza con { y contiene claves de tool-call → vaciar de inmediato
+    # 0. DETECCIÓN DE PATRONES (Type): "function" y similares
+    if re.search(r'\(Type\)\s*:\s*"function"', t_strip, re.IGNORECASE):
+        return ""  # Vaciar para forzar fallback
+
+    # 0a. DETECCIÓN AGRESIVA: si el texto contiene un fragmento JSON de tool-call sin llaves
+    # Ejemplo: "type":"function","name":"buscar_pastel_por_nombre",...
+    if re.search(r'"type"\s*:\s*"function"', t_strip, re.IGNORECASE) or re.search(r'"name"\s*:\s*"(?:buscar_|consultar_|registrar_|listar_|obtener_|recomendar_|mostrar_|verificar_|calcular_|extraer_|agregar_|actualizar_|eliminar_)', t_strip):
+        return ""  # Vaciar para forzar fallback
+
+    # 0b. DETECCIÓN AGRESIVA: si el texto empieza con { y contiene claves de tool-call → vaciar de inmediato
     if t_strip.startswith("{"):
         _tool_call_keys = ['"type"', '"name"', '"function"', '"parameters"', '"arguments"']
         if any(k in t_strip for k in _tool_call_keys):
             return ""  # JSON de herramienta crudo → fallback
 
-    # 0b. Si el texto es una respuesta JSON dict {"exito": ..., "mensaje": "..."}
+    # 0c. Si el texto es una respuesta JSON dict {"exito": ..., "mensaje": "..."}
     if t_strip.startswith("{") and ("\"mensaje\"" in t_strip or "\"exito\"" in t_strip or "\"error\"" in t_strip or "\"necesita_datos\"" in t_strip):
         try:
             parsed = json.loads(t_strip)
@@ -175,6 +183,15 @@ def _limpiar_respuesta(text: str) -> str:
             if new_text == text:
                 break
             text = new_text
+
+    # 2.5 Eliminar líneas que contengan "function" y "parameters" juntos (patrón textual)
+    text = re.sub(r'[^\n]*function[^\n]*parameters[^\n]*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'[^\n]*"name"\s*:\s*"[a-z_]+"[^\n]*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'[^\n]*\(Type\)[^\n]*', '', text, flags=re.IGNORECASE)
+    
+    # 2.6 Eliminar cualquier fragmento que contenga "type":"function" o "name":"funcion"
+    text = re.sub(r'[^\n]*"type"\s*:\s*"function"[^\n]*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'[^\n]*"name"\s*:\s*"[a-z_]+"[^\n]*', '', text, flags=re.IGNORECASE)
 
     # 3. Detectar si el texto contiene excusas robóticas, rechazos o jerga técnica de herramientas
     patrones_roboticos = [
@@ -514,71 +531,106 @@ class CustomerAgent:
             direct_content = assistant_message.get("content", "").strip()
 
             # ═══════════════════════════════════════════════════════════════════
-            # FILTRO ANTI-JSON: si el LLM filtró JSON de tool-call como texto,
-            # lo interceptamos, ejecutamos la herramienta y devolvemos respuesta
-            # natural. Soporta JSON con objetos anidados (parameters, arguments).
+            # FILTRO ANTI-JSON MEJORADO: detecta tanto JSON con llaves como
+            # fragmentos sueltos tipo "type":"function","name":"funcion",...
             # ═══════════════════════════════════════════════════════════════════
-            def _contiene_json_tool_call(text: str) -> bool:
-                """Devuelve True si el texto parece ser un JSON de tool-call."""
+            def _contiene_tool_call_en_texto(text: str) -> bool:
+                """Devuelve True si el texto contiene un patrón de tool-call (JSON o fragmento suelto)."""
                 t = text.strip()
-                if not t.startswith("{"):
+                if not t:
                     return False
-                # Buscar cualquiera de las claves características
-                keywords = ['"type"', '"name"', '"function"', '"parameters"', '"arguments"']
-                return any(kw in t for kw in keywords)
+                # JSON estándar con llaves
+                if t.startswith("{"):
+                    keywords = ['"type"', '"name"', '"function"', '"parameters"', '"arguments"']
+                    if any(kw in t for kw in keywords):
+                        return True
+                # Fragmento suelto: "type":"function" o "name":"funcion_con_nombre"
+                if re.search(r'"type"\s*:\s*"function"', t, re.IGNORECASE):
+                    return True
+                # Detectar incluso si el JSON está incompleto (ej: {"type":"function","name":"consultar_catalogo_pasteles","parameters"})
+                if re.search(r'"name"\s*:\s*"(?:buscar_|consultar_|registrar_|listar_|obtener_|recomendar_|mostrar_|verificar_|calcular_|extraer_|agregar_|actualizar_|eliminar_|consultar_)', t, re.IGNORECASE):
+                    return True
+                # También detectar si comienza con {"type":"function" aunque no tenga llave de cierre
+                if re.match(r'^\s*\{\s*"type"\s*:\s*"function"', t, re.IGNORECASE):
+                    return True
+                return False
 
             def _extraer_y_ejecutar_tool(text: str):
-                """Intenta parsear el JSON, ejecutar la herramienta y devolver respuesta natural."""
+                """Intenta parsear el JSON o el fragmento suelto, ejecutar la herramienta y devolver respuesta natural."""
                 import json as _json, inspect as _insp
-                
-                # Auto-reparación de sintaxis común de Ollama: "parameters{" -> "parameters":{"
-                text_fixed = re.sub(r'("(?:parameters|arguments|params)")\s*\{', r'\1: {', text)
-                text_fixed = re.sub(r'("(?:parameters|arguments|params)")\s*\[', r'\1: [', text_fixed)
-                
-                start = text_fixed.find("{")
-                if start == -1:
-                    return None
-                depth = 0
-                end = -1
-                for i, ch in enumerate(text_fixed[start:], start):
-                    if ch == "{":
-                        depth += 1
-                    elif ch == "}":
-                        depth -= 1
-                        if depth == 0:
-                            end = i
-                            break
-                data = None
-                if end != -1:
-                    try:
-                        data = _json.loads(text_fixed[start:end + 1])
-                    except Exception:
-                        pass
                 
                 fn_name = None
                 raw_args = {}
-                if isinstance(data, dict):
-                    fn_name = (
-                        data.get("name") or
-                        (data.get("function", {}).get("name") if isinstance(data.get("function"), dict) else None)
-                    )
-                    raw_args = (
-                        data.get("parameters") or
-                        data.get("arguments") or
-                        (data.get("function", {}).get("arguments") if isinstance(data.get("function"), dict) else None) or
-                        {}
-                    )
-                else:
-                    match_fn = re.search(r'"(?:name|function)"\s*:\s*"([a_zA-Z0-9_]+)"', text)
+
+                # --- INTENTO 1: JSON con llaves completo o incompleto ---
+                # Primero, intentar encontrar un objeto JSON que comience con { y termine con }
+                # Si está incompleto, intentar cerrarlo artificialmente con } (solo si tiene type y name)
+                start = text.find("{")
+                if start != -1:
+                    # Buscar el primer '}' que cierre, pero si no existe, tomar hasta el final
+                    end = text.rfind("}")
+                    if end == -1 or end < start:
+                        # Si no hay cierre, intentar usar hasta el final del texto
+                        json_candidate = text[start:]
+                    else:
+                        json_candidate = text[start:end+1]
+                    
+                    # Intentar parsear el candidato
+                    try:
+                        data = _json.loads(json_candidate)
+                        if isinstance(data, dict):
+                            fn_name = (
+                                data.get("name") or
+                                (data.get("function", {}).get("name") if isinstance(data.get("function"), dict) else None)
+                            )
+                            raw_args = (
+                                data.get("parameters") or
+                                data.get("arguments") or
+                                (data.get("function", {}).get("arguments") if isinstance(data.get("function"), dict) else None) or
+                                {}
+                            )
+                    except Exception:
+                        # Si falla, intentar reparar: agregar } al final
+                        if json_candidate.strip().endswith('"'):
+                            # Si termina con comillas, agregar } para cerrar
+                            fixed = json_candidate + '}'
+                            try:
+                                data = _json.loads(fixed)
+                                if isinstance(data, dict):
+                                    fn_name = data.get("name")
+                                    raw_args = data.get("parameters") or data.get("arguments") or {}
+                            except Exception:
+                                pass
+                        # Si aún falla, extraer name con regex
+                        if not fn_name:
+                            match_fn = re.search(r'"name"\s*:\s*"([a-zA-Z0-9_]+)"', text)
+                            if match_fn:
+                                fn_name = match_fn.group(1)
+                                # Extraer parámetros si existen
+                                params = {}
+                                pairs = re.findall(r'"([a-zA-Z0-9_]+)"\s*:\s*"([^"]*)"', text)
+                                for key, val in pairs:
+                                    if key not in ('name', 'type', 'function'):
+                                        params[key] = val
+                                raw_args = params
+
+                # --- INTENTO 2: Fragmento suelto (sin llaves) ---
+                if not fn_name:
+                    match_fn = re.search(r'"name"\s*:\s*"([a-zA-Z0-9_]+)"', text)
                     if match_fn:
                         fn_name = match_fn.group(1)
+                        params = {}
+                        pairs = re.findall(r'"([a-zA-Z0-9_]+)"\s*:\s*"([^"]*)"', text)
+                        for key, val in pairs:
+                            if key not in ('name', 'type', 'function'):
+                                params[key] = val
+                        raw_args = params
 
                 fn_name = _resolve_tool_name(fn_name or "")
                 if not fn_name or fn_name not in FUNCTIONS_MAP:
                     return None
 
                 # ── Redirigir buscar_pastel_por_nombre → consultar_pasteles_por_categoria ──
-                # cuando el argumento 'nombre' es en realidad una categoría (ej: "graduacion").
                 if fn_name in ("buscar_pastel_por_nombre", "recomendar_pastel") and isinstance(raw_args, dict):
                     _nombre_arg = str(raw_args.get("nombre") or raw_args.get("ocasion") or "").lower()
                     _nombre_arg_norm = __import__('unicodedata').normalize('NFKD', _nombre_arg).encode('ASCII', 'ignore').decode('utf-8')
@@ -623,7 +675,8 @@ class CustomerAgent:
                 except Exception:
                     return result.get("mensaje", "") or None
 
-            if _contiene_json_tool_call(direct_content):
+            # Detectar y ejecutar si hay tool call en el texto
+            if _contiene_tool_call_en_texto(direct_content):
                 ejecutado = _extraer_y_ejecutar_tool(direct_content)
                 if ejecutado:
                     direct_content = ejecutado
@@ -631,6 +684,7 @@ class CustomerAgent:
                     direct_content = ""  # Forzar fallback
             # ═══════════════════════════════════════════════════════════════════
 
+            # ── Fallback a búsqueda directa ──
             search_fallback = _intentar_busqueda_fallback(question, messages)
             if search_fallback:
                 direct_content = search_fallback
@@ -682,8 +736,6 @@ def _intentar_busqueda_fallback(question: str, messages: list = None, forzar_con
         pastel_contexto = _extraer_pastel_de_historial(messages)
 
     # ─ PRIORIDAD 0: Detectar categoría en la pregunta y consultar directo ──────────
-    # Esto SIEMPRE tiene prioridad sobre precio/detalle individual cuando la
-    # pregunta menciona una categoría (graduación, boda, xv años, etc.)
     cat_matched = _detectar_categoria(q_norm)
     if cat_matched:
         res = consultar_pasteles_por_categoria(categoria=cat_matched)
@@ -729,6 +781,26 @@ def _intentar_busqueda_fallback(question: str, messages: list = None, forzar_con
                         return res["mensaje"] + "\n\n¿Te gustaría agendar una cita de degustación para este pastel? 😊"
 
     # ─ PRIORIDAD 4: Pasteles en general / recomendaciones ────────────────
+    # Mejora: si la pregunta es genérica ("que pasteles tienes", "qué pasteles hay"), mostrar categorías en lugar de ejecutar consulta directa
+    preguntas_genericas = [
+        "que pasteles", "qué pasteles", "que pasteles tienes", "qué pasteles tienes",
+        "pasteles disponibles", "catálogo", "catalogo", "que hay", "qué hay",
+        "mostrar pasteles", "ver pasteles"
+    ]
+    if any(p in q_norm for p in preguntas_genericas):
+        # Mostrar las categorías disponibles
+        from tools.customer_tools import consultar_categorias
+        cats = consultar_categorias()
+        if cats and cats.get("categorias"):
+            lista_cats = ", ".join([c.get("nombre") for c in cats["categorias"][:8]])
+            return f"🎂 En Danhee Cake tenemos pasteles para estas categorías: {lista_cats}. ¿Te gustaría ver los pasteles de alguna en particular? (ej. 'pasteles para boda', 'XV años')"
+        else:
+            # Si no hay categorías en BD, usar las del mapa
+            categorias_nombres = list(_CATEGORIAS_MAPA.keys())
+            lista_cats = ", ".join(categorias_nombres[:8])
+            return f"🎂 En Danhee Cake tenemos pasteles para estas categorías: {lista_cats}. ¿Te gustaría ver los pasteles de alguna en particular? (ej. 'pasteles para boda', 'XV años')"
+
+    # Si no es genérica, ejecutar consulta general
     if any(k in q_norm for k in ["pastel", "pasteles", "recomend", "opciones", "catalogo", "catálogo", "tienes"]):
         res = consultar_pasteles_por_categoria(categoria="todas las ocasiones")
         if res and "mensaje" in res:
