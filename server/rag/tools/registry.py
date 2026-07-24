@@ -421,28 +421,50 @@ def _resolve_tool_name(name: str) -> str:
     return normalized
 
 def _parse_tool_call_from_text(raw_text: str):
-    if not raw_text or "{" not in raw_text:
-        return None
-    json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
-    if not json_match:
-        return None
-    try:
-        parsed_json = json.loads(json_match.group(0))
-    except json.JSONDecodeError:
+    if not raw_text or not raw_text.strip():
         return None
 
-    if not isinstance(parsed_json, dict):
-        return None
+    clean_text = raw_text.strip().strip("`").strip()
 
-    if "function" in parsed_json and isinstance(parsed_json["function"], dict):
-        name = parsed_json["function"].get("name")
-        args = parsed_json["function"].get("arguments") or parsed_json["function"].get("parameters") or parsed_json["function"].get("params") or {}
-        if name:
-            return {"function": {"name": name, "arguments": args}}
+    # 1. Intentar parsear llamadas de función formato Python: fn_name(arg1="val1", arg2=123)
+    fn_call_match = re.search(r"([a_zA-Z0-9_]+)\s*\((.*)\)", clean_text, re.DOTALL)
+    if fn_call_match:
+        fn_name_raw = fn_call_match.group(1).strip()
+        resolved_name = _resolve_tool_name(fn_name_raw)
+        if resolved_name in FUNCTIONS_MAP:
+            args_str = fn_call_match.group(2).strip()
+            args_dict = {}
+            if args_str:
+                kv_matches = re.findall(r'([a_zA-Z0-9_]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s,)]+))', args_str)
+                for key, val_dq, val_sq, val_raw in kv_matches:
+                    val = val_dq if val_dq != '' else (val_sq if val_sq != '' else val_raw)
+                    if str(val).isdigit():
+                        val = int(val)
+                    elif str(val).lower() == "true":
+                        val = True
+                    elif str(val).lower() == "false":
+                        val = False
+                    args_dict[key] = val
+            return {"function": {"name": resolved_name, "arguments": args_dict}}
 
-    if "name" in parsed_json:
-        name = parsed_json["name"]
-        args = parsed_json.get("params") or parsed_json.get("arguments") or parsed_json.get("parameters") or {}
-        return {"function": {"name": name, "arguments": args}}
+    # 2. Intentar parsear como objeto JSON
+    if "{" in raw_text:
+        json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+        if json_match:
+            try:
+                parsed_json = json.loads(json_match.group(0))
+                if isinstance(parsed_json, dict):
+                    if "function" in parsed_json and isinstance(parsed_json["function"], dict):
+                        name = parsed_json["function"].get("name")
+                        args = parsed_json["function"].get("arguments") or parsed_json["function"].get("parameters") or parsed_json["function"].get("params") or {}
+                        if name:
+                            return {"function": {"name": _resolve_tool_name(name), "arguments": args}}
+
+                    if "name" in parsed_json:
+                        name = parsed_json["name"]
+                        args = parsed_json.get("params") or parsed_json.get("arguments") or parsed_json.get("parameters") or {}
+                        return {"function": {"name": _resolve_tool_name(name), "arguments": args}}
+            except json.JSONDecodeError:
+                pass
 
     return None

@@ -85,30 +85,64 @@ REGLAS DE RESPUESTA Y COMPORTAMIENTO:
 
 
 def _limpiar_respuesta(text: str) -> str:
-    """Elimina backticks, nombres de funciones internas, JSON crudo y artefactos técnicos
+    """Elimina backticks, código de herramientas, nombres de funciones internas, JSON crudo y artefactos técnicos
     que el LLM pudiera colar en sus respuestas al usuario final."""
     if not text:
-        return text
-    # 1. Eliminar referencias con backticks: `nombre`
-    text = re.sub(r'`[^`\n]{1,80}`', '', text)
-    # 2. Eliminar nombres de funciones conocidas del FUNCTIONS_MAP
-    from tools.registry import FUNCTIONS_MAP
-    for fn in FUNCTIONS_MAP:
-        text = text.replace(fn, '').replace(fn.replace('_', ' '), '')
-    # 3. Eliminar bloques JSON/dict crudos ({...}) de hasta 400 chars
-    text = re.sub(r'\{[^{}]{0,400}\}', '', text)
-    # 4. Eliminar frases que el LLM usa para excusarse de hacer tool calls
-    frases_tecnicas = [
-        r'(?i)puedes utilizar las funciones? disponibles?.*',
-        r'(?i)recomiendo utilizar.*',
-        r'(?i)puedes usar la herramienta.*',
-        r'(?i)no hay una funci[oó]n.*definida.*',
+        return "🎂 ¡Hola! En Danhee Cake estoy a tu servicio para lo que necesites. ¿En qué te puedo ayudar hoy?"
+
+    # 1. Eliminar bloques de código markdown completos (```...```)
+    text = re.sub(r'```[\s\S]*?```', '', text)
+
+    # 2. Detectar si el texto contiene excusas robóticas, meta-LLM o jerga técnica
+    patrones_roboticos = [
+        r"funci[oó]n",
+        r"lista proporcionada",
+        r"texto proporcionado",
+        r"conjunto de funciones",
+        r"solicitud expl[ií]cita",
+        r"base de datos",
+        r"par[aá]metros",
+        r"arguments",
+        r"tool_call",
+        r"herramienta",
+        r"comando",
+        r"c[oó]digo",
+        r"mapa",
+        r"map\b",
+        r"no puedo determinar",
+        r"no hay una respuesta espec[ií]fica",
+        r"no puedo comprender tu pregunta",
     ]
-    for patron in frases_tecnicas:
-        text = re.sub(patron, '', text)
-    # 5. Limpiar espacios y líneas vacías sobrantes
+    
+    t_lower = text.lower()
+    if any(re.search(p, t_lower) for p in patrones_roboticos):
+        return "🎂 ¡Hola! En Danhee Cake estoy a tu servicio para ayudarte a encontrar el pastel perfecto, darte información de sabores, precios, categorías o agendar tu cita de degustación. ¿En qué puedo ayudarte hoy?"
+
+    # 3. Eliminar llamadas a función en texto plano: fn_name(...)
+    text = re.sub(r'[a_zA-Z0-9_]+\s*\([^)]*\)', '', text)
+
+    # 4. Eliminar referencias con backticks: `nombre`
+    text = re.sub(r'`[^`\n]{1,80}`', '', text)
+
+    # 5. Eliminar nombres de funciones conocidas del FUNCTIONS_MAP
+    try:
+        from tools.registry import FUNCTIONS_MAP
+        for fn in FUNCTIONS_MAP:
+            if fn in text:
+                text = text.replace(fn, '')
+    except Exception:
+        pass
+
+    # 6. Eliminar bloques JSON/dict crudos ({...}) de hasta 400 chars
+    text = re.sub(r'\{[^{}]{0,400}\}', '', text)
+
+    # 7. Limpiar espacios y líneas vacías sobrantes
     text = re.sub(r'[ \t]{2,}', ' ', text)
     text = re.sub(r'\n{3,}', '\n\n', text).strip()
+
+    if not text or len(text) < 5:
+        return "🎂 Con gusto te ayudo en Danhee Cake. ¿Te gustaría información sobre algún pastel o agendar una cita de degustación?"
+
     return text
 
 
@@ -138,36 +172,6 @@ class CustomerAgent:
             if conversation_id:
                 add_chat_message(conversation_id, "assistant", respuesta_fija)
             return respuesta_fija
-
-        # ── SALUDO PURO: responder inmediatamente sin pasar al LLM ──────────────
-        _saludos_puros = [
-            (["holiss crayoliss","holis crayoliss","holiss crayolis","holi crayolis"],  "¡Holisss crayoliss! 🥰🍰 ¿En qué puedo ayudarte hoy?"),
-            (["crayoliss","crayolis","crayola"],                                         "¡Holisss crayoliss! 🥰🍰 ¿En qué puedo ayudarte hoy?"),
-            (["holiss bestie","holis bestie","hola bestie"],                             "¡Holiiis bestie! 💕🍰 ¿En qué te puedo ayudar?"),
-            (["bestie","besti"],                                                         "¡Holiiis bestie! 💕🍰 ¿En qué te puedo ayudar?"),
-            (["amix"],                                                                   "¡Qué ondaaaaa amix! 🧁✨ ¿Cómo te puedo ayudar?"),
-            (["chula"],                                                                  "¡Holiss chula! 😍🍰 ¿En qué te ayudo hoy?"),
-            (["bro"],                                                                    "¡Qué onda bro! 🧁✨ ¿En qué te ayudo?"),
-            (["amiga","amigo"],                                                         "¡Holiss amiga! 🥰🍰 ¿En qué te puedo ayudar?"),
-            (["holiss","holis"],                                                        "¡Holisss! 🥰🍰 ¿En qué te puedo ayudar hoy?"),
-            (["holaa","holaaa","hola"],                                                "¡Hola! 😊🍰 ¿En qué te puedo ayudar?"),
-            (["buenas","buen dia","buenos dias"],                                       "¡Buenas! 🎂 ¿En qué puedo ayudarte?"),
-            (["qué onda","que onda","q onda"],                                         "¡Qué ondaaa! 🧁✨ ¿En qué puedo ayudarte hoy?"),
-            (["hey"],                                                                    "¡Hey! 😄🍰 ¿En qué puedo ayudarte?"),
-            (["saludos"],                                                               "¡Saludos! 🎂 ¿En qué puedo ayudarte?"),
-        ]
-        _q_lower = question.lower().strip()
-        # Solo interceptar si el mensaje es MAYORMENTE un saludo (menos de 6 palabras y no hay pregunta de contenido)
-        _palabras_contenido = ["pastel","cita","precio","categoria","horario","repostero","empresa","donde","cuanto","quiero","necesito","informacion","baby","boda","años","cumple"]
-        _es_saludo_puro = len(_q_lower.split()) <= 5 and not any(p in _q_lower for p in _palabras_contenido)
-        if _es_saludo_puro:
-            for _triggers, _resp in _saludos_puros:
-                if any(t in _q_lower for t in _triggers):
-                    if conversation_id:
-                        add_chat_message(conversation_id, "assistant", _resp)
-                    _set_cached_response(question, 'cliente', _resp, conversation_id)
-                    return _resp
-        # ────────────────────────────────────────────────────────────────────────
 
         cached_response = _get_cached_response(question, 'cliente', conversation_id)
         if cached_response is not None:
@@ -381,34 +385,6 @@ class CustomerAgent:
 
             # ─── Limpieza anti-código (backticks, funciones, JSON crudo) ────────
             direct_content = _limpiar_respuesta(direct_content)
-            # ─────────────────────────────────────────────────────────────────────
-
-            # ─── Saludo espejo ────────────────────────────────────────────────────
-            q_lower = question.lower().strip()
-            saludo_patterns = [
-                (["holiss crayoliss","holis crayoliss","holiss crayolis","holi crayolis","holis crayoli"],  "¡Holisss crayoliss! 🥰🍰 "),
-                (["crayoliss","crayolis","crayola"],                                                        "¡Holisss crayoliss! 🥰🍰 "),
-                (["holiss bestie","holis bestie","hola bestie"],                                            "¡Holiiis bestie! 💕🍰 "),
-                (["bestie","besti"],                                                                        "¡Holiiis bestie! 💕🍰 "),
-                (["amix"],                                                                                   "¡Qué ondaaaaa amix! 🧁✨ "),
-                (["chula"],                                                                                  "¡Holiss chula! 😍🍰 "),
-                (["bro"],                                                                                    "¡Qué onda bro! 🧁✨ "),
-                (["amiga","amigo"],                                                                         "¡Holiss amiga! 🥰🍰 "),
-                (["holiss","holis"],                                                                        "¡Holisss! 🥰🍰 "),
-                (["holaa","holaaa","hola"],                                                                 "¡Hola! 😊🍰 "),
-                (["buenas","buen dia","buendia","buenos dias"],                                            "¡Buenas! 🎂 "),
-                (["hey"],                                                                                    "¡Hey! 😄🍰 "),
-                (["qué onda","que onda","q onda"],                                                         "¡Qué ondaaa! 🧁✨ "),
-                (["saludos"],                                                                               "¡Saludos! 🎂 "),
-            ]
-            matched_prefix = None
-            for triggers, prefix in saludo_patterns:
-                if any(t in q_lower for t in triggers):
-                    matched_prefix = prefix
-                    break
-            if matched_prefix and not direct_content.startswith(matched_prefix.strip()[:8]):
-                direct_content = re.sub(r'^(¡?Hola[^!.\n]*[!.]?\s*)', '', direct_content).strip()
-                direct_content = f"{matched_prefix}{direct_content}"
             # ─────────────────────────────────────────────────────────────────────
 
             messages.append({"role": "assistant", "content": direct_content})

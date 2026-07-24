@@ -90,9 +90,32 @@ def _should_skip_rag(question: str) -> bool:
 
 
 def _should_use_tools(question: str, role: str = "cliente") -> bool:
-    # Para clientes, siempre mandamos herramientas disponibles al LLM.
-    # Si la pregunta es un saludo puro sin contenido, el LLM simplemente no las usará.
-    return True
+    if role == "repostero":
+        return True
+    
+    q = _normalize_question(question)
+    if not q:
+        return False
+        
+    words = q.split()
+    # Palabras clave que indican una consulta de datos / herramientas
+    tool_keywords = [
+        "pastel", "pasteles", "cake", "cakes", "cita", "citas", "repostero", "reposteros",
+        "precio", "precios", "costo", "cuanto", "cuánto", "categoria", "categoría", "categorías",
+        "disponibilidad", "pedido", "comprar", "buscar", "catalogo", "catálogo",
+        "dias", "días", "horario", "horarios", "abren", "atienden", "abierto", "atencion", "atención",
+        "red velvet", "cumpleaños", "boda", "xv", "baby shower", "empresa", "ubicacion", "ubicación",
+        "reposteria", "repostería", "diseño", "diseños", "destacado", "destacados", "reseña", "reseñas"
+    ]
+    if any(k in q for k in tool_keywords):
+        return True
+
+    # Mensajes cortos sin palabras clave de BD son saludos / conversación casual
+    if len(words) <= 5:
+        return False
+
+    return False
+
 
 
 def _get_ollama_options() -> dict:
@@ -113,19 +136,13 @@ def obtener_respuesta_fija(pregunta: str):
     txt = re.sub(r"\s+", " ", txt).strip()
 
     patrones_ayuda = [
-        r"\bayud",
-        r"que puedes hacer",
-        r"funciones",
-        r"como me ayudas",
-        r"que haces",
-        r"en ke me",
-        r"k ases",
-        r"que me puedes",
-        r"como te puedo",
-        r"en que puedes ayudar",
-        r"como te ayud"
+        "ayuda", "ayudar", "ayudarme", "ayudas", "ayudame",
+        "que puedes hacer", "que haces", "para que sirves",
+        "en que me sirves", "que me puedes", "como me ayudas",
+        "que ofrecen", "que servicios", "que opciones", "en que me puedes",
+        "en que me", "k ases", "que se puede hacer", "en que puedes"
     ]
-    if any(re.search(p, txt) for p in patrones_ayuda):
+    if any(p in txt for p in patrones_ayuda):
         return (
             "¡Hola! Puedo ayudarte con lo siguiente en Danhee Cake:\n\n"
             "• Ver el catálogo de pasteles y filtrar por categoría o nombre\n"
@@ -138,8 +155,8 @@ def obtener_respuesta_fija(pregunta: str):
             "¿En qué te puedo ayudar hoy? 😊"
         )
 
-    if any(re.search(p, txt) for p in [
-        r"quien te cre", r"quien te hizo", r"tu origen", r"como naciste", r"como naci", r"de donde vienes"
+    if any(p in txt for p in [
+        "quien te cre", "quien te hizo", "tu origen", "como naciste", "como naci", "de donde vienes"
     ]):
         return "No me crearon, yo nací de Borcelle. 🎂"
 
