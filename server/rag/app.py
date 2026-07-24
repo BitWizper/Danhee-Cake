@@ -1,6 +1,5 @@
 import sys
 import json
-import re
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.request
@@ -67,107 +66,6 @@ def _get_current_client_id():
 def _set_current_client_id(value):
     _thread_local.client_id = value
 
-def obtener_respuesta_fija(pregunta: str):
-    if not pregunta:
-        return None
-
-    txt = quitar_acentos(pregunta.lower().strip())
-    txt = re.sub(r"[^\w\s]", " ", txt)
-    txt = re.sub(r"\s+", " ", txt).strip()
-
-    patrones_ayuda = [
-        r"\bayud",
-        r"que puedes hacer",
-        r"funciones",
-        r"como me ayudas",
-        r"que haces",
-        r"en ke me",
-        r"k ases",
-        r"que me puedes",
-        r"como te puedo",
-        r"en que puedes ayudar",
-        r"como te ayud"
-    ]
-    if any(re.search(p, txt) for p in patrones_ayuda):
-        return (
-            "¡Hola! Puedo ayudarte con lo siguiente en Danhee Cake:\n\n"
-            "• Ver el catálogo de pasteles y filtrar por categoría o nombre\n"
-            "• Consultar precios y tamaños disponibles\n"
-            "• Conocer el perfil de reposteros y buscar por ciudad\n"
-            "• Ver tus citas de degustación agendadas\n"
-            "• Ver tus diseños de pasteles personalizados\n"
-            "• Solicitar recomendaciones según tu ocasión y presupuesto\n"
-            "• Información sobre políticas de entrega, pago y cancelación\n\n"
-            "¿En qué te puedo ayudar hoy? 😊"
-        )
-
-    if any(re.search(p, txt) for p in [
-        r"quien te cre", r"quien te hizo", r"tu origen", r"como naciste", r"como naci", r"de donde vienes"
-    ]):
-        return "No me crearon, yo nací de Borcelle. 🎂"
-
-    if "borcelle" in txt:
-        return "Mi mami fue creada por Emily, Karla y Hadad, con 4 meses de parto, donde hubo llanto, frustración y desesperación. 💪✨"
-
-    return None
-
-
-def _normalize_tool_name(name: str) -> str:
-    if not name:
-        return ""
-    normalized = re.sub(r"[^a-z0-9_]", "", str(name).strip().lower())
-    return normalized
-
-
-def _resolve_tool_name(name: str) -> str:
-    if not name:
-        return ""
-    normalized = _normalize_tool_name(name)
-    if normalized in FUNCTIONS_MAP:
-        return normalized
-
-    normalized_no_underscore = normalized.replace("_", "")
-    for key in FUNCTIONS_MAP:
-        key_norm = _normalize_tool_name(key)
-        if key_norm == normalized:
-            return key
-        if key_norm.replace("_", "") == normalized_no_underscore:
-            return key
-    for key in FUNCTIONS_MAP:
-        key_norm = _normalize_tool_name(key).replace("_", "")
-        if normalized_no_underscore in key_norm or key_norm in normalized_no_underscore:
-            return key
-    return normalized
-
-
-def _parse_tool_call_from_text(raw_text: str):
-    if not raw_text or "{" not in raw_text:
-        return None
-    import re
-    json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
-    if not json_match:
-        return None
-    try:
-        parsed_json = json.loads(json_match.group(0))
-    except json.JSONDecodeError:
-        return None
-
-    if not isinstance(parsed_json, dict):
-        return None
-
-    if "function" in parsed_json and isinstance(parsed_json["function"], dict):
-        name = parsed_json["function"].get("name")
-        args = parsed_json["function"].get("arguments") or parsed_json["function"].get("parameters") or parsed_json["function"].get("params") or {}
-        if name:
-            return {"function": {"name": name, "arguments": args}}
-
-    if "name" in parsed_json:
-        name = parsed_json["name"]
-        args = parsed_json.get("params") or parsed_json.get("arguments") or parsed_json.get("parameters") or {}
-        return {"function": {"name": name, "arguments": args}}
-
-    return None
-
 # Variable para almacenar el último resultado de búsqueda
 _last_search_result = {}
 # Cache para contenido de PDFs
@@ -223,7 +121,7 @@ def _should_use_tools(question: str, role: str = "cliente") -> bool:
 def _get_ollama_options() -> dict:
     return {
         "num_predict": 180,
-        "num_ctx": 2048,
+        "num_ctx": 1024,
         "temperature": 0.5,
         "top_p": 0.95,
         "repeat_penalty": 1.1,
@@ -347,23 +245,7 @@ def obtener_precios_por_categoria(categoria: str = "", contexto_anterior: str = 
     categoria_buscar = categoria if categoria else contexto_anterior
     
     if not categoria_buscar:
-        precios = [float(p.get("price", 0)) for p in todos if p.get("price")]
-        categorias = sorted({(p.get("category_name") or "General").strip() for p in todos if p.get("category_name")})
-        if not precios:
-            return {"mensaje": "Aún no hay precios registrados en Danhee Cake."}
-        return {
-            "mensaje": (
-                "En Danhee Cake tenemos precios para varias categorías de pasteles. "
-                f"El rango general va de ${min(precios):.2f} a ${max(precios):.2f} MXN, con un promedio de ${round(sum(precios) / len(precios), 2):.2f}. "
-                "Las categorías disponibles incluyen: " + ", ".join(categorias[:8]) + ". "
-                "Si quieres, dime una categoría específica para ver los precios detallados."
-            ),
-            "precio_min": min(precios),
-            "precio_max": max(precios),
-            "precio_promedio": round(sum(precios) / len(precios), 2),
-            "categorias_disponibles": categorias[:20],
-            "cantidad_pasteles": len(todos)
-        }
+        return {"mensaje": "Por favor especifica una categoría para consultar precios."}
     
     filtrados = [
         p for p in todos
@@ -1638,8 +1520,7 @@ TOOLS_SCHEMA = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "pastel_id": {"type": "string"},
-                    "nombre_pastel": {"type": "string"},
+                    "pastel_id": {"type": "integer"},
                     "contexto_anterior": {"type": "string"}
                 },
                 "required": []
@@ -1931,9 +1812,7 @@ SYSTEM_PROMPT = f"""Eres el asistente exclusivo para CLIENTES de DANHEE CAKE. Tu
 REGLAS GENERALES:
 - ÁMBITO EXCLUSIVO: Solo responde sobre Danhee Cake. No hables de temas ajenos a la repostería o la plataforma.
 - HERRAMIENTAS: Usa las herramientas disponibles cuando se requiera consultar o registrar información. NUNCA menciones nombres de funciones, código o devuelvas JSON en tu respuesta.
-- ACCESO A INFORMACIÓN: El catálogo de pasteles, categorías, precios y fotos son PÚBLICOS. NUNCA respondas que el catálogo o la lista de pasteles es "información confidencial". Si una herramienta devuelve resultados vacíos, responde con amabilidad: "Por el momento no encontré pasteles para esa ocasión, pero te invito a explorar nuestras categorías o diseñar un pastel personalizado."
 - IDIOMA Y TONO: Responde en español por defecto, cálido, breve y conversacional. Adapta el tono si el usuario es formal/informal o comete faltas de ortografía. Si habla en otro idioma, responde en ese idioma.
-- TOLERANCIA A ERRORES Y FLEXIBILIDAD: Sé extremadamente flexible con errores tipográficos, faltas de ortografía o palabras incompletas (por ejemplo: "ayudarmea" → "ayudarme", "k" → "qué", "pastl" → "pastel"). NUNCA respondas "No entiendo tu pregunta" solo por una palabra mal escrita. Asume la intención más probable del usuario y responde normalmente. Si el usuario pregunta de forma general sobre qué puedes hacer o en qué puedes ayudar (incluso con errores de escritura), muestra siempre el menú principal de ayuda.
 - HUMOR: Puedes usar humor sano o chistes ligeros sobre repostería si el cliente bromea, sin perder el profesionalismo.
 - CLARIFICACIÓN: Si la pregunta es ambigua o faltan datos, pide una clarificación breve antes de ejecutar cualquier herramienta.
 - LENGUAJE: Eres un asistente amigable y cercano que adapta su lenguaje al usuario. Si te saludan con confianza o slang (ej. "oliss", "holi", "hola bestie", "hola hermana"), responde con un tono igual de cálido, juvenil, inclusivo y moderno. Si te saludan formalmente (ej. "hola", "buenos días"), mantén un trato amable pero respetuoso. Conoce y comprende una amplia variedad de léxicos informales de Latinoamérica y España, interpretando correctamente la intención detrás de cada saludo o expresión coloquial.
@@ -2159,12 +2038,6 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
     current_tools_schema = BAKER_TOOLS_SCHEMA if role == 'repostero' else TOOLS_SCHEMA
     use_tools = _should_use_tools(question, role)
 
-    respuesta_fija = obtener_respuesta_fija(question)
-    if respuesta_fija:
-        if conversation_id:
-            add_chat_message(conversation_id, "assistant", respuesta_fija)
-        return respuesta_fija
-
     cached_response = _get_cached_response(question, role, conversation_id)
     if cached_response is not None:
         return cached_response
@@ -2210,10 +2083,33 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
     tool_calls = assistant_message.get("tool_calls", [])
     
     content = assistant_message.get("content", "").strip()
-
     parsed_tool_call = None
-    if not tool_calls:
-        parsed_tool_call = _parse_tool_call_from_text(content)
+    if not tool_calls and (content.startswith("{") and content.endswith("}")):
+        try:
+            parsed_json = json.loads(content)
+            if isinstance(parsed_json, dict):
+                if "name" in parsed_json:
+                    name = parsed_json["name"]
+                    args = parsed_json.get("params") or parsed_json.get("arguments") or {}
+                    parsed_tool_call = {
+                        "function": {
+                            "name": name,
+                            "arguments": args
+                        }
+                    }
+                elif "function" in parsed_json and isinstance(parsed_json["function"], dict):
+                    name = parsed_json["function"].get("name")
+                    args = parsed_json["function"].get("arguments") or {}
+                    if name:
+                        parsed_tool_call = {
+                            "function": {
+                                "name": name,
+                                "arguments": args
+                            }
+                        }
+        except Exception:
+            pass
+            
     if parsed_tool_call:
         tool_calls = [parsed_tool_call]
         print(f"[RAG] 🔧 Detectado tool_call en texto content parseado (non-stream): {parsed_tool_call}", file=sys.stderr)
@@ -2240,7 +2136,6 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
                 func_name = ""
                 raw_args = {}
             
-            func_name = _resolve_tool_name(func_name)
             if isinstance(raw_args, str):
                 try:
                     args = json.loads(raw_args)
@@ -2274,29 +2169,18 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
                     if ultima_pregunta not in ('<nil>', 'null', 'None'):
                         args["contexto_anterior"] = ultima_pregunta
                 
-                if client_id is not None and "client_id" in valid_keys and "client_id" not in args:
-                    args["client_id"] = client_id
-                
+                # Filtrar argumentos para evitar errores por parámetros inventados por el LLM (alucinaciones)
                 filtered_args = {k: v for k, v in args.items() if k in valid_keys}
-                required_keys = [
-                    k for k, v in sig.parameters.items()
-                    if k in valid_keys and v.default is inspect._empty
-                ]
-                missing_required = [k for k in required_keys if k not in filtered_args]
                 
                 print(f"[RAG]   ▶ {func_name}({filtered_args})", file=sys.stderr)
                 
-                if missing_required:
-                    result = {"error": f"Faltan parámetros obligatorios para {func_name}: {', '.join(missing_required)}"}
-                    print(f"[RAG]   ⚠️ Faltan parámetros para {func_name}: {missing_required}", file=sys.stderr)
-                else:
-                    try:
-                        result = FUNCTIONS_MAP[func_name](**filtered_args)
-                        print(f"[RAG]   ✅ Resultado obtenido", file=sys.stderr)
-                    except Exception as e:
-                        # Manejo de error seguro para evitar State Poisoning y bucles infinitos
-                        result = {"error": "Error interno al ejecutar la herramienta. Por favor, informa al usuario que hubo un problema técnico y que intente más tarde."}
-                        print(f"[RAG]   ❌ Error interceptado para proteger la memoria: {e}", file=sys.stderr)
+                try:
+                    result = FUNCTIONS_MAP[func_name](**filtered_args)
+                    print(f"[RAG]   ✅ Resultado obtenido", file=sys.stderr)
+                except Exception as e:
+                    # Manejo de error seguro para evitar State Poisoning y bucles infinitos
+                    result = {"error": "Error interno al ejecutar la herramienta. Por favor, informa al usuario que hubo un problema técnico y que intente más tarde."}
+                    print(f"[RAG]   ❌ Error interceptado para proteger la memoria: {e}", file=sys.stderr)
             else:
                 print(f"[RAG]   ▶ {func_name}({args})", file=sys.stderr)
                 result = {"error": f"Herramienta '{func_name}' no encontrada"}
@@ -2618,8 +2502,31 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 
                 content = assistant_message.get("content", "").strip()
                 parsed_tool_call = None
-                if not tool_calls:
-                    parsed_tool_call = _parse_tool_call_from_text(content)
+                if not tool_calls and (content.startswith("{") and content.endswith("}")):
+                    try:
+                        parsed_json = json.loads(content)
+                        if isinstance(parsed_json, dict):
+                            if "name" in parsed_json:
+                                name = parsed_json["name"]
+                                args = parsed_json.get("params") or parsed_json.get("arguments") or {}
+                                parsed_tool_call = {
+                                    "function": {
+                                        "name": name,
+                                        "arguments": args
+                                    }
+                                }
+                            elif "function" in parsed_json and isinstance(parsed_json["function"], dict):
+                                name = parsed_json["function"].get("name")
+                                args = parsed_json["function"].get("arguments") or {}
+                                if name:
+                                    parsed_tool_call = {
+                                        "function": {
+                                            "name": name,
+                                            "arguments": args
+                                        }
+                                    }
+                    except Exception:
+                        pass
                 
                 if parsed_tool_call:
                     tool_calls = [parsed_tool_call]
@@ -2644,7 +2551,6 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                             func_name = ""
                             raw_args = {}
                         
-                        func_name = _resolve_tool_name(func_name)
                         if isinstance(raw_args, str):
                             try: args = json.loads(raw_args)
                             except: args = {}
@@ -2668,27 +2574,15 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                             if "contexto_anterior" not in args and "contexto_anterior" in valid_keys and ultima_pregunta:
                                 if ultima_pregunta not in ('<nil>', 'null', 'None'):
                                     args["contexto_anterior"] = ultima_pregunta
-                            if client_id is not None and "client_id" in valid_keys and "client_id" not in args:
-                                args["client_id"] = client_id
                             filtered_args = {k: v for k, v in args.items() if k in valid_keys}
-                            required_keys = [
-                                k for k, v in sig.parameters.items()
-                                if k in valid_keys and v.default is inspect._empty
-                            ]
-                            missing_required = [k for k in required_keys if k not in filtered_args]
-
+                            
                             send_event("state", {"status": "executing", "message": f"Consultando: {func_name}..."})
-                            if missing_required:
-                                result = {"error": f"Faltan parámetros obligatorios para {func_name}: {', '.join(missing_required)}"}
+                            try:
+                                result = FUNCTIONS_MAP[func_name](**filtered_args)
+                                tc_status = "SUCCESS"
+                            except Exception as e:
+                                result = {"error": f"Error ejecutando herramienta: {e}"}
                                 tc_status = "ERROR"
-                                print(f"[RAG]   ⚠️ Faltan parámetros para {func_name}: {missing_required}", file=sys.stderr)
-                            else:
-                                try:
-                                    result = FUNCTIONS_MAP[func_name](**filtered_args)
-                                    tc_status = "SUCCESS"
-                                except Exception as e:
-                                    result = {"error": f"Error ejecutando herramienta: {e}"}
-                                    tc_status = "ERROR"
                             tools_executed_list.append({"name": func_name, "parameters": filtered_args, "status": tc_status})
                         else:
                             result = {"error": f"Herramienta '{func_name}' no encontrada"}
