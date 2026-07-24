@@ -254,10 +254,10 @@ def get_or_create_chat_session(conversation_id, client_id=None):
         cursor.close()
         conn.close()
 
-def get_chat_history(conversation_id, system_prompt, max_turns=8):
+def get_chat_history(conversation_id, system_prompt, max_turns=12):
     """
-    Recupera el historial con sliding window reducido a 8 turnos para
-    minimizar el contexto enviado al LLM y reducir latencia de inferencia.
+    Recupera el historial con sliding window de 12 turnos para
+    preservar el contexto de la conversación (nombre, fecha, hora, pastel).
     """
     conn = get_connection()
     if not conn: return [{"role": "system", "content": system_prompt}]

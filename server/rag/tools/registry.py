@@ -167,11 +167,11 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "consultar_detalle_pastel_por_id",
-            "description": "Consulta el detalle completo de un pastel específico (nombre, empresa, precio, ubicación, calificación).",
+            "description": "Consulta el detalle completo de un pastel específico por su ID o por su nombre (nombre, empresa, precio, ubicación, calificación).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "pastel_id": {"type": "string"},
+                    "pastel_id": {"type": "integer"},
                     "nombre_pastel": {"type": "string"},
                     "contexto_anterior": {"type": "string"}
                 },
@@ -228,17 +228,17 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "registrar_solicitud_cita",
-            "description": "Registra una cita de degustación con un repostero.",
+            "description": "Registra una cita de degustación con un repostero de Danhee Cake. ÚSALA ÚNICAMENTE cuando el usuario te proporcione la fecha real (AAAA-MM-DD, ej: 2026-07-30) y la hora real (ej: 10:10 PM).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "client_name": {"type": "string"},
                     "baker_id": {"type": "integer"},
-                    "fecha": {"type": "string"},
-                    "hora": {"type": "string"},
+                    "fecha": {"type": "string", "description": "Fecha real en formato YYYY-MM-DD"},
+                    "hora": {"type": "string", "description": "Hora real de la cita"},
                     "notas": {"type": "string"}
                 },
-                "required": ["client_name", "baker_id", "fecha", "hora"]
+                "required": []
             }
         }
     },

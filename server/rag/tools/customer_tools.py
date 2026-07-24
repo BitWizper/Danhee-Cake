@@ -4,6 +4,8 @@ customer_tools.py — Herramientas y funciones especializadas para el Agente de 
 
 import sys
 import os
+import datetime
+import re
 from pathlib import Path
 
 base_dir = Path(__file__).resolve().parent.parent
@@ -22,6 +24,134 @@ from tools.common_tools import (
 
 _last_search_result = {}
 _last_context = {}
+
+def _coincide_nombre(busqueda: str, target_name: str) -> bool:
+    if not busqueda or not target_name:
+        return False
+    b_limpio = quitar_acentos(busqueda.lower().strip())
+    t_limpio = quitar_acentos(target_name.lower().strip())
+    
+    if b_limpio == t_limpio:
+        return True
+    if b_limpio in t_limpio or t_limpio in b_limpio:
+        return True
+        
+    palabras_ignorar = {'pastel', 'pasteles', 'del', 'de', 'el', 'la', 'un', 'una', 'con', 'para', 'sabor', 'mas', 'informacion', 'dame', 'quiero', 'saber', 'sobre', 'detalle', 'detalles'}
+    tokens_b = [w for w in b_limpio.split() if w not in palabras_ignorar]
+    tokens_t = [w for w in t_limpio.split() if w not in palabras_ignorar]
+    
+    if tokens_b and tokens_t:
+        if all(w in t_limpio for w in tokens_b):
+            return True
+        coincidencias = sum(1 for w in tokens_b if w in tokens_t)
+        if coincidencias >= max(1, len(tokens_b) * 0.5):
+            return True
+    return False
+
+def _parse_fecha_relativa(texto: str, base_date: datetime.date = None) -> str:
+    if not texto:
+        return ""
+    if base_date is None:
+        base_date = datetime.date(2026, 7, 23)
+        
+    t = quitar_acentos(str(texto).lower().strip())
+    
+    match_iso = re.search(r'\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\b', t)
+    if match_iso:
+        y, m, d = match_iso.groups()
+        return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+        
+    match_dmy = re.search(r'\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b', t)
+    if match_dmy:
+        d, m, y = match_dmy.groups()
+        return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+
+    meses = {
+        'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+        'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+    }
+    match_texto = re.search(r'\b(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?\b', t)
+    if match_texto:
+        d_str, m_str, y_str = match_texto.groups()
+        if m_str in meses:
+            y = int(y_str) if y_str else base_date.year
+            return f"{y:04d}-{meses[m_str]:02d}-{int(d_str):02d}"
+
+    if "hoy" in t:
+        return base_date.strftime("%Y-%m-%d")
+    if "pasado manana" in t:
+        return (base_date + datetime.timedelta(days=2)).strftime("%Y-%m-%d")
+    if "manana" in t:
+        return (base_date + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    match_dias = re.search(r'\ben\s+(\d+)\s+dias?\b', t)
+    if match_dias:
+        dias = int(match_dias.group(1))
+        return (base_date + datetime.timedelta(days=dias)).strftime("%Y-%m-%d")
+
+    dias_semana = {
+        'lunes': 0, 'martes': 1, 'miercoles': 2, 'jueves': 3,
+        'viernes': 4, 'sabado': 5, 'domingo': 6
+    }
+    
+    for dia_nombre, dia_num in dias_semana.items():
+        if dia_nombre in t:
+            dias_hasta = (dia_num - base_date.weekday()) % 7
+            if dias_hasta == 0 and ("siguiente" in t or "proximo" in t or "proxima" in t):
+                dias_hasta = 7
+            elif "siguiente semana" in t or "proxima semana" in t:
+                if dias_hasta == 0:
+                    dias_hasta = 7
+                else:
+                    dias_hasta += 7
+            
+            target_date = base_date + datetime.timedelta(days=dias_hasta)
+            return target_date.strftime("%Y-%m-%d")
+
+    return ""
+
+def _parse_hora_minutos(hora_str: str) -> tuple:
+    if not hora_str:
+        return None
+    h_limpia = quitar_acentos(str(hora_str).lower().strip())
+    
+    is_pm = 'pm' in h_limpia or 'tarde' in h_limpia or 'noche' in h_limpia
+    is_am = 'am' in h_limpia or 'manana' in h_limpia
+    
+    numbers = re.findall(r'\d+', h_limpia)
+    if not numbers:
+        return None
+    
+    h = int(numbers[0])
+    m = int(numbers[1]) if len(numbers) > 1 else 0
+    
+    if is_pm and h < 12:
+        h += 12
+    elif is_am and h == 12:
+        h = 0
+        
+    return (h, m)
+
+def _validar_horario_repostero(hora_str: str, baker_obj: dict = None) -> tuple:
+    parsed = _parse_hora_minutos(hora_str)
+    if not parsed:
+        return True, ""
+        
+    h, m = parsed
+    baker_name = baker_obj.get("business_name", "la repostería") if isinstance(baker_obj, dict) else "la repostería"
+    business_hours_str = baker_obj.get("business_hours", "Lunes a Viernes de 8:00 AM a 6:00 PM") if isinstance(baker_obj, dict) else "Lunes a Viernes de 8:00 AM a 6:00 PM"
+
+    if h < 8 or h >= 19:
+        return False, f"⏰ Lo siento, el horario de las **{hora_str}** está fuera de la jornada de atención de **{baker_name}**.\n\n📍 Su horario de atención es: `{business_hours_str}`.\n\n¿Te gustaría elegir un horario entre las 8:00 AM y las 6:00 PM? 😊"
+        
+    return True, ""
+
+def _convert_to_mysql_time(hora_str: str) -> str:
+    parsed = _parse_hora_minutos(hora_str)
+    if not parsed:
+        return "10:00:00"
+    h, m = parsed
+    return f"{h:02d}:{m:02d}:00"
 
 def consultar_catalogo_pasteles(categoria: str = "", contexto_anterior: str = "") -> dict:
     """Consulta el catálogo de pasteles disponibles en Danhee Cake."""
@@ -157,38 +287,81 @@ def obtener_precios_por_categoria(categoria: str = "", contexto_anterior: str = 
     if not precios:
         return {"mensaje": f"No hay precios registrados en Danhee Cake para '{categoria_buscar}'."}
     
-    lista_pasteles = "\n".join([f"• {p.get('name')} - ${float(p.get('price', 0))} MXN" for p in filtrados[:10]])
+    lista_pasteles = "\n".join([f"• {p.get('name')} - ${float(p.get('price', 0))} MXN" for p in filtrados[:4]])
+    
+    nota_mas = ""
+    if len(filtrados) > 4:
+        nota_mas = f"\n\n*Mostrando 4 de {len(filtrados)} pasteles. Pregúntame si quieres ver más.*"
+        
     return {
         "categoria": categoria_buscar,
         "precio_min": min(precios),
         "precio_max": max(precios),
         "precio_promedio": round(sum(precios) / len(precios), 2),
         "cantidad_pasteles": len(filtrados),
-        "pasteles": [{"nombre": p.get("name"), "precio": float(p.get("price", 0))} for p in filtrados[:10]],
-        "mensaje": f"🍰 Pasteles en la categoría '{categoria_buscar}':\n{lista_pasteles}\n\n💰 Rango de precios: ${min(precios)} - ${max(precios)} MXN"
+        "pasteles": [{"nombre": p.get("name"), "precio": float(p.get("price", 0))} for p in filtrados[:4]],
+        "mensaje": f"🍰 Pasteles en la categoría '{categoria_buscar}':\n{lista_pasteles}{nota_mas}\n\n💰 Rango de precios: ${min(precios)} - ${max(precios)} MXN"
     }
 
-def registrar_solicitud_cita(client_name: str, baker_id: int, fecha: str, hora: str, notas: str = "") -> dict:
+def registrar_solicitud_cita(client_name: str = "", baker_id: int = None, fecha: str = "", hora: str = "", notas: str = "") -> dict:
     """Registra una solicitud de cita con un repostero de Danhee Cake."""
+    fecha_convertida = _parse_fecha_relativa(fecha)
+    if not fecha_convertida:
+        return {
+            "exito": False,
+            "necesita_datos": True,
+            "mensaje": "📅 Con gusto te ayudo a agendar tu cita. Por favor indícame la **fecha** deseada (por ejemplo: *el próximo viernes*, *en 15 días*, o *2026-07-30*) y la **hora** que prefieres."
+        }
+
+    baker_obj = None
+    if not baker_id:
+        bakers = get_bakers()
+        if bakers:
+            baker_obj = bakers[0]
+            baker_id = baker_obj.get("id", 1)
+        else:
+            baker_id = 1
+    else:
+        try: baker_id = int(baker_id)
+        except: baker_id = 1
+        baker_obj = get_baker_by_id(baker_id)
+
+    es_horario_valido, msg_error_horario = _validar_horario_repostero(hora, baker_obj)
+    if not es_horario_valido:
+        return {
+            "exito": False,
+            "necesita_datos": True,
+            "mensaje": msg_error_horario
+        }
+
+    hora_limpia = str(hora).strip() if hora else "10:00 AM"
+    baker_name = baker_obj.get("business_name") if isinstance(baker_obj, dict) and baker_obj.get("business_name") else f"Repostero #{baker_id}"
+    
+    if not client_name or "CLIENTE" in str(client_name).upper() or "[" in str(client_name):
+        client_name = "Cliente"
+
     notas_final = f"Cliente: {client_name}. {notas}".strip()
     client_id = _get_current_client_id()
+    time_slot_mysql = _convert_to_mysql_time(hora_limpia)
+
     if client_id:
-        exito = insert_appointment(client_id, baker_id, fecha, hora, notas_final)
+        exito = insert_appointment(client_id, baker_id, fecha_convertida, time_slot_mysql, notas_final)
         if exito:
             return {
                 "exito": True,
-                "mensaje": f"✅ ¡Cita registrada en Danhee Cake! {client_name}, tu cita con el repostero #{baker_id} está agendada para el {fecha} a las {hora}. 🎉"
+                "mensaje": f"✅ ¡Cita registrada exitosamente! Estimado/a **{client_name}**, tu cita de degustación con **{baker_name}** ha sido agendada para el **{fecha_convertida}** a las **{hora_limpia}**.\n\n📱 Podrás revisar y gestionar tu cita en cualquier momento desde la sección **'Mis Citas'** en tu cuenta. 🎂✨"
             }
     else:
-        exito = insert_guest_appointment(baker_id, fecha, hora, notas_final)
+        exito = insert_guest_appointment(baker_id, fecha_convertida, time_slot_mysql, notas_final)
         if exito:
             return {
                 "exito": True,
-                "mensaje": f"✅ ¡Solicitud recibida en Danhee Cake! {client_name}, pronto recibirás confirmación para tu cita del {fecha} a las {hora}. 🎂"
+                "mensaje": f"✅ ¡Solicitud de cita recibida! Tu cita con **{baker_name}** para el **{fecha_convertida}** a las **{hora_limpia}** fue agendada correctamente. 🎂"
             }
+
     return {
         "exito": False,
-        "mensaje": f"📋 Hubo un problema al registrar la cita para {client_name} en Danhee Cake. Por favor intenta más tarde."
+        "mensaje": f"📋 Hubo un problema al registrar la cita en Danhee Cake. Por favor intenta más tarde."
     }
 
 def consultar_categorias(contexto_anterior: str = "") -> dict:
@@ -572,7 +745,7 @@ def recomendar_por_tamanio(tamanio_deseado: str) -> dict:
     lista = "\n".join([f"• {r['nombre']} - ${r['precio']} MXN (Empresa: {r['empresa']})" for r in resultado])
     return {"tamanio": tamanio_deseado, "recomendaciones": resultado, "mensaje": f"🎂 Para un pastel {tamanio_deseado}:\n{lista}"}
 
-def consultar_detalle_pastel_por_id(pastel_id: int = None, contexto_anterior: str = "") -> dict:
+def consultar_detalle_pastel_por_id(pastel_id: int = None, nombre_pastel: str = None, contexto_anterior: str = "") -> dict:
     """Consulta el detalle completo de un pastel específico por su ID o nombre."""
     todos = get_cakes()
     pastel_encontrado = None
@@ -581,19 +754,15 @@ def consultar_detalle_pastel_por_id(pastel_id: int = None, contexto_anterior: st
         contexto_anterior = ""
 
     if pastel_id is None or (isinstance(pastel_id, str) and not pastel_id.isdigit()):
-        nombre_buscar = pastel_id if isinstance(pastel_id, str) and pastel_id.strip() else contexto_anterior
+        nombre_buscar = nombre_pastel if nombre_pastel else (pastel_id if isinstance(pastel_id, str) and pastel_id.strip() else contexto_anterior)
         if not nombre_buscar:
             return {"mensaje": "No especificaste qué pastel deseas consultar."}
-        nombre_limpio = quitar_acentos(nombre_buscar.lower())
+        
         for p in todos:
-            if quitar_acentos(p.get("name", "").lower()) == nombre_limpio:
+            if _coincide_nombre(nombre_buscar, p.get("name", "")):
                 pastel_encontrado = p
                 break
-        if not pastel_encontrado:
-            for p in todos:
-                if nombre_limpio in quitar_acentos(p.get("name", "").lower()):
-                    pastel_encontrado = p
-                    break
+        
         if not pastel_encontrado:
             return {"mensaje": f"No encontré un pastel con el nombre '{nombre_buscar}' en Danhee Cake."}
     else:

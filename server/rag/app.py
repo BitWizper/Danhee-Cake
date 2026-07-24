@@ -1,6 +1,6 @@
 """
 app.py — Servidor Principal HTTP y Punto de Entrada Microservicio RAG Danhee Cake.
-Reestructurado con Arquitectura Multi-Agente Modular (Semana 7).
+Reestructurado con Arquitectura Multi-Agente Modular.
 """
 
 import sys
@@ -233,7 +233,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     send_event("state", {"status": "searching", "message": "Buscando información..."})
                     
                     def fetch_history():
-                        history_holder[0] = get_chat_history(conversation_id, current_system_prompt, max_turns=4)
+                        history_holder[0] = get_chat_history(conversation_id, current_system_prompt, max_turns=12)
                     
                     def fetch_rag():
                         if role != 'repostero' and task_router.rag_agent and not _should_skip_rag(question):

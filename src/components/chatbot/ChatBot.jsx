@@ -32,6 +32,7 @@ function ChatBot() {
   const lastTranscriptRef = useRef("");
   const autoSubmitRef = useRef(false);
   const menuRef = useRef(null);
+  const chatBodyRef = useRef(null);
 
   const getWelcomeMessage = () => {
     const storedUser = JSON.parse(localStorage.getItem("user") || "null");
@@ -254,7 +255,11 @@ function ChatBot() {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!chatBodyRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatBodyRef.current;
+    if (scrollHeight - scrollTop - clientHeight < 150) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [chat, open, loadingState]);
 
   const _doSend = async (trimmedMessage) => {
@@ -404,6 +409,39 @@ function ChatBot() {
     _doSend(trimmedMessage);
   };
 
+  const renderFormattedText = (text) => {
+    if (!text) return null;
+    const lines = text.split("\n");
+    return lines.map((line, idx) => {
+      let cleanLine = line.trim();
+      if (!cleanLine) return <div key={idx} style={{ height: "4px" }} />;
+
+      const isBullet = /^[*\-•]\s+/.test(cleanLine) || /^\.\s+\*\*/.test(cleanLine) || /^[*\-•]\s+\*\*/.test(cleanLine);
+      if (isBullet) {
+        cleanLine = cleanLine.replace(/^[*\-•\.]\s+/, "").replace(/^\.\s+/, "");
+      }
+
+      const parts = cleanLine.split(/(\*\*.*?\*\*)/g);
+      const lineContent = parts.map((part, pIdx) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <strong key={pIdx}>{part.slice(2, -2)}</strong>;
+        }
+        return part;
+      });
+
+      if (isBullet) {
+        return (
+          <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "6px", margin: "4px 0" }}>
+            <span style={{ color: "#c9a96e", flexShrink: 0, fontWeight: "bold" }}>•</span>
+            <div>{lineContent}</div>
+          </div>
+        );
+      }
+
+      return <div key={idx} style={{ margin: "2px 0" }}>{lineContent}</div>;
+    });
+  };
+
   return (
     <>
       <button
@@ -454,7 +492,7 @@ function ChatBot() {
             </div>
           </div>
 
-          <div className="chat-body" role="log" aria-live="polite">
+          <div className="chat-body" ref={chatBodyRef} role="log" aria-live="polite">
 
             {chat.map((msg) => (
               <div
@@ -464,7 +502,7 @@ function ChatBot() {
                 <span className="chat-message-label">
                   {msg.sender === "user" ? "Tú" : "Danhee"}
                 </span>
-                {msg.text}
+                {renderFormattedText(msg.text)}
               </div>
             ))}
 
