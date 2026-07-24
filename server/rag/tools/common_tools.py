@@ -71,22 +71,29 @@ def _should_skip_rag(question: str) -> bool:
     if not q:
         return True
 
-    greetings = ["hola", "buenos dias", "buenas tardes", "buenas noches", "gracias", "adios", "bye", "hola!", "qué tal", "como estas"]
-    if q in greetings or q.startswith(tuple(greetings)):
-        return True
-
+    words = q.split()
     keywords = [
         "pastel", "cake", "cita", "repostero", "precio", "categoria", 
         "disponibilidad", "pedido", "comprar", "buscar", "catalogo", 
         "catálogo", "ayuda", "información", "pregunta", "dias", "días", 
-        "horario", "horarios", "abren", "atienden", "abierto", "atencion", "atención"
+        "horario", "horarios", "abren", "atienden", "abierto", "atencion", "atención",
+        "red", "velvet", "cumpleaños", "cumpleanos", "boda"
     ]
-    return not any(keyword in q for keyword in keywords)
+    if any(keyword in q for keyword in keywords):
+        return False
+
+    greetings = ["hola", "buenos dias", "buenas tardes", "buenas noches", "gracias", "adios", "bye", "holis", "que tal", "como estas"]
+    if len(words) <= 3 and (q in greetings or any(w in greetings for w in words)):
+        return True
+
+    return False
+
 
 def _should_use_tools(question: str, role: str = "cliente") -> bool:
-    if role == "repostero":
-        return True
-    return not _should_skip_rag(question)
+    # Para clientes, siempre mandamos herramientas disponibles al LLM.
+    # Si la pregunta es un saludo puro sin contenido, el LLM simplemente no las usará.
+    return True
+
 
 def _get_ollama_options() -> dict:
     return {

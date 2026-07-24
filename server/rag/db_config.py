@@ -256,19 +256,20 @@ def get_or_create_chat_session(conversation_id, client_id=None):
 
 def get_chat_history(conversation_id, system_prompt, max_turns=12):
     """
-    Recupera el historial con sliding window de 12 turnos para
-    preservar el contexto de la conversación (nombre, fecha, hora, pastel).
+    Recupera el historial limpio con sliding window para preservar
+    el contexto de la conversación (nombre, fecha, hora, pastel) de forma segura.
     """
     conn = get_connection()
     if not conn: return [{"role": "system", "content": system_prompt}]
     try:
         cursor = conn.cursor(dictionary=True)
-        # Traer sólo los últimos max_turns*2 mensajes directamente en SQL
         cursor.execute('''
-            SELECT role, content, tool_calls
+            SELECT role, content
             FROM chat_messages
             WHERE conversation_id = %s
-              AND role IN ('user', 'assistant', 'tool')
+              AND role IN ('user', 'assistant')
+              AND content IS NOT NULL
+              AND TRIM(content) != ''
             ORDER BY id DESC
             LIMIT %s
         ''', (conversation_id, max_turns * 2))
@@ -276,20 +277,19 @@ def get_chat_history(conversation_id, system_prompt, max_turns=12):
 
         messages = [{"role": "system", "content": system_prompt}]
         for row in rows:
-            msg = {"role": row["role"], "content": row["content"]}
-            if row["tool_calls"]:
-                try:
-                    msg["tool_calls"] = json.loads(row["tool_calls"])
-                except:
-                    pass
-            messages.append(msg)
+            content = str(row.get("content") or "").strip()
+            if content:
+                messages.append({"role": row["role"], "content": content})
         return messages
     except Error as e:
         print(f"[db_config] Error en get_chat_history: {e}", file=sys.stderr)
         return [{"role": "system", "content": system_prompt}]
     finally:
-        cursor.close()
-        conn.close()
+        try:
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
 
 def get_last_conversation_by_client(client_id):
     conn = get_connection()

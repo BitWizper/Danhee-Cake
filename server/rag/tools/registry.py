@@ -30,6 +30,7 @@ from tools.customer_tools import (
     consultar_mis_citas,
     consultar_mis_disenos,
     consultar_horarios_repostero,
+    consultar_mas_destacados,
 )
 
 from tools.baker_tools import (
@@ -88,9 +89,26 @@ FUNCTIONS_MAP = {
     "disenos": consultar_mis_disenos,
     "consultar_horarios": consultar_horarios_repostero,
     "horarios": consultar_horarios_repostero,
+    "consultar_mas_destacados": consultar_mas_destacados,
+    "pasteles_destacados": consultar_mas_destacados,
+    "mejores_pasteles": consultar_mas_destacados,
 }
 
 TOOLS_SCHEMA = [
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_mas_destacados",
+            "description": "Devuelve los pasteles mejor calificados y con más reseñas de Danhee Cake. Úsala ÚNICAMENTE cuando el cliente pida explícitamente los más destacados, populares, mejor calificados o con más reseñas.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "top": {"type": "integer", "description": "Cuántos pasteles mostrar, por defecto 5"}
+                },
+                "required": []
+            }
+        }
+    },
     {
         "type": "function",
         "function": {

@@ -31,21 +31,32 @@ def _coincide_nombre(busqueda: str, target_name: str) -> bool:
     b_limpio = quitar_acentos(busqueda.lower().strip())
     t_limpio = quitar_acentos(target_name.lower().strip())
     
+    # Coincidencia exacta o substring directo
     if b_limpio == t_limpio:
         return True
-    if b_limpio in t_limpio or t_limpio in b_limpio:
-        return True
-        
-    palabras_ignorar = {'pastel', 'pasteles', 'del', 'de', 'el', 'la', 'un', 'una', 'con', 'para', 'sabor', 'mas', 'informacion', 'dame', 'quiero', 'saber', 'sobre', 'detalle', 'detalles'}
-    tokens_b = [w for w in b_limpio.split() if w not in palabras_ignorar]
-    tokens_t = [w for w in t_limpio.split() if w not in palabras_ignorar]
     
-    if tokens_b and tokens_t:
-        if all(w in t_limpio for w in tokens_b):
-            return True
-        coincidencias = sum(1 for w in tokens_b if w in tokens_t)
-        if coincidencias >= max(1, len(tokens_b) * 0.5):
-            return True
+    palabras_ignorar = {'pastel', 'pasteles', 'del', 'de', 'el', 'la', 'un', 'una', 'con', 'para',
+                        'sabor', 'mas', 'informacion', 'dame', 'quiero', 'saber', 'sobre',
+                        'detalle', 'detalles', 'favor', 'quieres', 'tienes', 'algun', 'alguna'}
+    tokens_b = [w for w in b_limpio.split() if w not in palabras_ignorar and len(w) > 2]
+    tokens_t = [w for w in t_limpio.split() if w not in palabras_ignorar and len(w) > 2]
+    
+    if not tokens_b or not tokens_t:
+        return False
+
+    # Todos los tokens de búsqueda deben aparecer en el nombre del pastel
+    if all(w in t_limpio for w in tokens_b):
+        return True
+    
+    # Todos los tokens del pastel deben aparecer en la búsqueda (match inverso)
+    if all(w in b_limpio for w in tokens_t):
+        return True
+
+    # Solo coincide si la mayoría de tokens relevantes coinciden (mínimo 2 coincidencias cuando hay 2+ tokens)
+    coincidencias = sum(1 for w in tokens_b if w in tokens_t)
+    if len(tokens_b) >= 2 and coincidencias >= 2:
+        return True
+    
     return False
 
 def _parse_fecha_relativa(texto: str, base_date: datetime.date = None) -> str:
@@ -201,6 +212,8 @@ def consultar_catalogo_pasteles(categoria: str = "", contexto_anterior: str = ""
     if not pasteles:
         return {"mensaje": f"No encontré pasteles en Danhee Cake para la categoría '{categoria if categoria else contexto_anterior}'."}
     
+    # Ordenar del menor al mayor precio y mostrar los primeros 4
+    pasteles_ordenados = sorted(pasteles, key=lambda p: float(p.get("price", 0) or 0))
     resultado = [
         {
             "id": p.get("id"),
@@ -211,13 +224,14 @@ def consultar_catalogo_pasteles(categoria: str = "", contexto_anterior: str = ""
             "empresa": p.get("business_name", "Danhee Cake"),
             "repostero": p.get("baker_name", "No especificado"),
         }
-        for p in pasteles[:20]
+        for p in pasteles_ordenados[:4]
     ]
     
     _last_search_result = {"pasteles": resultado, "categoria": categoria if categoria else contexto_anterior}
     _last_context["ultima_categoria"] = _last_search_result["categoria"]
+    total = len(pasteles)
     
-    return {"pasteles": resultado, "total": len(resultado), "categoria_filtro": categoria if categoria else contexto_anterior if contexto_anterior else "todos"}
+    return {"pasteles": resultado, "total": total, "categoria_filtro": categoria if categoria else contexto_anterior if contexto_anterior else "todos", "hay_mas": total > 4}
 
 def consultar_todos_los_pasteles(contexto_anterior: str = "") -> dict:
     """Muestra el catálogo completo de todos los pasteles disponibles en Danhee Cake."""
@@ -241,7 +255,48 @@ def consultar_todos_los_pasteles(contexto_anterior: str = "") -> dict:
     ]
     return {"pasteles": resultado, "total": len(resultado), "mensaje": f"🍰 Catálogo completo de Danhee Cake: {len(resultado)} pasteles disponibles."}
 
+def consultar_mas_destacados(top: int = 5) -> dict:
+    """Devuelve los pasteles mejor calificados / más reseñados de Danhee Cake. Úsala SOLO cuando el cliente pida explícitamente ver los más destacados, populares, mejor calificados o con más reseñas."""
+    pasteles = get_cakes()
+    if not pasteles:
+        return {"mensaje": "No hay pasteles registrados en Danhee Cake."}
+
+    # Ordenar: primero por rating desc, luego por review_count desc
+    pasteles_ordenados = sorted(
+        pasteles,
+        key=lambda p: (float(p.get("rating") or 0), int(p.get("review_count") or 0)),
+        reverse=True
+    )
+    resultado = [
+        {
+            "id": p.get("id"),
+            "nombre": p.get("name"),
+            "precio": float(p.get("price", 0)) if p.get("price") else 0.0,
+            "calificacion": float(p.get("rating") or 0),
+            "reseñas": int(p.get("review_count") or 0),
+            "categoria": p.get("category_name", "Sin categoría"),
+            "empresa": p.get("business_name", "Danhee Cake"),
+        }
+        for p in pasteles_ordenados[:top]
+    ]
+
+    lineas = []
+    for i, p in enumerate(resultado, 1):
+        estrellas = "★" * int(p["calificacion"]) + "☆" * (5 - int(p["calificacion"]))
+        lineas.append(
+            f"{i}. **{p['nombre']}** — ${p['precio']:.0f} MXN  "
+            f"{estrellas} {p['calificacion']:.1f} ({p['reseñas']} reseñas)"
+        )
+
+    lista = "\n".join(lineas)
+    return {
+        "pasteles": resultado,
+        "total": len(resultado),
+        "mensaje": f"⭐ Aquí están los pasteles más destacados de Danhee Cake:\n\n{lista}\n\n¿Te gustaría saber más sobre alguno de ellos?"
+    }
+
 def consultar_reposteros_disponibles(contexto_anterior: str = "") -> dict:
+
     """Lista todos los reposteros verificados de Danhee Cake."""
     reposteros = get_bakers()
     
@@ -814,6 +869,8 @@ def consultar_pasteles_por_categoria(categoria: str = "", contexto_anterior: str
     if not filtrados:
         return {"mensaje": f"No encontré pasteles en Danhee Cake para '{categoria_buscar}'.", "encontrados": [], "cantidad": 0}
     
+    # Ordenar del menor al mayor precio y mostrar los primeros 4
+    filtrados_ordenados = sorted(filtrados, key=lambda p: float(p.get("price", 0) or 0))
     resultado = [
         {
             "id": p.get("id"),
@@ -823,17 +880,19 @@ def consultar_pasteles_por_categoria(categoria: str = "", contexto_anterior: str
             "repostero": p.get("baker_name", "No especificado"),
             "categoria": p.get("category_name", "Sin categoría"),
         }
-        for p in filtrados[:15]
+        for p in filtrados_ordenados[:4]
     ]
     
     _last_search_result = {"encontrados": resultado, "categoria": categoria_buscar}
     _last_context["ultima_categoria"] = categoria_buscar
-    lista = "\n".join([f"• **{p['nombre']}** - ${p['precio']} MXN (Empresa: {p['empresa']})" for p in resultado[:10]])
+    lista = "\n".join([f"• **{p['nombre']}** - ${p['precio']} MXN (Empresa: {p['empresa']})" for p in resultado])
+    total = len(filtrados)
+    nota_mas = f"\n\n*Mostrando 4 de {total} pasteles disponibles. ¿Quieres ver más opciones o tienes alguna pregunta?*" if total > 4 else ""
     return {
         "categoria": categoria_buscar,
         "encontrados": resultado,
-        "cantidad": len(filtrados),
-        "mensaje": f"🍰 Para {categoria_buscar}, tenemos {len(filtrados)} pasteles disponibles en Danhee Cake:\n\n{lista}"
+        "cantidad": total,
+        "mensaje": f"🍰 Para **{categoria_buscar}**, aquí tienes algunas opciones disponibles en Danhee Cake (del precio más accesible al más alto):\n\n{lista}{nota_mas}"
     }
 
 def consultar_tamanos_pasteles(contexto_anterior: str = "") -> dict:

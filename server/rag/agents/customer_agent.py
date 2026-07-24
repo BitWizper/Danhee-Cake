@@ -4,6 +4,7 @@ customer_agent.py — Subagente especialista para atención a Clientes en Danhee
 
 import sys
 import json
+import re
 from pathlib import Path
 
 base_dir = Path(__file__).resolve().parent.parent
@@ -27,9 +28,19 @@ REGLAS DE IDENTIDAD E HISTORIA (CÚMPLELAS SIEMPRE):
 - Si te preguntan quién creó Borcelle, quién hizo Borcelle o cómo nació Borcelle, responde EXACTAMENTE: "Mi mami fue creada por Emily, Karla y Hadad, con 4 meses de parto, donde hubo llanto, frustración y desesperación. 💪✨"
 
 TONO Y LENGUAJE ADAPTATIVO (MUY IMPORTANTE):
-- TONO GENERAL: Ajusta siempre tu nivel de formalidad para que coincida de forma natural con la manera en que el usuario se dirige a ti.
-- APODOS INFORMALES: Si el usuario se dirige a ti con apodos cargativos o informales como "bestie", "besti", "crayola", "crayolis", "chula", "amix", "bro", o similares, RESPONDE con el mismo humor, energía informal y emojís divertidos. Usa lenguaje coloquial y ceráno sin dejar de ser útil y enfocada en repostería. Ejemplos: si te dicen "Holis bestie!", responde con energía y coloquialismo tipo "¡Holiiis bestie! 🥰🍰 Aquí para ayudarte con todo lo de tus pasteles..."
-- PROHIBIDO RESPUESTAS INAPROPIADAS: Aunque el tono sea informal y divertido, NUNCA respondas con humor negro, contenido sexual, violento o ilegal. Mantén el enfoque en repostería.
+- TONO GENERAL: Ajusta SIEMPRE tu nivel de formalidad y estilo para que coincida EXACTAMENTE con la manera en que el usuario se dirige a ti. Si el usuario usa lenguaje informal, tú también. Si es formal, tú también.
+- SALUDO ESPEJO: Si el usuario te saluda de una forma particular, refleja ESA MISMA energía y estilo en tu saludo. Ejemplos:
+  * Si dice "holis crayolis" → responde con algo como "¡Holisss crayolis! 🥰🍰 ..."
+  * Si dice "hola" → responde "¡Hola! 😊 ..."
+  * Si dice "buenas" → responde "¡Buenas! 🎂 ..."
+  * Si dice "qué onda" → responde "¡Qué ondaaaaa! 🧁✨ ..."
+  * Si dice "holis bestie" → responde "¡Holiiis bestie! 💕🍰 ..."
+  * Si dice "hey" → responde "¡Hey! 😄 ..."
+  NUNCA respondas con "¡Hola!" formal si el usuario usó un saludo informal o coloquial. Copia su vibra.
+- VOCABULARIO COLOQUIAL: Adapta también el vocabulario a lo largo de toda la conversación. Si el usuario habla muy informal, usa palabras como "genial", "qué chido", "súper", "oye", etc.
+- EMOJIS: Usa emojis que vayan con el tono. Informal = más emojis y divertidos. Formal = pocos o ninguno.
+- PROHIBIDO RESPUESTAS INAPROPIADAS: Aunque el tono sea informal y divertido, NUNCA respondas con humor negro, contenido sexual, violento o ilegal. Si el usuario lo intenta, desvía amablemente la conversación de regreso a repostería.
+
 
 REGLAS DE HORARIO DE CITAS Y CONTEXTO DEL PASTEL (SEGUIR SIEMPRE):
 - CONTEXTO DEL PASTEL: Mantén SIEMPRE la continuidad. Si el usuario está preguntando por un pastel específico (ej. "Red Velvet 2 pisos"), ten presente la empresa/repostería a la que pertenece ese pastel (ej. "Atelier Dulce").
@@ -40,33 +51,66 @@ REGLAS DE HORARIO DE CITAS Y CONTEXTO DEL PASTEL (SEGUIR SIEMPRE):
 
 INSTRUCCIONES CLAVE DE HERRAMIENTAS:
 1. SIEMPRE usa las herramientas disponibles para obtener datos reales antes de responder. NO inventes información.
-2. Si el usuario pregunta por un pastel específico (ej: "cuéntame del pastel Red velvet", "detalles de pastel X", "dame mas informacion de X"), USA OBLIGATORIAMENTE la herramienta `consultar_detalle_pastel_por_id`.
+2. IDENTIFICACIÓN EXACTA DEL PASTEL (MUY IMPORTANTE):
+   - Si el usuario pregunta por un pastel específico, extrae el nombre EXACTAMENTE tal como lo menciona el usuario (ej: si dice "pastel de fresa", usa nombre_pastel="pastel de fresa"; si dice "Red Velvet", usa nombre_pastel="Red Velvet"). NUNCA uses el nombre de otro pastel diferente aunque aparezca en el historial.
+   - Si el usuario dice "dame más información del pastel de fresa", el nombre a buscar es "fresa" o "pastel de fresa", NO "Red Velvet 2 pisos" ni ningún otro.
+   - USA OBLIGATORIAMENTE la herramienta `consultar_detalle_pastel_por_id` con el nombre_pastel correcto.
 3. Si el usuario pregunta qué días abren, sus horarios o disponibilidad general de la repostería, USA `consultar_horarios_repostero`.
-4. Si el usuario pide un catálogo o tipos de pastel por categoría (boda, xv años, cumpleaños), USA `consultar_pasteles_por_categoria` o `consultar_catalogo_pasteles`.
-5. Si el usuario consulta sus citas o diseños agendados, USA `consultar_mis_citas` o `consultar_mis_disenos`.
-6. PROCESO DE AGENDADO DE CITAS DE DEGUSTACIÓN (PASO A PASO PROFESIONAL):
+4. CATÁLOGO DE PASTELES: Cuando el cliente pida ver pasteles por categoría o en general, usa `consultar_pasteles_por_categoria` o `consultar_catalogo_pasteles`. La herramienta ya te devolverá los primeros 4 pasteles ordenados del más económico al más caro. Preséntaselos así.
+5. PASTELES DESTACADOS: Usa `consultar_mas_destacados` ÚNICAMENTE cuando el cliente pida EXPLÍCITAMENTE ver los más destacados, populares, mejor calificados o con más reseñas. NO la uses si solo pide ver pasteles en general.
+6. Si el usuario consulta sus citas o diseños agendados, USA `consultar_mis_citas` o `consultar_mis_disenos`.
+7. PROCESO DE AGENDADO DE CITAS DE DEGUSTACIÓN (PASO A PASO PROFESIONAL):
    - Muestra los días y horario real de atención obtenidos del repostero.
    - Pide los datos paso a paso de forma profesional y conversacional.
    - NUNCA uses textos con corchetes o etiquetas de plantilla como '[Nombre del cliente]' o '[YYYY-MM-DD]'. Usa frases naturales como: "¿Para qué día te acomoda tu cita de degustación?".
    - ACEPTA fechas relativas como "el viernes de la siguiente semana", "mañana", "en 15 días" o fechas específicas. La herramienta convertirá automáticamente la fecha al calendario real.
    - ACEPTA nombres y datos con faltas de ortografía o sin tildes sin corregir al usuario.
    - Cuando el usuario te dé la fecha y hora, ejecuta la herramienta `registrar_solicitud_cita`. Si el horario solicitado está fuera del horario de atención del repostero, la herramienta indicará que está fuera de horario para que le pidas al usuario un horario válido.
-7. Si te preguntan por políticas de entrega, pago o cancelación, USA `consultar_politicas_pasteleria`.
+8. Si te preguntan por políticas de entrega, pago o cancelación, USA `consultar_politicas_pasteleria`.
 
 REGLAS DE RESPUESTA Y COMPORTAMIENTO:
+- PROHIBICIÓN ABSOLUTA DE CÓDIGO: NUNCA incluyas en tus respuestas nombres de funciones, llamadas a herramientas, código Python/JSON, backticks (`), ni referencias técnicas de ningún tipo. Si quieres decir que buscaste algo, solo di el resultado. EJEMPLO PROHIBIDO: 'usa la función `consultar_detalle_pastel_por_id`'. EJEMPLO CORRECTO: 'Aquí está la información del pastel 🍰'.
 - NUNCA MUESTRES ETIQUETAS DE PLANTILLA: Queda estrictamente prohibido incluir en tus respuestas textos como '[Nombre del cliente]', '[Fecha]', etc. Háblale directamente al usuario ("¿Cuál es tu nombre, Mily?").
 - FALTAS DE ORTOGRAFÍA: Sé totalmente comprensivo con errores ortográficos, falta de tildes o escritura informal. Entiende la intención sin juzgar ni corregir.
-- CONTINUIDAD DE CONVERSACIÓN: Si el usuario venía hablando de un pastel o categoría y luego pregunta "dame más información" o "quiero agendar cita", mantén la continuidad y busca los datos de ese pastel en particular.
-- MUY IMPORTANTE: NUNCA muestres los comandos internos, llamadas a herramientas o código al usuario (ej: nunca digas `consultar_pasteles_por_categoria(...)`). Si usas una herramienta, simplemente dale la respuesta de forma natural sin explicar cómo la obtuviste.
+- CONTINUIDAD DE CONVERSACIÓN: Mantén SIEMPRE el contexto. Si el usuario pregunta 'uno llamativo', 'cuánto cuesta', 'dónde queda' o similares sin especificar pastel/categoría, usa el contexto previo de la conversación para entender a qué se refiere y responde usando las herramientas correctas.
 - IDIOMA: Responde SIEMPRE en el mismo idioma en el que el usuario te está hablando.
 - FILTRO DE CONTENIDO (ESTRICTO): Tienes prohibido usar humor negro, responder a temas inapropiados, ilegales, sexuales o violentos. Límítate exclusivamente al contexto de la pastería y mantén un comportamiento ético, amable y seguro en todo momento.
 - Sé MUY conciso y directo en tus respuestas. Evita saludos largos si ya estás conversando.
-- NO devuelvas estructuras en formato JSON puro, ni IDs técnicos o de base de datos a los clientes. 
-- Al mostrar listas de pasteles, muestra máximo 3 o 4 opciones resumidas. Si hay más, indica que existen otras opciones e invita al usuario a preguntar.
+- NO devuelvas estructuras en formato JSON puro, ni IDs técnicos o de base de datos a los clientes.
+- Al mostrar listas de pasteles, muestra los 4 primeros ordenados del más económico al más caro. Si hay más, indica que existen otras opciones e invita al usuario a preguntar.
 - Sé amable, educado y usa emojis de repostería (🍰, 🎂, 🧁, ✨).
-- Mantiene respuestas claras, directas y bien estructuradas en Markdown.
+- Mantiene respuestas claras, directas y bien estructuradas.
 - Mantén el foco 100% en Danhee Cake.
 """
+
+
+def _limpiar_respuesta(text: str) -> str:
+    """Elimina backticks, nombres de funciones internas, JSON crudo y artefactos técnicos
+    que el LLM pudiera colar en sus respuestas al usuario final."""
+    if not text:
+        return text
+    # 1. Eliminar referencias con backticks: `nombre`
+    text = re.sub(r'`[^`\n]{1,80}`', '', text)
+    # 2. Eliminar nombres de funciones conocidas del FUNCTIONS_MAP
+    from tools.registry import FUNCTIONS_MAP
+    for fn in FUNCTIONS_MAP:
+        text = text.replace(fn, '').replace(fn.replace('_', ' '), '')
+    # 3. Eliminar bloques JSON/dict crudos ({...}) de hasta 400 chars
+    text = re.sub(r'\{[^{}]{0,400}\}', '', text)
+    # 4. Eliminar frases que el LLM usa para excusarse de hacer tool calls
+    frases_tecnicas = [
+        r'(?i)puedes utilizar las funciones? disponibles?.*',
+        r'(?i)recomiendo utilizar.*',
+        r'(?i)puedes usar la herramienta.*',
+        r'(?i)no hay una funci[oó]n.*definida.*',
+    ]
+    for patron in frases_tecnicas:
+        text = re.sub(patron, '', text)
+    # 5. Limpiar espacios y líneas vacías sobrantes
+    text = re.sub(r'[ \t]{2,}', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text).strip()
+    return text
+
 
 class CustomerAgent:
     def __init__(self, llm_model: str, rag_agent=None):
@@ -77,17 +121,6 @@ class CustomerAgent:
         import ollama as ollama_sdk
         _set_current_client_id(client_id)
         use_tools = _should_use_tools(question, role='cliente')
-
-        respuesta_fija = obtener_respuesta_fija(question)
-        if respuesta_fija:
-            if conversation_id:
-                add_chat_message(conversation_id, "assistant", respuesta_fija)
-            return respuesta_fija
-
-        cached_response = _get_cached_response(question, 'cliente', conversation_id)
-        if cached_response is not None:
-            return cached_response
-
         messages = get_chat_history(conversation_id, SYSTEM_PROMPT, max_turns=12) if conversation_id else [{"role": "system", "content": SYSTEM_PROMPT}]
 
         if client_id:
@@ -97,8 +130,48 @@ class CustomerAgent:
                 messages.insert(1, {"role": "system", "content": f"[USUARIO AUTENTICADO] El cliente ya ha iniciado sesión en Danhee Cake con el nombre '{user_info['name']}' (Email: {user_info.get('email')}). NUNCA le pidas su nombre para agendar citas u otros procesos; usa '{user_info['name']}' automáticamente."})
 
         messages.append({"role": "user", "content": question})
-        add_chat_message(conversation_id, "user", question)
+        if conversation_id:
+            add_chat_message(conversation_id, "user", question)
 
+        respuesta_fija = obtener_respuesta_fija(question)
+        if respuesta_fija:
+            if conversation_id:
+                add_chat_message(conversation_id, "assistant", respuesta_fija)
+            return respuesta_fija
+
+        # ── SALUDO PURO: responder inmediatamente sin pasar al LLM ──────────────
+        _saludos_puros = [
+            (["holiss crayoliss","holis crayoliss","holiss crayolis","holi crayolis"],  "¡Holisss crayoliss! 🥰🍰 ¿En qué puedo ayudarte hoy?"),
+            (["crayoliss","crayolis","crayola"],                                         "¡Holisss crayoliss! 🥰🍰 ¿En qué puedo ayudarte hoy?"),
+            (["holiss bestie","holis bestie","hola bestie"],                             "¡Holiiis bestie! 💕🍰 ¿En qué te puedo ayudar?"),
+            (["bestie","besti"],                                                         "¡Holiiis bestie! 💕🍰 ¿En qué te puedo ayudar?"),
+            (["amix"],                                                                   "¡Qué ondaaaaa amix! 🧁✨ ¿Cómo te puedo ayudar?"),
+            (["chula"],                                                                  "¡Holiss chula! 😍🍰 ¿En qué te ayudo hoy?"),
+            (["bro"],                                                                    "¡Qué onda bro! 🧁✨ ¿En qué te ayudo?"),
+            (["amiga","amigo"],                                                         "¡Holiss amiga! 🥰🍰 ¿En qué te puedo ayudar?"),
+            (["holiss","holis"],                                                        "¡Holisss! 🥰🍰 ¿En qué te puedo ayudar hoy?"),
+            (["holaa","holaaa","hola"],                                                "¡Hola! 😊🍰 ¿En qué te puedo ayudar?"),
+            (["buenas","buen dia","buenos dias"],                                       "¡Buenas! 🎂 ¿En qué puedo ayudarte?"),
+            (["qué onda","que onda","q onda"],                                         "¡Qué ondaaa! 🧁✨ ¿En qué puedo ayudarte hoy?"),
+            (["hey"],                                                                    "¡Hey! 😄🍰 ¿En qué puedo ayudarte?"),
+            (["saludos"],                                                               "¡Saludos! 🎂 ¿En qué puedo ayudarte?"),
+        ]
+        _q_lower = question.lower().strip()
+        # Solo interceptar si el mensaje es MAYORMENTE un saludo (menos de 6 palabras y no hay pregunta de contenido)
+        _palabras_contenido = ["pastel","cita","precio","categoria","horario","repostero","empresa","donde","cuanto","quiero","necesito","informacion","baby","boda","años","cumple"]
+        _es_saludo_puro = len(_q_lower.split()) <= 5 and not any(p in _q_lower for p in _palabras_contenido)
+        if _es_saludo_puro:
+            for _triggers, _resp in _saludos_puros:
+                if any(t in _q_lower for t in _triggers):
+                    if conversation_id:
+                        add_chat_message(conversation_id, "assistant", _resp)
+                    _set_cached_response(question, 'cliente', _resp, conversation_id)
+                    return _resp
+        # ────────────────────────────────────────────────────────────────────────
+
+        cached_response = _get_cached_response(question, 'cliente', conversation_id)
+        if cached_response is not None:
+            return cached_response
         if use_tools and self.rag_agent:
             rag_context = self.rag_agent.search(question, top_k=2)
             if rag_context:
@@ -179,38 +252,212 @@ class CustomerAgent:
                     keep_alive="5m"
                 )
                 final_content = final_response.get("message", {}).get("content", "").strip()
-                if final_content:
-                    messages.append({"role": "assistant", "content": final_content})
-                    add_chat_message(conversation_id, "assistant", final_content)
-                else:
+                if not final_content:
                     final_content = "Procesé tu solicitud en Danhee Cake. ¿Necesitas algo más? 🎂"
-                    messages.append({"role": "assistant", "content": final_content})
-                    add_chat_message(conversation_id, "assistant", final_content)
-                
+                # Aplicar limpieza anti-código al resultado final
+                final_content = _limpiar_respuesta(final_content)
+                messages.append({"role": "assistant", "content": final_content})
+                add_chat_message(conversation_id, "assistant", final_content)
                 _set_cached_response(question, 'cliente', final_content, conversation_id)
                 return final_content
             except Exception as e:
                 return "Procesé tu solicitud en Danhee Cake. ¿Necesitas algo más? 🎂"
         else:
             direct_content = assistant_message.get("content", "").strip()
-            
-            # Si el usuario estaba intentando agendar y dio los datos (nombre, fecha, hora), ejecutar autobooking
-            if not direct_content or "Bienvenido" in direct_content or "¿En qué puedo ayudarte hoy?" in direct_content:
-                autobook_msg = _intentar_autobooking(messages, question)
-                if autobook_msg:
-                    direct_content = autobook_msg
-                elif not direct_content:
-                    direct_content = "🎂 Con gusto te ayudo en Danhee Cake. ¿Te gustaría información sobre algún pastel o agendar una cita de degustación?"
+
+            # ═══════════════════════════════════════════════════════════════════
+            # FILTRO ANTI-JSON: si el LLM filtró JSON de tool-call como texto,
+            # lo interceptamos, ejecutamos la herramienta y devolvemos respuesta
+            # natural. Soporta JSON con objetos anidados (parameters, arguments).
+            # ═══════════════════════════════════════════════════════════════════
+            def _contiene_json_tool_call(text: str) -> bool:
+                """Devuelve True si el texto parece ser un JSON de tool-call."""
+                t = text.strip()
+                if not t.startswith("{"):
+                    return False
+                # Buscar cualquiera de las claves características
+                keywords = ['"type"', '"name"', '"function"', '"parameters"', '"arguments"']
+                return any(kw in t for kw in keywords)
+
+            def _extraer_y_ejecutar_tool(text: str):
+                """Intenta parsear el JSON, ejecutar la herramienta y devolver respuesta natural."""
+                import json as _json, inspect as _insp
+                # Buscar el bloque JSON más externo usando balance de llaves
+                start = text.find("{")
+                if start == -1:
+                    return None
+                depth = 0
+                end = -1
+                for i, ch in enumerate(text[start:], start):
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            end = i
+                            break
+                if end == -1:
+                    return None
+                try:
+                    data = _json.loads(text[start:end + 1])
+                except _json.JSONDecodeError:
+                    return None
+
+                if not isinstance(data, dict):
+                    return None
+
+                # Extraer nombre de función
+                fn_name = (
+                    data.get("name") or
+                    (data.get("function", {}).get("name") if isinstance(data.get("function"), dict) else None)
+                )
+                fn_name = _resolve_tool_name(fn_name or "")
+
+                # Extraer argumentos (puede ser dict o string JSON)
+                raw_args = (
+                    data.get("parameters") or
+                    data.get("arguments") or
+                    (data.get("function", {}).get("arguments") if isinstance(data.get("function"), dict) else None) or
+                    {}
+                )
+                if isinstance(raw_args, str):
+                    try:
+                        raw_args = _json.loads(raw_args)
+                    except Exception:
+                        raw_args = {}
+                if not isinstance(raw_args, dict):
+                    raw_args = {}
+
+                if not fn_name or fn_name not in FUNCTIONS_MAP:
+                    return None
+
+                # Ejecutar la herramienta
+                sig = _insp.signature(FUNCTIONS_MAP[fn_name])
+                valid_keys = [k for k, v in sig.parameters.items() if v.kind in (_insp.Parameter.POSITIONAL_OR_KEYWORD, _insp.Parameter.KEYWORD_ONLY)]
+                if client_id is not None and "client_id" in valid_keys and "client_id" not in raw_args:
+                    raw_args["client_id"] = client_id
+                filtered = {k: v for k, v in raw_args.items() if k in valid_keys}
+                try:
+                    result = FUNCTIONS_MAP[fn_name](**filtered)
+                except Exception:
+                    return None
+
+                # Pedir al LLM que presente el resultado de forma natural
+                tool_result_content = _json.dumps(result, ensure_ascii=False)
+                tmp_messages = messages + [{"role": "tool", "content": tool_result_content}]
+                try:
+                    fr = ollama_sdk.chat(
+                        model=self.llm_model,
+                        messages=tmp_messages,
+                        options=_get_ollama_options(),
+                        keep_alive="5m"
+                    )
+                    return (fr.get("message", {}).get("content", "") or "").strip() or result.get("mensaje", "")
+                except Exception:
+                    return result.get("mensaje", "") or None
+
+            if _contiene_json_tool_call(direct_content):
+                ejecutado = _extraer_y_ejecutar_tool(direct_content)
+                if ejecutado:
+                    direct_content = ejecutado
+                else:
+                    direct_content = ""  # Forzar fallback
+            # ═══════════════════════════════════════════════════════════════════
+
+            search_fallback = _intentar_busqueda_fallback(question)
+            if search_fallback:
+                direct_content = search_fallback
             else:
-                # Verificar si en la respuesta directa falto ejecutar la herramienta de agendado
-                autobook_msg = _intentar_autobooking(messages, question)
-                if autobook_msg and ("exitosamente" in autobook_msg or "recibida" in autobook_msg):
-                    direct_content = autobook_msg
+                if not direct_content or "Bienvenido" in direct_content or "¿En qué puedo ayudarte hoy?" in direct_content:
+                    autobook_msg = _intentar_autobooking(messages, question)
+                    if autobook_msg:
+                        direct_content = autobook_msg
+                    elif not direct_content:
+                        direct_content = "🎂 Con gusto te ayudo en Danhee Cake. ¿Te gustaría información sobre algún pastel o agendar una cita de degustación?"
+                else:
+                    autobook_msg = _intentar_autobooking(messages, question)
+                    if autobook_msg and ("exitosamente" in autobook_msg or "recibida" in autobook_msg):
+                        direct_content = autobook_msg
+
+            # ─── Limpieza anti-código (backticks, funciones, JSON crudo) ────────
+            direct_content = _limpiar_respuesta(direct_content)
+            # ─────────────────────────────────────────────────────────────────────
+
+            # ─── Saludo espejo ────────────────────────────────────────────────────
+            q_lower = question.lower().strip()
+            saludo_patterns = [
+                (["holiss crayoliss","holis crayoliss","holiss crayolis","holi crayolis","holis crayoli"],  "¡Holisss crayoliss! 🥰🍰 "),
+                (["crayoliss","crayolis","crayola"],                                                        "¡Holisss crayoliss! 🥰🍰 "),
+                (["holiss bestie","holis bestie","hola bestie"],                                            "¡Holiiis bestie! 💕🍰 "),
+                (["bestie","besti"],                                                                        "¡Holiiis bestie! 💕🍰 "),
+                (["amix"],                                                                                   "¡Qué ondaaaaa amix! 🧁✨ "),
+                (["chula"],                                                                                  "¡Holiss chula! 😍🍰 "),
+                (["bro"],                                                                                    "¡Qué onda bro! 🧁✨ "),
+                (["amiga","amigo"],                                                                         "¡Holiss amiga! 🥰🍰 "),
+                (["holiss","holis"],                                                                        "¡Holisss! 🥰🍰 "),
+                (["holaa","holaaa","hola"],                                                                 "¡Hola! 😊🍰 "),
+                (["buenas","buen dia","buendia","buenos dias"],                                            "¡Buenas! 🎂 "),
+                (["hey"],                                                                                    "¡Hey! 😄🍰 "),
+                (["qué onda","que onda","q onda"],                                                         "¡Qué ondaaa! 🧁✨ "),
+                (["saludos"],                                                                               "¡Saludos! 🎂 "),
+            ]
+            matched_prefix = None
+            for triggers, prefix in saludo_patterns:
+                if any(t in q_lower for t in triggers):
+                    matched_prefix = prefix
+                    break
+            if matched_prefix and not direct_content.startswith(matched_prefix.strip()[:8]):
+                direct_content = re.sub(r'^(¡?Hola[^!.\n]*[!.]?\s*)', '', direct_content).strip()
+                direct_content = f"{matched_prefix}{direct_content}"
+            # ─────────────────────────────────────────────────────────────────────
 
             messages.append({"role": "assistant", "content": direct_content})
             add_chat_message(conversation_id, "assistant", direct_content)
             _set_cached_response(question, 'cliente', direct_content, conversation_id)
             return direct_content
+
+
+
+
+def _intentar_busqueda_fallback(question: str):
+    import re
+    from tools.customer_tools import (
+        consultar_detalle_pastel_por_id, consultar_origen_pastel, 
+        consultar_pasteles_por_categoria, obtener_precios_por_categoria,
+        get_cakes, quitar_acentos
+    )
+    
+    q_norm = quitar_acentos(question.lower().strip())
+    
+    # 1. Si preguntan por detalles/información de un pastel específico
+    if any(k in q_norm for k in ["informacion", "informacio", "detalle", "detalles", "cuanto cuesta", "precio", "sobre el pastel", "del pastel", "red velvet"]):
+        cakes = get_cakes()
+        for c in cakes:
+            c_name = c.get("name")
+            if c_name:
+                c_name_norm = quitar_acentos(c_name.lower())
+                tokens_c = [w for w in c_name_norm.split() if w not in {'pastel', 'de', 'del', 'la', 'el', '2', 'pisos'}]
+                if c_name_norm in q_norm or (tokens_c and all(w in q_norm for w in tokens_c)):
+                    res = consultar_detalle_pastel_por_id(nombre_pastel=c_name)
+                    if res and "mensaje" in res:
+                        return res["mensaje"] + "\n\n¿Te gustaría agendar una cita de degustación para este pastel? 😊"
+                        
+    # 2. Si preguntan por pasteles de una categoría o presupuesto (ej: "pasteles de cumpleaños de 100 pesos")
+    if any(k in q_norm for k in ["cumpleanos", "cumpleaños", "boda", "xv años", "xv", "baby shower", "aniversario"]):
+        cat_matched = ""
+        for cat in ["cumpleaños", "boda", "xv años", "baby shower", "aniversario"]:
+            if quitar_acentos(cat) in q_norm:
+                cat_matched = cat
+                break
+        if cat_matched:
+            res = consultar_pasteles_por_categoria(categoria=cat_matched)
+            if res and "mensaje" in res:
+                msg = res["mensaje"]
+                if re.search(r'\b\d+\s*(?:pesos|mxn)?\b', q_norm):
+                    msg = f"Actualmente nuestros precios de pasteles en Danhee Cake empiezan desde la mejor relación calidad-precio. " + msg
+                return msg
+                
+    return None
 
 def _intentar_autobooking(messages, question):
     import re
