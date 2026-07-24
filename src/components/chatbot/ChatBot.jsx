@@ -43,7 +43,7 @@ function ChatBot() {
     if (isSending) return;
 
     const shouldReset = window.confirm(
-      "Quieres iniciar un nuevo chat? Tu historial quedara guardado y podras verlo cuando quieras."
+      "¿Quieres iniciar un nuevo chat? Tu historial quedara guardado y podras verlo cuando quieras."
     );
 
     if (!shouldReset) return;
@@ -51,6 +51,43 @@ function ChatBot() {
     if (isListening && recognitionRef.current) {
       autoSubmitRef.current = false;
       recognitionRef.current.stop();
+    }
+
+    localStorage.removeItem("conversation_id");
+    setMessage("");
+    setLoadingState({ status: "", message: "" });
+    setChat([getWelcomeMessage()]);
+    setMenuOpen(false);
+  };
+
+  const deleteCurrentChat = async () => {
+    if (isSending) return;
+
+    const shouldDelete = window.confirm(
+      "¿Estás seguro de que deseas borrar este chat? Se eliminará todo el historial de la conversación actual y se reiniciará desde 0."
+    );
+
+    if (!shouldDelete) return;
+
+    if (isListening && recognitionRef.current) {
+      autoSubmitRef.current = false;
+      recognitionRef.current.stop();
+    }
+
+    const conversation_id = localStorage.getItem("conversation_id");
+    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+
+    try {
+      await fetch("/api/chat/history", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: conversation_id || null,
+          client_id: storedUser?.id || null,
+        }),
+      });
+    } catch (err) {
+      console.error("Error al borrar el chat en el servidor:", err);
     }
 
     localStorage.removeItem("conversation_id");
@@ -295,6 +332,7 @@ function ChatBot() {
           conversation_id: conversation_id,
           client_id: storedUser ? storedUser.id : null,
           role: storedUser ? storedUser.role : null,
+          client_datetime: new Date().toISOString(),
         }),
       });
 
@@ -489,6 +527,14 @@ function ChatBot() {
                       disabled={isSending}
                     >
                       Nuevo chat
+                    </button>
+                    <button
+                      type="button"
+                      className="chat-menu-item danger"
+                      onClick={deleteCurrentChat}
+                      disabled={isSending}
+                    >
+                      Borrar chat
                     </button>
                   </div>
                 )}

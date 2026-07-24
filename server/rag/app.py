@@ -152,7 +152,27 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send_error(500, f"Error en chat: {str(e)}")
             return
-            
+
+        elif self.path == '/chat/delete':
+            try:
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length)
+                req_data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                conversation_id = req_data.get('conversation_id')
+                client_id = req_data.get('client_id')
+
+                from db_config import delete_chat_conversation
+                success = delete_chat_conversation(conversation_id=conversation_id, client_id=client_id)
+
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": success, "message": "Historial borrado correctamente"}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self._send_error(500, f"Error borrando chat: {str(e)}")
+            return
+
         elif self.path == '/chat/stream':
             try:
                 content_length = int(self.headers['Content-Length'])
@@ -162,6 +182,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 client_id = req_data.get('client_id')
                 conversation_id = req_data.get('conversation_id')
                 role = req_data.get('role')
+                client_datetime = req_data.get('client_datetime')
                 
                 _set_current_client_id(client_id)
                 
@@ -231,29 +252,29 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
 
                 if use_tools:
                     send_event("state", {"status": "searching", "message": "Buscando información..."})
-                    
-                    def fetch_history():
-                        history_holder[0] = get_chat_history(conversation_id, current_system_prompt, max_turns=12)
-                    
-                    def fetch_rag():
-                        if role != 'repostero' and task_router.rag_agent and not _should_skip_rag(question):
-                            rag_context_holder[0] = task_router.rag_agent.search(question, top_k=2)
-                    
-                    with ThreadPoolExecutor(max_workers=2) as executor:
-                        f1 = executor.submit(fetch_history)
-                        f2 = executor.submit(fetch_rag)
-                        f1.result()
-                        f2.result()
-                    
-                    messages = history_holder[0] or [{"role": "system", "content": current_system_prompt}]
-                    messages.append({"role": "user", "content": question})
-                    add_chat_message(conversation_id, "user", question)
-                    
-                    if rag_context_holder[0]:
-                        messages.append({"role": "system", "content": f"Contexto adicional: {rag_context_holder[0]}"})
                 else:
-                    messages = [{"role": "system", "content": current_system_prompt}, {"role": "user", "content": question}]
-                    add_chat_message(conversation_id, "user", question)
+                    send_event("state", {"status": "thinking", "message": "Procesando respuesta..."})
+
+                history_holder[0] = get_chat_history(conversation_id, current_system_prompt, max_turns=12) if conversation_id else None
+                messages = history_holder[0] or [{"role": "system", "content": current_system_prompt}]
+
+                # Inyectar contexto de usuario autenticado si existe client_id
+                if client_id:
+                    user_info = get_user_by_id(client_id)
+                    if user_info and user_info.get("name"):
+                        messages.insert(1, {"role": "system", "content": f"[USUARIO AUTENTICADO] El cliente ya ha iniciado sesión en Danhee Cake con el nombre '{user_info['name']}' (Email: {user_info.get('email')}). NUNCA le pidas su nombre para agendar citas u otros procesos; usa '{user_info['name']}' automáticamente."})
+
+                # Inyectar fecha y hora del dispositivo del cliente
+                if client_datetime:
+                    messages.insert(1, {"role": "system", "content": f"[CONTEXTO SISTEMA] La fecha y hora ACTUAL del dispositivo del cliente es: {client_datetime}. Usa esta información para calcular fechas relativas (hoy, mañana, el viernes, etc.) y verificar horarios de atención."})
+
+                if use_tools and role != 'repostero' and task_router.rag_agent and not _should_skip_rag(question):
+                    rag_context = task_router.rag_agent.search(question, top_k=2)
+                    if rag_context:
+                        messages.append({"role": "system", "content": f"Contexto adicional: {rag_context}"})
+
+                messages.append({"role": "user", "content": question})
+                add_chat_message(conversation_id, "user", question)
                 
                 send_event("state", {"status": "thinking", "message": "Analizando tu solicitud..."})
                 
@@ -313,6 +334,9 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                             valid_keys = [k for k, v in sig.parameters.items() if v.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)]
                             if client_id is not None and "client_id" in valid_keys and "client_id" not in args:
                                 args["client_id"] = client_id
+                            # Inyectar client_datetime para que registrar_solicitud_cita calcule fechas correctamente
+                            if client_datetime and "client_datetime" in valid_keys and "client_datetime" not in args:
+                                args["client_datetime"] = client_datetime
                             filtered_args = {k: v for k, v in args.items() if k in valid_keys}
                             
                             send_event("state", {"status": "executing", "message": f"Consultando: {func_name}..."})

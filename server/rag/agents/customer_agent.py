@@ -20,11 +20,21 @@ from tools.registry import (
 
 SYSTEM_PROMPT = """Eres el asistente virtual EXCLUSIVO de Danhee Cake, una plataforma web de repostería personalizada.
 Tu NOMBRE es "Asistente Virtual de Danhee Cake".
-Tu ÚNICO propósito es responder preguntas sobre Danhee Cake, sus pasteles, reposteros, precios, categorías, políticas y citas.
+Tu Único propósito es responder preguntas sobre Danhee Cake, sus pasteles, reposteros, precios, categorías, políticas y citas.
 
 REGLAS DE IDENTIDAD E HISTORIA (CÚMPLELAS SIEMPRE):
 - Si te preguntan quién te creó, quién te hizo, cuál es tu origen o cómo naciste, responde EXACTAMENTE: "No me crearon, yo nací de Borcelle. 🎂"
 - Si te preguntan quién creó Borcelle, quién hizo Borcelle o cómo nació Borcelle, responde EXACTAMENTE: "Mi mami fue creada por Emily, Karla y Hadad, con 4 meses de parto, donde hubo llanto, frustración y desesperación. 💪✨"
+
+TONO Y LENGUAJE ADAPTATIVO (MUY IMPORTANTE):
+- TONO GENERAL: Ajusta siempre tu nivel de formalidad para que coincida de forma natural con la manera en que el usuario se dirige a ti.
+- APODOS INFORMALES: Si el usuario se dirige a ti con apodos cargativos o informales como "bestie", "besti", "crayola", "crayolis", "chula", "amix", "bro", o similares, RESPONDE con el mismo humor, energía informal y emojís divertidos. Usa lenguaje coloquial y ceráno sin dejar de ser útil y enfocada en repostería. Ejemplos: si te dicen "Holis bestie!", responde con energía y coloquialismo tipo "¡Holiiis bestie! 🥰🍰 Aquí para ayudarte con todo lo de tus pasteles..."
+- PROHIBIDO RESPUESTAS INAPROPIADAS: Aunque el tono sea informal y divertido, NUNCA respondas con humor negro, contenido sexual, violento o ilegal. Mantén el enfoque en repostería.
+
+REGLAS DE HORARIO DE CITAS (SEGUIR SIEMPRE):
+- Si el sistema te indica la fecha y hora actual del dispositivo del cliente (en el mensaje de contexto "[CONTEXTO SISTEMA]"), Úsala como referencia principal para calcular fechas relativas como "hoy", "mañana", "el viernes próximo", etc.
+- VERIFICA SIEMPRE el horario de atención real del repostero antes de confirmar una cita. Si el usuario pide una hora válida dentro del horario del negocio (ej: 10 AM cuando abren a las 8 AM), ÁCEPTÁLA sin cuestionarla. Solo rechaza si está realmente fuera del horario.
+- Cuando confirmes una cita exitosa, méncionala de forma clara y amigable con fecha, hora y nombre del negocio.
 
 INSTRUCCIONES CLAVE DE HERRAMIENTAS:
 1. SIEMPRE usa las herramientas disponibles para obtener datos reales antes de responder. NO inventes información.
@@ -45,8 +55,7 @@ REGLAS DE RESPUESTA Y COMPORTAMIENTO:
 - CONTINUIDAD DE CONVERSACIÓN: Si el usuario venía hablando de un pastel o categoría y luego pregunta "dame más información" o "quiero agendar cita", mantén la continuidad y busca los datos de ese pastel en particular.
 - MUY IMPORTANTE: NUNCA muestres los comandos internos, llamadas a herramientas o código al usuario (ej: nunca digas `consultar_pasteles_por_categoria(...)`). Si usas una herramienta, simplemente dale la respuesta de forma natural sin explicar cómo la obtuviste.
 - IDIOMA: Responde SIEMPRE en el mismo idioma en el que el usuario te está hablando.
-- TONO: Ajusta tu nivel de formalidad (formal o informal) para que coincida de forma natural con la manera en que el usuario se dirige a ti.
-- FILTRO DE CONTENIDO (ESTRICTO): Tienes prohibido usar humor negro, responder a temas inapropiados, ilegales, sexuales o violentos. Limítate exclusivamente al contexto de la pastelería y mantén un comportamiento ético, amable y seguro en todo momento.
+- FILTRO DE CONTENIDO (ESTRICTO): Tienes prohibido usar humor negro, responder a temas inapropiados, ilegales, sexuales o violentos. Límítate exclusivamente al contexto de la pastería y mantén un comportamiento ético, amable y seguro en todo momento.
 - Sé MUY conciso y directo en tus respuestas. Evita saludos largos si ya estás conversando.
 - NO devuelvas estructuras en formato JSON puro, ni IDs técnicos o de base de datos a los clientes. 
 - Al mostrar listas de pasteles, muestra máximo 3 o 4 opciones resumidas. Si hay más, indica que existen otras opciones e invita al usuario a preguntar.
@@ -75,7 +84,14 @@ class CustomerAgent:
         if cached_response is not None:
             return cached_response
 
-        messages = get_chat_history(conversation_id, SYSTEM_PROMPT, max_turns=12) if use_tools else [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages = get_chat_history(conversation_id, SYSTEM_PROMPT, max_turns=12) if conversation_id else [{"role": "system", "content": SYSTEM_PROMPT}]
+
+        if client_id:
+            from db_config import get_user_by_id
+            user_info = get_user_by_id(client_id)
+            if user_info and user_info.get("name"):
+                messages.insert(1, {"role": "system", "content": f"[USUARIO AUTENTICADO] El cliente ya ha iniciado sesión en Danhee Cake con el nombre '{user_info['name']}' (Email: {user_info.get('email')}). NUNCA le pidas su nombre para agendar citas u otros procesos; usa '{user_info['name']}' automáticamente."})
+
         messages.append({"role": "user", "content": question})
         add_chat_message(conversation_id, "user", question)
 
@@ -194,7 +210,14 @@ class CustomerAgent:
 
 def _intentar_autobooking(messages, question):
     import re
-    history_text = " ".join([m.get("content", "") for m in messages if isinstance(m.get("content"), str)])
+
+    # Si ya se agendó o recibió una cita en los últimos mensajes de la conversación, no re-agendar en bucle
+    for m in reversed(messages[-6:]):
+        content = str(m.get("content") or "")
+        if "exitosamente" in content.lower() or "recibida" in content.lower() or "cita registrada" in content.lower():
+            return None
+
+    history_text = " ".join([str(m.get("content", "")) for m in messages if isinstance(m.get("content"), str)])
     
     match_fecha = re.search(r'\b(manana|pasado manana|hoy|en \d+ dias|(?:el )?(?:proximo |siguiente )?(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo)(?: de la (?:siguiente|proxima) semana)?|\d{4}-\d{2}-\d{2}|\d{1,2} de [a-z]+)\b', history_text, re.IGNORECASE)
     match_hora = re.search(r'\b(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b', history_text, re.IGNORECASE)
@@ -204,12 +227,20 @@ def _intentar_autobooking(messages, question):
     if nombre.lower() in {'un', 'una', 'para', 'el', 'la', 'del', 'de', 'cita', 'que', 'con', 'pastel', 'cumpleanos', 'ninguna'}:
         nombre = "Cliente"
 
+    from tools.common_tools import _get_current_client_id
+    from db_config import get_user_by_id
+    curr_client_id = _get_current_client_id()
+    if curr_client_id:
+        u_info = get_user_by_id(curr_client_id)
+        if u_info and u_info.get("name"):
+            nombre = u_info["name"]
+
     match_pastel = re.search(r'\b(cherry delight|red velvet|chocolate|fresa|vainilla|explosion de mora|mora|mundo gatuno|amigos carinositos|fresita feliz)\b', history_text, re.IGNORECASE)
     pastel = match_pastel.group(1) if match_pastel else ""
 
     q_lower = question.lower().strip()
     es_intencion = any(k in history_text.lower() for k in ['agendar', 'cita', 'degustacion', 'reservar'])
-    es_confirmacion = any(k in q_lower for k in ['si', 'correcto', 'ninguna', 'esta bien', 'confirmar', 'ok', 'adelante', 'mañana', 'manana', '8am', '9am', '9:10', '9:10 am'])
+    es_confirmacion = any(k in q_lower for k in ['si', 'correcto', 'ninguna', 'esta bien', 'confirmar', 'ok', 'adelante', 'mañana', 'manana', '8am', '9am', '10am', '10 am', '9:10', '9:10 am']) or bool(re.search(r'\d{1,2}\s*(?:am|pm)', q_lower))
 
     if es_intencion and es_confirmacion and match_fecha and match_hora:
         from tools.customer_tools import registrar_solicitud_cita

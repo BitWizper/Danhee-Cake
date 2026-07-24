@@ -560,3 +560,47 @@ def get_client_designs(client_id):
     finally:
         cursor.close()
         conn.close()
+
+
+def get_user_by_id(user_id):
+    if not user_id: return None
+    key = f"user_{user_id}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+    conn = get_connection()
+    if not conn: return None
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('SELECT id, name, email, role, avatar_url FROM users WHERE id = %s', (user_id,))
+        result = cursor.fetchone()
+        _cache_set(key, result)
+        return result
+    except Error as e:
+        print(f"[db_config] Error en get_user_by_id: {e}", file=sys.stderr)
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_chat_conversation(conversation_id=None, client_id=None):
+    """Elimina los mensajes e historial de chat de una conversación o cliente específico."""
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        if conversation_id:
+            cursor.execute('DELETE FROM chat_messages WHERE conversation_id = %s', (conversation_id,))
+            cursor.execute('DELETE FROM chat_sessions WHERE conversation_id = %s', (conversation_id,))
+        elif client_id:
+            cursor.execute('DELETE FROM chat_messages WHERE conversation_id IN (SELECT conversation_id FROM chat_sessions WHERE client_id = %s)', (client_id,))
+            cursor.execute('DELETE FROM chat_sessions WHERE client_id = %s', (client_id,))
+        conn.commit()
+        return True
+    except Error as e:
+        print(f"[db_config] Error en delete_chat_conversation: {e}", file=sys.stderr)
+        return False
+    finally:
+        cursor.close()
+        conn.close()

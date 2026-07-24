@@ -52,7 +52,7 @@ def _parse_fecha_relativa(texto: str, base_date: datetime.date = None) -> str:
     if not texto:
         return ""
     if base_date is None:
-        base_date = datetime.date(2026, 7, 23)
+        base_date = datetime.date.today()
         
     t = quitar_acentos(str(texto).lower().strip())
     
@@ -132,6 +132,23 @@ def _parse_hora_minutos(hora_str: str) -> tuple:
         
     return (h, m)
 
+def _parse_horario_texto(horario_str: str) -> tuple:
+    """
+    Parsea el string de horario de atención (ej: 'Lunes a Viernes: 8:00 - 24:00 | Sábado: 5:00 - 21:00')
+    y devuelve (hora_apertura, hora_cierre) como enteros. Por defecto 8-18.
+    """
+    if not horario_str:
+        return 8, 18
+    h_str = quitar_acentos(horario_str.lower())
+    # Buscar el primer rango de horas del día (ej: 8:00 - 18:00, 08:00-24:00)
+    match = re.search(r'(\d{1,2})(?::\d{2})?\s*[-–]\s*(\d{1,2})(?::\d{2})?', h_str)
+    if match:
+        apertura = int(match.group(1))
+        cierre = int(match.group(2))
+        # 24:00 se trata como 24 (medianoche), válido hasta las 24
+        return apertura, min(cierre, 24)
+    return 8, 18
+
 def _validar_horario_repostero(hora_str: str, baker_obj: dict = None) -> tuple:
     parsed = _parse_hora_minutos(hora_str)
     if not parsed:
@@ -139,10 +156,13 @@ def _validar_horario_repostero(hora_str: str, baker_obj: dict = None) -> tuple:
         
     h, m = parsed
     baker_name = baker_obj.get("business_name", "la repostería") if isinstance(baker_obj, dict) else "la repostería"
-    business_hours_str = baker_obj.get("business_hours", "Lunes a Viernes de 8:00 AM a 6:00 PM") if isinstance(baker_obj, dict) else "Lunes a Viernes de 8:00 AM a 6:00 PM"
+    business_hours_str = baker_obj.get("business_hours", "") if isinstance(baker_obj, dict) else ""
+    
+    apertura, cierre = _parse_horario_texto(business_hours_str)
+    horario_display = business_hours_str if business_hours_str else f"{apertura}:00 AM - {cierre}:00"
 
-    if h < 8 or h >= 19:
-        return False, f"⏰ Lo siento, el horario de las **{hora_str}** está fuera de la jornada de atención de **{baker_name}**.\n\n📍 Su horario de atención es: `{business_hours_str}`.\n\n¿Te gustaría elegir un horario entre las 8:00 AM y las 6:00 PM? 😊"
+    if h < apertura or h >= cierre:
+        return False, f"⏰ Lo siento, el horario de las **{hora_str}** está fuera del horario de atención de **{baker_name}**.\n\n📍 Su horario de atención es: *{horario_display}*.\n\n¿Te gustaría elegir un horario dentro de ese rango? 😊"
         
     return True, ""
 
@@ -303,9 +323,22 @@ def obtener_precios_por_categoria(categoria: str = "", contexto_anterior: str = 
         "mensaje": f"🍰 Pasteles en la categoría '{categoria_buscar}':\n{lista_pasteles}{nota_mas}\n\n💰 Rango de precios: ${min(precios)} - ${max(precios)} MXN"
     }
 
-def registrar_solicitud_cita(client_name: str = "", baker_id: int = None, fecha: str = "", hora: str = "", notas: str = "") -> dict:
+def _base_date_from_iso(client_datetime_str: str):
+    """Extrae datetime.date de un ISO string del cliente (ej: '2026-07-24T10:25:07.000Z')."""
+    if not client_datetime_str:
+        return datetime.date.today()
+    try:
+        # Quitar 'Z' y zona horaria para parsear como naive datetime
+        clean = str(client_datetime_str).replace('Z', '').split('+')[0].strip()
+        dt = datetime.datetime.fromisoformat(clean)
+        return dt.date()
+    except Exception:
+        return datetime.date.today()
+
+def registrar_solicitud_cita(client_name: str = "", baker_id: int = None, fecha: str = "", hora: str = "", notas: str = "", client_datetime: str = "") -> dict:
     """Registra una solicitud de cita con un repostero de Danhee Cake."""
-    fecha_convertida = _parse_fecha_relativa(fecha)
+    base_date = _base_date_from_iso(client_datetime) if client_datetime else datetime.date.today()
+    fecha_convertida = _parse_fecha_relativa(fecha, base_date=base_date)
     if not fecha_convertida:
         return {
             "exito": False,
@@ -313,18 +346,47 @@ def registrar_solicitud_cita(client_name: str = "", baker_id: int = None, fecha:
             "mensaje": "📅 Con gusto te ayudo a agendar tu cita. Por favor indícame la **fecha** deseada (por ejemplo: *el próximo viernes*, *en 15 días*, o *2026-07-30*) y la **hora** que prefieres."
         }
 
+    # Obtener la lista real de reposteros registrados en BD (baker_profiles)
+    all_bakers = get_bakers()
+    if not all_bakers:
+        return {
+            "exito": False,
+            "mensaje": "📋 En este momento no hay reposteros registrados para agendar citas en Danhee Cake."
+        }
+
+    valid_baker_map = {b["id"]: b for b in all_bakers}
+
+    # Resolver cuál es el baker_id real y válido
     baker_obj = None
-    if not baker_id:
-        bakers = get_bakers()
-        if bakers:
-            baker_obj = bakers[0]
-            baker_id = baker_obj.get("id", 1)
-        else:
-            baker_id = 1
-    else:
-        try: baker_id = int(baker_id)
-        except: baker_id = 1
-        baker_obj = get_baker_by_id(baker_id)
+    target_baker_id = None
+
+    if baker_id:
+        try:
+            bid = int(baker_id)
+            if bid in valid_baker_map:
+                target_baker_id = bid
+                baker_obj = valid_baker_map[bid]
+        except (ValueError, TypeError):
+            pass
+
+    # Si no fue especificado o el id no existe en baker_profiles, intentar resolver por el pastel mencionado en notas/contexto
+    if not target_baker_id:
+        all_cakes = get_cakes()
+        if notas:
+            for c in all_cakes:
+                if c.get("name") and c["name"].lower() in notas.lower():
+                    cake_baker_id = c.get("baker_id")
+                    if cake_baker_id in valid_baker_map:
+                        target_baker_id = cake_baker_id
+                        baker_obj = valid_baker_map[cake_baker_id]
+                        break
+
+    # Si aún no tenemos un baker válido, usar el primer baker_profile existente en la BD
+    if not target_baker_id:
+        baker_obj = all_bakers[0]
+        target_baker_id = baker_obj["id"]
+
+    baker_id = target_baker_id
 
     es_horario_valido, msg_error_horario = _validar_horario_repostero(hora, baker_obj)
     if not es_horario_valido:
@@ -337,11 +399,16 @@ def registrar_solicitud_cita(client_name: str = "", baker_id: int = None, fecha:
     hora_limpia = str(hora).strip() if hora else "10:00 AM"
     baker_name = baker_obj.get("business_name") if isinstance(baker_obj, dict) and baker_obj.get("business_name") else f"Repostero #{baker_id}"
     
+    client_id = _get_current_client_id()
+    if client_id:
+        user_info = get_user_by_id(client_id)
+        if user_info and user_info.get("name"):
+            client_name = user_info["name"]
+
     if not client_name or "CLIENTE" in str(client_name).upper() or "[" in str(client_name):
         client_name = "Cliente"
 
     notas_final = f"Cliente: {client_name}. {notas}".strip()
-    client_id = _get_current_client_id()
     time_slot_mysql = _convert_to_mysql_time(hora_limpia)
 
     if client_id:

@@ -36,7 +36,7 @@ const askChatbot = async (req, res) => {
     const response = await fetch("http://127.0.0.1:5005/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, client_id, role }),
+      body: JSON.stringify({ message, client_id, role, client_datetime: req.body.client_datetime || null }),
     });
 
     if (!response.ok) {
@@ -123,7 +123,7 @@ const streamChatbot = async (req, res) => {
     const pythonRes = await fetch("http://127.0.0.1:5005/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, client_id, conversation_id, role }),
+      body: JSON.stringify({ message, client_id, conversation_id, role, client_datetime: req.body.client_datetime || null }),
     });
 
     if (!pythonRes.ok) {
@@ -174,4 +174,26 @@ const streamChatbot = async (req, res) => {
   }
 };
 
-module.exports = { askChatbot, streamChatbot, getChatHistory };
+const deleteChatHistory = async (req, res) => {
+  const { conversation_id, client_id } = req.body;
+
+  try {
+    const response = await fetch("http://127.0.0.1:5005/chat/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversation_id, client_id }),
+    });
+
+    if (!response.ok) {
+      return res.status(500).json({ error: "Error eliminando historial RAG" });
+    }
+
+    const data = await response.json();
+    return res.json(data);
+  } catch (error) {
+    console.error("[Node Server] Error al borrar historial:", error.message);
+    return res.status(500).json({ error: "No se pudo borrar el historial" });
+  }
+};
+
+module.exports = { askChatbot, streamChatbot, getChatHistory, deleteChatHistory };
