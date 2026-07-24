@@ -426,6 +426,10 @@ def _parse_tool_call_from_text(raw_text: str):
 
     clean_text = raw_text.strip().strip("`").strip()
 
+    # Pre-limpieza de errores sintácticos comunes de Ollama en JSON:
+    clean_text = re.sub(r'("(?:parameters|arguments|params)")\s*\{', r'\1: {', clean_text)
+    clean_text = re.sub(r'("(?:parameters|arguments|params)")\s*\[', r'\1: [', clean_text)
+
     # 1. Intentar parsear llamadas de función formato Python: fn_name(arg1="val1", arg2=123)
     fn_call_match = re.search(r"([a_zA-Z0-9_]+)\s*\((.*)\)", clean_text, re.DOTALL)
     if fn_call_match:
@@ -448,23 +452,31 @@ def _parse_tool_call_from_text(raw_text: str):
             return {"function": {"name": resolved_name, "arguments": args_dict}}
 
     # 2. Intentar parsear como objeto JSON
-    if "{" in raw_text:
-        json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
-        if json_match:
+    if "{" in clean_text:
+        start = clean_text.find("{")
+        end = clean_text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            json_str = clean_text[start:end+1]
+            parsed_json = None
             try:
-                parsed_json = json.loads(json_match.group(0))
-                if isinstance(parsed_json, dict):
-                    if "function" in parsed_json and isinstance(parsed_json["function"], dict):
-                        name = parsed_json["function"].get("name")
-                        args = parsed_json["function"].get("arguments") or parsed_json["function"].get("parameters") or parsed_json["function"].get("params") or {}
-                        if name:
-                            return {"function": {"name": _resolve_tool_name(name), "arguments": args}}
-
-                    if "name" in parsed_json:
-                        name = parsed_json["name"]
-                        args = parsed_json.get("params") or parsed_json.get("arguments") or parsed_json.get("parameters") or {}
-                        return {"function": {"name": _resolve_tool_name(name), "arguments": args}}
+                parsed_json = json.loads(json_str)
             except json.JSONDecodeError:
-                pass
+                # Buscar name directamente vía regex si el JSON no parsea
+                match_fn = re.search(r'"(?:name|function)"\s*:\s*"([a_zA-Z0-9_]+)"', json_str)
+                if match_fn:
+                    fn_name = match_fn.group(1)
+                    return {"function": {"name": _resolve_tool_name(fn_name), "arguments": {}}}
+
+            if isinstance(parsed_json, dict):
+                if "function" in parsed_json and isinstance(parsed_json["function"], dict):
+                    name = parsed_json["function"].get("name")
+                    args = parsed_json["function"].get("arguments") or parsed_json["function"].get("parameters") or parsed_json["function"].get("params") or {}
+                    if name:
+                        return {"function": {"name": _resolve_tool_name(name), "arguments": args}}
+
+                if "name" in parsed_json:
+                    name = parsed_json["name"]
+                    args = parsed_json.get("params") or parsed_json.get("arguments") or parsed_json.get("parameters") or {}
+                    return {"function": {"name": _resolve_tool_name(name), "arguments": args}}
 
     return None

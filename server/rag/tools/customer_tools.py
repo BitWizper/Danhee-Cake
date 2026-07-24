@@ -394,12 +394,6 @@ def registrar_solicitud_cita(client_name: str = "", baker_id: int = None, fecha:
     """Registra una solicitud de cita con un repostero de Danhee Cake."""
     base_date = _base_date_from_iso(client_datetime) if client_datetime else datetime.date.today()
     fecha_convertida = _parse_fecha_relativa(fecha, base_date=base_date)
-    if not fecha_convertida:
-        return {
-            "exito": False,
-            "necesita_datos": True,
-            "mensaje": "📅 Con gusto te ayudo a agendar tu cita. Por favor indícame la **fecha** deseada (por ejemplo: *el próximo viernes*, *en 15 días*, o *2026-07-30*) y la **hora** que prefieres."
-        }
 
     # Obtener la lista real de reposteros registrados en BD (baker_profiles)
     all_bakers = get_bakers()
@@ -411,7 +405,7 @@ def registrar_solicitud_cita(client_name: str = "", baker_id: int = None, fecha:
 
     valid_baker_map = {b["id"]: b for b in all_bakers}
 
-    # Resolver cuál es el baker_id real y válido
+    # Resolver cuál es el baker_id real y válido por baker_id, notas o pastel mencionado
     baker_obj = None
     target_baker_id = None
 
@@ -427,9 +421,10 @@ def registrar_solicitud_cita(client_name: str = "", baker_id: int = None, fecha:
     # Si no fue especificado o el id no existe en baker_profiles, intentar resolver por el pastel mencionado en notas/contexto
     if not target_baker_id:
         all_cakes = get_cakes()
-        if notas:
+        term_search = notas.lower() if notas else ""
+        if term_search:
             for c in all_cakes:
-                if c.get("name") and c["name"].lower() in notas.lower():
+                if c.get("name") and c["name"].lower() in term_search:
                     cake_baker_id = c.get("baker_id")
                     if cake_baker_id in valid_baker_map:
                         target_baker_id = cake_baker_id
@@ -442,6 +437,15 @@ def registrar_solicitud_cita(client_name: str = "", baker_id: int = None, fecha:
         target_baker_id = baker_obj["id"]
 
     baker_id = target_baker_id
+    baker_name = baker_obj.get("business_name", "nuestra repostería") if isinstance(baker_obj, dict) else "nuestra repostería"
+    baker_hours = (baker_obj.get("business_hours") or "Lunes a Viernes: 8:00 - 18:00") if isinstance(baker_obj, dict) else "Lunes a Viernes: 8:00 - 18:00"
+
+    if not fecha_convertida:
+        return {
+            "exito": False,
+            "necesita_datos": True,
+            "mensaje": f"📅 ¡Excelente elección! Con gusto te agendo tu cita de degustación con **{baker_name}**.\n\n📍 Horario de atención de **{baker_name}**: *{baker_hours}*\n\n¿Para qué día y hora te gustaría agendar tu cita? Puedes decirme algo como *\"el próximo viernes a las 10 AM\"* o la fecha que prefieras. 🎂"
+        }
 
     es_horario_valido, msg_error_horario = _validar_horario_repostero(hora, baker_obj)
     if not es_horario_valido:
@@ -876,9 +880,14 @@ def consultar_pasteles_por_categoria(categoria: str = "", contexto_anterior: str
             or categoria_normalizada in quitar_acentos(str(p.get("description", "")).lower())
         ]
         
-    # 3. Si aún así no hay coincidencia exacta de texto, usar todos los pasteles para no dejar al cliente sin opciones
+    # 3. Si no hay coincidencia, informar amablemente al usuario sin mezclar otras categorías
     if not filtrados:
-        filtrados = todos
+        return {
+            "categoria": categoria_buscar,
+            "encontrados": [],
+            "cantidad": 0,
+            "mensaje": f"🍰 Actualmente no encontré pasteles específicos registrados para **{categoria_buscar.strip().capitalize()}** en Danhee Cake. ¿Te gustaría consultar otra categoría o diseñar un pastel personalizado? ✨"
+        }
     
     # Ordenar del menor al mayor precio y mostrar los primeros 4
     filtrados_ordenados = sorted(filtrados, key=lambda p: float(p.get("price", 0) or 0))
