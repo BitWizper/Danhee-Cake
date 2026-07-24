@@ -29,17 +29,17 @@ def get_pool():
         try:
             _pool = pooling.MySQLConnectionPool(
                 pool_name="danhee_pool",
-                pool_size=2,
+                pool_size=1,
                 pool_reset_session=True,
                 host=os.getenv("DB_HOST"),
                 port=int(os.getenv("DB_PORT", 3306)),
                 database=os.getenv("DB_NAME"),
                 user=os.getenv("DB_USER"),
                 password=os.getenv("DB_PASSWORD"),
-                connection_timeout=10,
+                connection_timeout=20,
                 autocommit=False,
             )
-            print("[db_config] ✅ Pool de conexiones MySQL creado (size=2)", file=sys.stderr)
+            print("[db_config] ✅ Pool de conexiones MySQL creado (size=1)", file=sys.stderr)
         except Error as e:
             print(f"[db_config] ❌ Error creando pool: {e}", file=sys.stderr)
             _pool = None
