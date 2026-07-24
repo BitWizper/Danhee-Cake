@@ -858,16 +858,27 @@ def consultar_pasteles_por_categoria(categoria: str = "", contexto_anterior: str
     categoria_buscar = categoria if categoria else contexto_anterior
     
     if not categoria_buscar:
-        return {"mensaje": "Por favor especifica qué categoría de pasteles quieres ver.", "encontrados": [], "cantidad": 0}
+        categoria_buscar = "todas las ocasiones"
     
     categoria_normalizada = quitar_acentos(categoria_buscar.lower().strip())
+    
+    # 1. Filtrar por categoría en category_name
     filtrados = [
         p for p in todos
         if categoria_normalizada in quitar_acentos(str(p.get("category_name", "")).lower())
     ]
     
+    # 2. Si no hay por category_name, buscar en nombre o descripción
     if not filtrados:
-        return {"mensaje": f"No encontré pasteles en Danhee Cake para '{categoria_buscar}'.", "encontrados": [], "cantidad": 0}
+        filtrados = [
+            p for p in todos
+            if categoria_normalizada in quitar_acentos(str(p.get("name", "")).lower())
+            or categoria_normalizada in quitar_acentos(str(p.get("description", "")).lower())
+        ]
+        
+    # 3. Si aún así no hay coincidencia exacta de texto, usar todos los pasteles para no dejar al cliente sin opciones
+    if not filtrados:
+        filtrados = todos
     
     # Ordenar del menor al mayor precio y mostrar los primeros 4
     filtrados_ordenados = sorted(filtrados, key=lambda p: float(p.get("price", 0) or 0))
@@ -885,14 +896,14 @@ def consultar_pasteles_por_categoria(categoria: str = "", contexto_anterior: str
     
     _last_search_result = {"encontrados": resultado, "categoria": categoria_buscar}
     _last_context["ultima_categoria"] = categoria_buscar
-    lista = "\n".join([f"• **{p['nombre']}** - ${p['precio']} MXN (Empresa: {p['empresa']})" for p in resultado])
+    lista = "\n".join([f"• **{p['nombre']}** - ${p['precio']:.0f} MXN (Empresa: {p['empresa']})" for p in resultado])
     total = len(filtrados)
-    nota_mas = f"\n\n*Mostrando 4 de {total} pasteles disponibles. ¿Quieres ver más opciones o tienes alguna pregunta?*" if total > 4 else ""
+    nota_mas = f"\n\n*Mostrando 4 de {total} opciones disponibles. ¿Te gustaría saber detalles de alguno o agendar cita de degustación?*" if total > 4 else ""
     return {
         "categoria": categoria_buscar,
         "encontrados": resultado,
         "cantidad": total,
-        "mensaje": f"🍰 Para **{categoria_buscar}**, aquí tienes algunas opciones disponibles en Danhee Cake (del precio más accesible al más alto):\n\n{lista}{nota_mas}"
+        "mensaje": f"🍰 Para **{categoria_buscar.strip().capitalize()}**, aquí tienes algunas opciones deliciosas disponibles en Danhee Cake (ordenadas del precio más accesible al mayor):\n\n{lista}{nota_mas}"
     }
 
 def consultar_tamanos_pasteles(contexto_anterior: str = "") -> dict:

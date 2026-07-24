@@ -105,7 +105,8 @@ def _should_use_tools(question: str, role: str = "cliente") -> bool:
         "disponibilidad", "pedido", "comprar", "buscar", "catalogo", "catálogo",
         "dias", "días", "horario", "horarios", "abren", "atienden", "abierto", "atencion", "atención",
         "red velvet", "cumpleaños", "boda", "xv", "baby shower", "empresa", "ubicacion", "ubicación",
-        "reposteria", "repostería", "diseño", "diseños", "destacado", "destacados", "reseña", "reseñas"
+        "reposteria", "repostería", "diseño", "diseños", "destacado", "destacados", "reseña", "reseñas",
+        "reservar", "reserva", "agendar", "agend", "degustacion", "degustación", "solicitud"
     ]
     if any(k in q for k in tool_keywords):
         return True

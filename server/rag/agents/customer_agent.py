@@ -13,7 +13,7 @@ sys.path.insert(0, str(base_dir))
 from db_config import get_chat_history, add_chat_message
 from tools.common_tools import (
     _set_current_client_id, _should_use_tools, _get_cached_response,
-    _set_cached_response, _get_ollama_options, obtener_respuesta_fija
+    _set_cached_response, _get_ollama_options, obtener_respuesta_fija, quitar_acentos
 )
 from tools.registry import (
     TOOLS_SCHEMA, FUNCTIONS_MAP, _resolve_tool_name, _parse_tool_call_from_text
@@ -85,38 +85,41 @@ REGLAS DE RESPUESTA Y COMPORTAMIENTO:
 
 
 def _limpiar_respuesta(text: str) -> str:
-    """Elimina backticks, código de herramientas, nombres de funciones internas, JSON crudo y artefactos técnicos
-    que el LLM pudiera colar en sus respuestas al usuario final."""
+    """Elimina backticks, código de herramientas, nombres de funciones internas, JSON crudo, excusas
+    y frases de rechazo que el LLM pudiera colar en sus respuestas al usuario final."""
     if not text:
-        return "🎂 ¡Hola! En Danhee Cake estoy a tu servicio para lo que necesites. ¿En qué te puedo ayudar hoy?"
+        return ""
 
     # 1. Eliminar bloques de código markdown completos (```...```)
     text = re.sub(r'```[\s\S]*?```', '', text)
 
-    # 2. Detectar si el texto contiene excusas robóticas, meta-LLM o jerga técnica
+    # 2. Detectar si el texto contiene excusas robóticas, rechazos o jerga técnica de herramientas
     patrones_roboticos = [
-        r"funci[oó]n",
+        r"conjunto de funciones",
         r"lista proporcionada",
         r"texto proporcionado",
-        r"conjunto de funciones",
-        r"solicitud expl[ií]cita",
-        r"base de datos",
-        r"par[aá]metros",
-        r"arguments",
+        r"en el conjunto de funciones",
         r"tool_call",
-        r"herramienta",
-        r"comando",
-        r"c[oó]digo",
-        r"mapa",
-        r"map\b",
+        r"FUNCTIONS_MAP",
         r"no puedo determinar",
         r"no hay una respuesta espec[ií]fica",
         r"no puedo comprender tu pregunta",
+        r"no puedo continuar con esta conversaci[oó]n",
+        r"no puedo continuar",
+        r"no puedo responder",
+        r"como modelo de ia",
+        r"no tengo acceso",
+        r"funci[oó]n\s+`[a-z_]+`",        # 'función `nombre_funcion`'
+        r"`[a-z_]{5,}`",                    # backtick-wrapped identifiers
+        r"usando la funci[oó]n\b",
+        r"utilizar(?:ía)? la funci[oó]n\b",
+        r"llam(?:ar|ando) a la funci[oó]n\b",
+        r"par[aá]metros\s+(?:se\s+)?pasen",
     ]
     
     t_lower = text.lower()
     if any(re.search(p, t_lower) for p in patrones_roboticos):
-        return "🎂 ¡Hola! En Danhee Cake estoy a tu servicio para ayudarte a encontrar el pastel perfecto, darte información de sabores, precios, categorías o agendar tu cita de degustación. ¿En qué puedo ayudarte hoy?"
+        return ""  # Retornar vacío para forzar la búsqueda fallback real en base de datos
 
     # 3. Eliminar llamadas a función en texto plano: fn_name(...)
     text = re.sub(r'[a_zA-Z0-9_]+\s*\([^)]*\)', '', text)
@@ -140,10 +143,175 @@ def _limpiar_respuesta(text: str) -> str:
     text = re.sub(r'[ \t]{2,}', ' ', text)
     text = re.sub(r'\n{3,}', '\n\n', text).strip()
 
-    if not text or len(text) < 5:
-        return "🎂 Con gusto te ayudo en Danhee Cake. ¿Te gustaría información sobre algún pastel o agendar una cita de degustación?"
-
     return text
+
+
+def _intentar_busqueda_fallback(question: str):
+    import re
+    from tools.customer_tools import (
+        consultar_detalle_pastel_por_id, consultar_origen_pastel, 
+        consultar_pasteles_por_categoria, obtener_precios_por_categoria,
+        consultar_horarios_repostero, get_cakes, quitar_acentos
+    )
+    
+    q_norm = quitar_acentos(question.lower().strip())
+    
+    # 1. Si preguntan por horarios, días o atención de la repostería
+    if any(k in q_norm for k in ["horario", "horarios", "dias", "días", "abren", "atienden", "abierto", "atencion", "atención"]):
+        res = consultar_horarios_repostero()
+        if res and "mensaje" in res:
+            return res["mensaje"]
+
+    # 2. Si preguntan por detalles/información de un pastel específico
+    if any(k in q_norm for k in ["informacion", "informacio", "detalle", "detalles", "cuanto cuesta", "precio", "sobre el pastel", "del pastel", "red velvet"]):
+        cakes = get_cakes()
+        for c in cakes:
+            c_name = c.get("name")
+            if c_name:
+                c_name_norm = quitar_acentos(c_name.lower())
+                tokens_c = [w for w in c_name_norm.split() if w not in {'pastel', 'de', 'del', 'la', 'el', '2', 'pisos'}]
+                if c_name_norm in q_norm or (tokens_c and all(w in q_norm for w in tokens_c)):
+                    res = consultar_detalle_pastel_por_id(nombre_pastel=c_name)
+                    if res and "mensaje" in res:
+                        return res["mensaje"] + "\n\n¿Te gustaría agendar una cita de degustación para este pastel? 😊"
+
+    # 3. Mapeo completo de categorías (cumpleaños, baby shower, xv años, boda, graduación, corporativo, infantil, aniversario, etc.)
+    categorias_mapa = {
+        "cumpleaños": ["cumpleanos", "cumpleaños", "cumple"],
+        "baby shower": ["baby shower", "bebe", "bebes", "baby"],
+        "xv años": ["xv anos", "xv años", "xv", "15 anos", "15 años", "quinceanera", "quinceañera"],
+        "boda": ["boda", "bodas", "matrimonio"],
+        "graduación": ["graduacion", "graduación", "graduados"],
+        "corporativo": ["corporativo", "empresa", "empresarial"],
+        "infantil": ["infantil", "ninos", "niños", "ninas", "niñas"],
+        "aniversario": ["aniversario", "pareja", "amor"],
+    }
+    
+    cat_matched = ""
+    for cat_nombre, keywords in categorias_mapa.items():
+        if any(kw in q_norm for kw in keywords):
+            cat_matched = cat_nombre
+            break
+            
+    if cat_matched:
+        res = consultar_pasteles_por_categoria(categoria=cat_matched)
+        if res and "mensaje" in res:
+            msg = res["mensaje"]
+            if re.search(r'\b\d+\s*(?:pesos|mxn)?\b', q_norm):
+                msg = f"Actualmente nuestros precios de pasteles en Danhee Cake empiezan desde la mejor relación calidad-precio. " + msg
+            return msg
+
+    # 4. Si preguntan por pasteles en general o piden recomendaciones
+    if any(k in q_norm for k in ["pastel", "pasteles", "recomend", "opciones", "catalogo", "catálogo", "tienes"]):
+        res = consultar_pasteles_por_categoria(categoria="todas las ocasiones")
+        if res and "mensaje" in res:
+            return res["mensaje"]
+
+    return None
+
+
+# ─── Pastel context extractor ─────────────────────────────────────────────────
+_PASTELES_CONOCIDOS = [
+    "cherry delight", "red velvet", "chocolate", "fresa", "vainilla",
+    "explosion de mora", "mora", "mundo gatuno", "amigos carinositos", "fresita feliz",
+    "tres leches", "zanahoria", "limon", "mango", "nuez", "oreo", "cheesecake",
+]
+
+def _extraer_pastel_de_historial(messages: list) -> str:
+    """Busca en el historial de mensajes el nombre del pastel más reciente mencionado."""
+    # Revisar los últimos mensajes en orden inverso
+    texto = " ".join([
+        str(m.get("content", ""))
+        for m in messages
+        if isinstance(m.get("content"), str) and m.get("role") in ("assistant", "user", "tool")
+    ]).lower()
+    
+    # Intentar encontrar mención de un pastel por su nombre conocido
+    from tools.customer_tools import get_cakes
+    try:
+        cakes = get_cakes()
+        # Buscar en orden inverso (el más reciente primero)
+        for m in reversed(messages[-10:]):
+            content = str(m.get("content", "")).lower()
+            for c in cakes:
+                cname = (c.get("name") or "").lower()
+                if cname and cname in content:
+                    return c.get("name", "")
+    except Exception:
+        pass
+    
+    # Fallback: patrones conocidos en todo el historial
+    for nombre in _PASTELES_CONOCIDOS:
+        if nombre in texto:
+            return nombre.title()
+    
+    return ""
+
+
+def _interceptar_intencion_reserva(question: str, messages: list, client_id=None) -> str | None:
+    """Si el usuario expresa intención de reservar una cita, guiarlo con lenguaje natural
+    en vez de dejar que el LLM responda con texto técnico."""
+    q = quitar_acentos(question.lower().strip())
+    
+    # Palabras clave que indican intención de reservar
+    palabras_reserva = [
+        "reservar", "reserva", "agendar", "agendo", "quiero una cita", "quiero agendar",
+        "quiero reservar", "hacer una cita", "solicitar cita", "degustacion", "probar el pastel",
+        "cuando puedo ir", "cuando puedo pasar", "quiero pasar", "ir a probar"
+    ]
+    
+    es_reserva = any(p in q for p in palabras_reserva)
+    # Caso especial: "quiero reservar la cita" o "quiero la cita"
+    if not es_reserva and re.search(r'(quiero|deseo|me gustaria|me gustar[ií]a).{0,20}cita', q):
+        es_reserva = True
+    
+    if not es_reserva:
+        return None
+    
+    # Verificar si ya respondimos con el flujo de cita recientemente (evitar bucle)
+    for m in reversed(messages[-4:]):
+        content = str(m.get("content") or "").lower()
+        if ("qué día" in content or "que dia" in content or
+                "para qué fecha" in content or "para que fecha" in content or
+                "exitosamente" in content or "cita registrada" in content):
+            return None  # Ya estamos en el flujo, dejar que el LLM maneje
+    
+    # Extraer el pastel del contexto
+    pastel = _extraer_pastel_de_historial(messages)
+    
+    # Construir la parte referente al pastel
+    if pastel:
+        ref_pastel = f" para el pastel **{pastel}**"
+    else:
+        ref_pastel = ""
+    
+    # Obtener nombre del cliente
+    nombre_cliente = ""
+    if client_id:
+        try:
+            from db_config import get_user_by_id
+            u = get_user_by_id(client_id)
+            if u and u.get("name"):
+                nombre_cliente = u["name"]
+        except Exception:
+            pass
+    
+    saludo = f", {nombre_cliente}" if nombre_cliente else ""
+    
+    # Obtener horario real del repostero
+    horario_info = ""
+    try:
+        from tools.customer_tools import consultar_horarios_repostero
+        res_horario = consultar_horarios_repostero()
+        if res_horario and res_horario.get("mensaje"):
+            horario_info = f"\n\n{res_horario['mensaje']}"
+    except Exception:
+        pass
+    
+    return (
+        f"¡Con gusto te agendo tu cita de degustación{ref_pastel}{saludo}! 🍰{horario_info}\n\n"
+        f"¿Para qué día y hora te gustaría tu cita? Puedes decirme algo como *\"el próximo viernes a las 10 AM\"* o la fecha que más te convenga. 📅"
+    )
 
 
 class CustomerAgent:
@@ -172,6 +340,14 @@ class CustomerAgent:
             if conversation_id:
                 add_chat_message(conversation_id, "assistant", respuesta_fija)
             return respuesta_fija
+
+        # ── Interceptar intención de reserva con contexto del pastel ─────────
+        respuesta_reserva = _interceptar_intencion_reserva(question, messages, client_id)
+        if respuesta_reserva:
+            if conversation_id:
+                add_chat_message(conversation_id, "assistant", respuesta_reserva)
+            return respuesta_reserva
+        # ─────────────────────────────────────────────────────────────────────
 
         cached_response = _get_cached_response(question, 'cliente', conversation_id)
         if cached_response is not None:
@@ -462,8 +638,11 @@ def _intentar_autobooking(messages, question):
         if u_info and u_info.get("name"):
             nombre = u_info["name"]
 
-    match_pastel = re.search(r'\b(cherry delight|red velvet|chocolate|fresa|vainilla|explosion de mora|mora|mundo gatuno|amigos carinositos|fresita feliz)\b', history_text, re.IGNORECASE)
-    pastel = match_pastel.group(1) if match_pastel else ""
+    match_pastel = re.search(r'\b(cherry delight|red velvet|chocolate|fresa|vainilla|explosion de mora|mora|mundo gatuno|amigos carinositos|fresita feliz|tres leches|zanahoria|limon|mango|nuez|oreo|cheesecake)\b', history_text, re.IGNORECASE)
+    pastel_regex = match_pastel.group(1) if match_pastel else ""
+    
+    # Preferir el pastel extraído del historial real (más preciso)
+    pastel = _extraer_pastel_de_historial(messages) or pastel_regex
 
     q_lower = question.lower().strip()
     es_intencion = any(k in history_text.lower() for k in ['agendar', 'cita', 'degustacion', 'reservar'])
