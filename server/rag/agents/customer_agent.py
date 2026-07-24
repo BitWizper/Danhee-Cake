@@ -110,6 +110,12 @@ REGLAS DE RESPUESTA Y COMPORTAMIENTO:
 
 4. SI EL USUARIO PREGUNTA POR ALGO QUE NO ENCUENTRAS:
    - No digas "la herramienta no devolvió datos". Di algo como: "Lo siento, no encontré pasteles con ese nombre. ¿Quieres probar con otro sabor?"
+
+🚫 PROHIBICIÓN DE INFORMACIÓN INTERNA Y TÉCNICA:
+- NUNCA menciones IDs numéricos, UUIDs, nombres de archivos internos (como `danhee_knowledge_base.pdf`), nombres de funciones, ni ningún detalle que no sea relevante para el usuario.
+- Si necesitas consultar un documento interno, simplemente di "He consultado nuestra base de conocimientos" sin mencionar el nombre del archivo.
+- NUNCA incluyas en tus respuestas el contenido de logs, traces, o metadatos técnicos.
+- Siempre responde en lenguaje natural, como si fueras un humano, sin revelar el funcionamiento interno de la plataforma.
 """
 
 
@@ -137,6 +143,19 @@ def _limpiar_respuesta(text: str) -> str:
     y frases de rechazo que el LLM pudiera colar en sus respuestas al usuario final."""
     if not text:
         return ""
+
+    # --- NUEVOS FILTROS PARA INFORMACIÓN INTERNA ---
+    # Eliminar UUIDs (formato estándar: 8-4-4-4-12)
+    text = re.sub(r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}', '', text, flags=re.IGNORECASE)
+    # Eliminar IDs numéricos de 5 o más dígitos (posibles IDs de BD)
+    text = re.sub(r'\b\d{5,}\b', '', text)
+    # Eliminar nombres de archivos internos (.pdf, .txt, .docx, etc.)
+    text = re.sub(r'\b[a-zA-Z_]+\.(pdf|txt|docx|json|log)\b', '', text, flags=re.IGNORECASE)
+    # Eliminar menciones a palabras técnicas comunes
+    text = re.sub(r'\b(tool_calls|function|parameters|arguments|type|name|kwargs|args|conversation_id|client_id)\b', '', text, flags=re.IGNORECASE)
+    # Eliminar espacios dobles que puedan quedar
+    text = re.sub(r'\s+', ' ', text).strip()
+    # --- FIN FILTROS NUEVOS ---
 
     t_strip = text.strip()
 
@@ -702,10 +721,15 @@ class CustomerAgent:
             # ═══════════════════════════════════════════════════════════════════
 
             # ── Fallback a búsqueda directa ──
+            # IMPORTANTE: Para preguntas genéricas o de categoría, forzamos el fallback
+            # para evitar que el modelo invente pasteles.
             search_fallback = _intentar_busqueda_fallback(question, messages)
+            
+            # Si el fallback devuelve algo, lo usamos (especialmente para preguntas genéricas)
             if search_fallback:
                 direct_content = search_fallback
             else:
+                # Si el fallback no devolvió nada, usamos la respuesta del modelo (si existe)
                 if not direct_content or "Bienvenido" in direct_content or "¿En qué puedo ayudarte hoy?" in direct_content:
                     autobook_msg = _intentar_autobooking(messages, question)
                     if autobook_msg:
@@ -753,14 +777,16 @@ def _intentar_busqueda_fallback(question: str, messages: list = None, forzar_con
         pastel_contexto = _extraer_pastel_de_historial(messages)
 
     # ─ PRIORIDAD 0: Detectar categoría en la pregunta y consultar directo ──────────
+    # Detectamos explícitamente si el usuario menciona una categoría (ej. "graduacion", "boda", "xv años")
     cat_matched = _detectar_categoria(q_norm)
     if cat_matched:
+        # Si la pregunta contiene la categoría, consultar solo esa categoría
         res = consultar_pasteles_por_categoria(categoria=cat_matched)
         if res and "mensaje" in res:
-            msg = res["mensaje"]
-            if re.search(r'\b\d+\s*(?:pesos|mxn)?\b', q_norm):
-                msg = "Actualmente nuestros precios en Danhee Cake empiezan desde la mejor relación calidad-precio. " + msg
-            return msg
+            # El mensaje ya contiene la lista de pasteles o el mensaje de "no encontré"
+            return res["mensaje"]
+        else:
+            return f"🎂 No encontré pasteles para la categoría {cat_matched}. ¿Quieres probar con otra?"
 
     # ─ PRIORIDAD 1: Horarios de atención ──────────────────────────────────
     if any(k in q_norm for k in ["horario", "horarios", "dias", "abren", "atienden", "abierto", "atencion"]):
@@ -810,25 +836,30 @@ def _intentar_busqueda_fallback(question: str, messages: list = None, forzar_con
                 return "No encontré ese pastel. ¿Quieres que te muestre las categorías disponibles?"
 
     # ─ PRIORIDAD 4: Pasteles en general / recomendaciones ────────────────
-    # Mejora: si la pregunta es genérica ("que pasteles tienes", "qué pasteles hay"), mostrar categorías en lugar de ejecutar consulta directa
+    # Si la pregunta es genérica ("que pasteles tienes", "qué pasteles hay"), mostrar categorías en lugar de ejecutar consulta directa
     preguntas_genericas = [
         "que pasteles", "qué pasteles", "que pasteles tienes", "qué pasteles tienes",
         "pasteles disponibles", "catálogo", "catalogo", "que hay", "qué hay",
         "mostrar pasteles", "ver pasteles", "pasteles"
     ]
     if any(p in q_norm for p in preguntas_genericas):
-        # Mostrar las categorías disponibles
+        # Obtener categorías desde la base de datos o usar el mapa de respaldo
         cats = consultar_categorias()
+        categorias_lista = []
         if cats and cats.get("categorias"):
-            lista_cats = ", ".join([c.get("nombre") for c in cats["categorias"][:8]])
+            categorias_lista = [c.get("nombre") for c in cats["categorias"] if c.get("nombre")]
+        if not categorias_lista:
+            # Fallback: usar el mapa de categorías
+            categorias_lista = list(_CATEGORIAS_MAPA.keys())
+        
+        if categorias_lista:
+            # Formatear la lista de categorías
+            lista_cats = ", ".join(categorias_lista[:8])
             return f"🎂 En Danhee Cake tenemos pasteles para estas categorías: {lista_cats}. ¿Te gustaría ver los pasteles de alguna en particular? (ej. 'pasteles para boda', 'XV años')"
         else:
-            # Si no hay categorías en BD, usar las del mapa
-            categorias_nombres = list(_CATEGORIAS_MAPA.keys())
-            lista_cats = ", ".join(categorias_nombres[:8])
-            return f"🎂 En Danhee Cake tenemos pasteles para estas categorías: {lista_cats}. ¿Te gustaría ver los pasteles de alguna en particular? (ej. 'pasteles para boda', 'XV años')"
+            return "🎂 En Danhee Cake tenemos una gran variedad de pasteles. ¿Te gustaría que te muestre las categorías disponibles?"
 
-    # Si no es genérica, ejecutar consulta general
+    # Si no es genérica, ejecutar consulta general (por si acaso)
     if any(k in q_norm for k in ["pastel", "pasteles", "recomend", "opciones", "catalogo", "catálogo", "tienes"]):
         res = consultar_pasteles_por_categoria(categoria="todas las ocasiones")
         if res and "mensaje" in res:
