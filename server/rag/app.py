@@ -304,6 +304,16 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     if parsed_tool_call:
                         tool_calls = [parsed_tool_call]
 
+                # Interceptor de seguridad: Prevenir que JSON malformado se envíe directamente al usuario
+                if not tool_calls and ('"type":"function"' in content or '"name":"consultar_' in content or '"type": "function"' in content):
+                    if "consultar_catalogo_pasteles" in content:
+                        tool_calls = [{
+                            "function": {
+                                "name": "consultar_catalogo_pasteles",
+                                "arguments": {}
+                            }
+                        }]
+
                 if use_tools and tool_calls:
                     messages.append({
                         "role": "assistant",
@@ -378,6 +388,11 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 
                 else:
                     direct_content = assistant_message.get("content", "").strip() or "¡Hola! Soy tu asistente de Danhee Cake. ¿En qué puedo ayudarte?"
+                    
+                    # Filtro final para asegurar que no se muestre ningún texto que contenga estructuras de función JSON
+                    if '"type":"function"' in direct_content or '"type": "function"' in direct_content or 'consultar_catalogo_pasteles' in direct_content:
+                        direct_content = "¡Hola! Con gusto te puedo mostrar nuestro catálogo de pasteles. ¿Hay alguna variedad o sabor especial que te interese?"
+
                     ttft_ms = int((datetime.now() - start_time).total_seconds() * 1000)
                     final_response_text = direct_content
                     for word in re.findall(r'\S+\s*', direct_content):
