@@ -630,6 +630,10 @@ class CustomerAgent:
                 if not fn_name or fn_name not in FUNCTIONS_MAP:
                     return None
 
+                # Si no hay argumentos, usar un diccionario vacío
+                if not raw_args:
+                    raw_args = {}
+
                 # ── Redirigir buscar_pastel_por_nombre → consultar_pasteles_por_categoria ──
                 if fn_name in ("buscar_pastel_por_nombre", "recomendar_pastel") and isinstance(raw_args, dict):
                     _nombre_arg = str(raw_args.get("nombre") or raw_args.get("ocasion") or "").lower()
@@ -655,11 +659,24 @@ class CustomerAgent:
                 filtered = {k: v for k, v in raw_args.items() if k in valid_keys}
                 try:
                     result = FUNCTIONS_MAP[fn_name](**filtered)
-                except Exception:
+                except Exception as e:
+                    print(f"[ExtraerTool] Error ejecutando {fn_name}: {e}", file=sys.stderr)
                     return None
 
                 if isinstance(result, dict) and "mensaje" in result and result.get("mensaje"):
                     return result["mensaje"]
+
+                # Si la herramienta devolvió datos estructurados (ej. lista de pasteles), formatearlos
+                # Pero mejor confiar en que la herramienta ya devuelve un mensaje formateado.
+                # Si no hay mensaje, intentar generar uno básico.
+                if isinstance(result, dict) and "pasteles" in result:
+                    pasteles = result["pasteles"]
+                    if pasteles:
+                        lineas = [f"• {p['nombre']} - ${p['precio']:.0f} MXN" for p in pasteles[:4]]
+                        lista = "\n".join(lineas)
+                        return f"🍰 Aquí tienes algunos pasteles disponibles:\n{lista}"
+                    else:
+                        return "No encontré pasteles para esa búsqueda."
 
                 tool_result_content = _json.dumps(result, ensure_ascii=False)
                 tmp_messages = messages + [{"role": "tool", "content": tool_result_content}]
@@ -725,7 +742,7 @@ def _intentar_busqueda_fallback(question: str, messages: list = None, forzar_con
     from tools.customer_tools import (
         consultar_detalle_pastel_por_id, consultar_origen_pastel, 
         consultar_pasteles_por_categoria, obtener_precios_por_categoria,
-        get_cakes, quitar_acentos
+        get_cakes, quitar_acentos, consultar_categorias
     )
     
     q_norm = quitar_acentos(question.lower().strip())
@@ -770,6 +787,7 @@ def _intentar_busqueda_fallback(question: str, messages: list = None, forzar_con
     # ─ PRIORIDAD 3: Nombre explícito de un pastel en la pregunta ───────────
     if any(k in q_norm for k in ["informacion", "informacio", "detalle", "detalles", "cuanto cuesta", "precio", "sobre el pastel", "del pastel"]):
         cakes = get_cakes()
+        encontrado = False
         for c in cakes:
             c_name = c.get("name")
             if c_name:
@@ -779,17 +797,27 @@ def _intentar_busqueda_fallback(question: str, messages: list = None, forzar_con
                     res = consultar_detalle_pastel_por_id(nombre_pastel=c_name)
                     if res and "mensaje" in res:
                         return res["mensaje"] + "\n\n¿Te gustaría agendar una cita de degustación para este pastel? 😊"
+                    encontrado = True
+                    break
+        # Si no se encontró, devolver mensaje claro
+        if not encontrado:
+            # Extraer el nombre que el usuario mencionó
+            nombre_busqueda = re.search(r'(?:sobre\s+)?(?:el\s+)?(?:pastel\s+)?([a-záéíóúñ\s]+?)(?:\?|$)', question, re.IGNORECASE)
+            nombre_extraido = nombre_busqueda.group(1).strip() if nombre_busqueda else ""
+            if nombre_extraido:
+                return f"Lo siento, no encontré ningún pastel con el nombre '{nombre_extraido}' en Danhee Cake. ¿Te gustaría buscar por categoría? (ej. 'pasteles para boda', 'XV años')"
+            else:
+                return "No encontré ese pastel. ¿Quieres que te muestre las categorías disponibles?"
 
     # ─ PRIORIDAD 4: Pasteles en general / recomendaciones ────────────────
     # Mejora: si la pregunta es genérica ("que pasteles tienes", "qué pasteles hay"), mostrar categorías en lugar de ejecutar consulta directa
     preguntas_genericas = [
         "que pasteles", "qué pasteles", "que pasteles tienes", "qué pasteles tienes",
         "pasteles disponibles", "catálogo", "catalogo", "que hay", "qué hay",
-        "mostrar pasteles", "ver pasteles"
+        "mostrar pasteles", "ver pasteles", "pasteles"
     ]
     if any(p in q_norm for p in preguntas_genericas):
         # Mostrar las categorías disponibles
-        from tools.customer_tools import consultar_categorias
         cats = consultar_categorias()
         if cats and cats.get("categorias"):
             lista_cats = ", ".join([c.get("nombre") for c in cats["categorias"][:8]])
