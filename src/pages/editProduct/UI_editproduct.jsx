@@ -71,6 +71,26 @@ const UI_editproduct = () => {
   }, [isAuthenticated, token, authLoading]);
 
   useEffect(() => {
+    const handleCatalogUpdate = () => {
+      if (isAuthenticated && token) {
+        fetch('/api/bakers/cakes', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) setMyCakes(data.data);
+          })
+          .catch(err => console.error(err));
+      }
+    };
+
+    window.addEventListener('baker-catalog-updated', handleCatalogUpdate);
+    return () => {
+      window.removeEventListener('baker-catalog-updated', handleCatalogUpdate);
+    };
+  }, [isAuthenticated, token]);
+
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (!event.target.closest('.cake-card')) {
         setMenuOpenId(null);

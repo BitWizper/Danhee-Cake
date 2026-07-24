@@ -41,10 +41,10 @@ const BakerDashboardPage = () => {
     setCurrentPage(1);
   }, [activeTab, portfolioSearch]);
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     if (!token) return;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const headers = { 'Authorization': `Bearer ${token}` };
       
@@ -67,9 +67,9 @@ const BakerDashboardPage = () => {
       
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
-      setError('Hubo un problema al cargar los datos. Por favor, intenta de nuevo.');
+      if (!silent) setError('Hubo un problema al cargar los datos. Por favor, intenta de nuevo.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -78,6 +78,18 @@ const BakerDashboardPage = () => {
       fetchData();
     }
   }, [token, authLoading]);
+
+  // Escuchar actualizaciones automáticas del catálogo desde el chatbot
+  useEffect(() => {
+    const handleCatalogUpdate = () => {
+      fetchData(true);
+    };
+
+    window.addEventListener('baker-catalog-updated', handleCatalogUpdate);
+    return () => {
+      window.removeEventListener('baker-catalog-updated', handleCatalogUpdate);
+    };
+  }, [token]);
 
   // Cargar datos de perfil de empresa al entrar a la pestaña
   useEffect(() => {

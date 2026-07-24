@@ -375,6 +375,10 @@ function ChatBot() {
         }
       }
 
+      // Notificar a la UI (Dashboard / Portafolio) para actualizar precios y catálogo automáticamente
+      if (storedUser?.role === "repostero") {
+        window.dispatchEvent(new CustomEvent("baker-catalog-updated"));
+      }
     } catch (error) {
       console.error(error);
       setChat((prev) => [

@@ -34,7 +34,7 @@ def listar_mis_pasteles() -> dict:
         cat = c.get("category_name") or "Sin categoría"
         desc = c.get("description") or "Sin descripción"
         precio = float(c.get("price", 0))
-        lista.append(f"• **ID: {c['id']}** - **{c['name']}** - ${precio:.2f} MXN - Categoría: {cat} - {desc} {destacado}")
+        lista.append(f"• **{c['name']}** - ${precio:.2f} MXN - Categoría: {cat} - {desc} {destacado}".strip())
     
     mensaje = "🍰 **Tus pasteles registrados:**\n\n" + "\n".join(lista)
     return {
@@ -67,7 +67,7 @@ def agregar_nuevo_pastel(nombre: str, precio: float, categoria: str = None, desc
         return {
             "success": True,
             "cake_id": cake_id,
-            "mensaje": f"✅ ¡Pastel **'{nombre}'** agregado exitosamente a tu catálogo con un precio de ${precio:.2f} MXN! (ID asignado: {cake_id})"
+            "mensaje": f"✅ ¡Pastel **'{nombre}'** agregado exitosamente a tu catálogo con un precio de ${precio:.2f} MXN!"
         }
     else:
         return {"mensaje": "❌ Ocurrió un error al intentar registrar el pastel en la base de datos."}
@@ -90,7 +90,7 @@ def actualizar_mi_pastel(pastel_id: int, nombre: str = None, precio: float = Non
             break
             
     if not target_cake:
-        return {"mensaje": f"No se encontró el pastel con ID {pastel_id} en tu catálogo. Verifica que el ID sea correcto."}
+        return {"mensaje": "No se encontró el pastel solicitado en tu catálogo. Por favor verifica el nombre."}
     
     new_nombre = nombre if nombre is not None else target_cake["name"]
     new_precio = float(precio) if precio is not None else float(target_cake["price"])
@@ -111,7 +111,7 @@ def actualizar_mi_pastel(pastel_id: int, nombre: str = None, precio: float = Non
     if success:
         return {
             "success": True,
-            "mensaje": f"✅ El pastel **'{new_nombre}'** (ID: {pastel_id}) ha sido actualizado correctamente."
+            "mensaje": f"✅ El pastel **'{new_nombre}'** ha sido actualizado correctamente."
         }
     else:
         return {"mensaje": "❌ No se pudo actualizar el pastel. Intenta de nuevo."}
@@ -130,10 +130,10 @@ def eliminar_mi_pastel(pastel_id: int) -> dict:
     if success:
         return {
             "success": True,
-            "mensaje": f"✅ El pastel con ID {pastel_id} ha sido eliminado correctamente de tu catálogo."
+            "mensaje": "✅ El pastel ha sido eliminado correctamente de tu catálogo."
         }
     else:
-        return {"mensaje": f"❌ No se encontró o no se pudo eliminar el pastel con ID {pastel_id}."}
+        return {"mensaje": "❌ No se encontró o no se pudo eliminar el pastel de tu catálogo."}
 
 def listar_categorias_disponibles() -> dict:
     """Lista las categorías de pasteles activas para que el repostero sepa cuáles asignar."""
@@ -141,7 +141,7 @@ def listar_categorias_disponibles() -> dict:
     if not cats:
         return {"mensaje": "No hay categorías registradas actualmente."}
         
-    lista = [f"• **{c['name']}** (Slug: `{c['slug']}`)" for c in cats]
+    lista = [f"• **{c['name']}**" for c in cats]
     mensaje = "🏷️ **Categorías de pasteles disponibles:**\n\n" + "\n".join(lista)
     return {
         "categorias": cats,
