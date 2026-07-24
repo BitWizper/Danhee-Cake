@@ -351,6 +351,8 @@ def custom_serializer(obj):
 
 def add_chat_message(conversation_id, role, content, tool_calls=None):
     """Versión síncrona: escribe el mensaje de forma segura para evitar problemas de conexión y FK."""
+    if not conversation_id:
+        return False
     conn = get_connection()
     if not conn: return False
     try:
@@ -363,11 +365,26 @@ def add_chat_message(conversation_id, role, content, tool_calls=None):
         conn.commit()
         return True
     except Error as e:
-        print(f"[db_config] Error en add_chat_message: {e}", file=sys.stderr)
+        # Fallback si la sesión aún no existe en chat_sessions
+        if "1452" in str(e) or "a foreign key constraint fails" in str(e):
+            get_or_create_chat_session(conversation_id)
+            try:
+                cursor.execute('''
+                    INSERT INTO chat_messages (conversation_id, role, content, tool_calls)
+                    VALUES (%s, %s, %s, %s)
+                ''', (conversation_id, role, content, tool_calls_json))
+                conn.commit()
+                return True
+            except Error:
+                pass
         return False
     finally:
-        cursor.close()
-        conn.close()
+        try:
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+
 
 
 def add_observability_log(session_id, user_prompt, system_response, ttft_ms,
