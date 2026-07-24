@@ -29,6 +29,7 @@ from tools.customer_tools import (
     consultar_pasteles_por_empresa,
     consultar_mis_citas,
     consultar_mis_disenos,
+    consultar_horarios_repostero,
 )
 
 from tools.baker_tools import (
@@ -51,6 +52,7 @@ FUNCTIONS_MAP = {
     "consultar_categorias": consultar_categorias,
     "buscar_pastel_por_nombre": buscar_pastel_por_nombre,
     "obtener_info_repostero": obtener_info_repostero,
+    "consultar_horarios_repostero": consultar_horarios_repostero,
     "calcular_precio_personalizado": calcular_precio_personalizado,
     "consultar_politicas_pasteleria": consultar_politicas_pasteleria,
     "recomendar_pastel": recomendar_pastel,
@@ -84,6 +86,8 @@ FUNCTIONS_MAP = {
     "citas": consultar_mis_citas,
     "consultar_disenos": consultar_mis_disenos,
     "disenos": consultar_mis_disenos,
+    "consultar_horarios": consultar_horarios_repostero,
+    "horarios": consultar_horarios_repostero,
 }
 
 TOOLS_SCHEMA = [
@@ -128,6 +132,23 @@ TOOLS_SCHEMA = [
                 "type": "object",
                 "properties": {
                     "nombre_pastel": {"type": "string"},
+                    "contexto_anterior": {"type": "string"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_horarios_repostero",
+            "description": "Consulta los días y horarios oficiales de atención de la empresa o repostería del pastel.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "baker_id": {"type": "integer"},
+                    "nombre_pastel": {"type": "string"},
+                    "nombre_empresa": {"type": "string"},
                     "contexto_anterior": {"type": "string"}
                 },
                 "required": []

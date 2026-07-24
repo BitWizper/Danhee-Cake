@@ -292,12 +292,18 @@ function ChatBot() {
   }, []);
 
   useEffect(() => {
-    if (!chatBodyRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = chatBodyRef.current;
-    if (scrollHeight - scrollTop - clientHeight < 150) {
+    if (open) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 80);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [chat, open, loadingState]);
+  }, [chat, loadingState]);
 
   const _doSend = async (trimmedMessage) => {
     const userMessage = {

@@ -75,7 +75,12 @@ def _should_skip_rag(question: str) -> bool:
     if q in greetings or q.startswith(tuple(greetings)):
         return True
 
-    keywords = ["pastel", "cake", "cita", "repostero", "precio", "categoria", "disponibilidad", "pedido", "comprar", "buscar", "catalogo", "catálogo", "ayuda", "información", "pregunta"]
+    keywords = [
+        "pastel", "cake", "cita", "repostero", "precio", "categoria", 
+        "disponibilidad", "pedido", "comprar", "buscar", "catalogo", 
+        "catálogo", "ayuda", "información", "pregunta", "dias", "días", 
+        "horario", "horarios", "abren", "atienden", "abierto", "atencion", "atención"
+    ]
     return not any(keyword in q for keyword in keywords)
 
 def _should_use_tools(question: str, role: str = "cliente") -> bool:

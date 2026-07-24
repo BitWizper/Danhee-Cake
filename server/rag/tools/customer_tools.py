@@ -521,11 +521,64 @@ def obtener_info_repostero(baker_id: int) -> dict:
         "nombre_negocio": repostero.get("business_name"),
         "especialidad": repostero.get("specialty"),
         "bio": repostero.get("bio"),
+        "horario_atencion": repostero.get("business_hours") or "Lunes a Viernes: 8:00 - 18:00",
         "calificacion": float(repostero.get("rating_avg", 0)) if repostero.get("rating_avg") else 0.0,
         "ubicacion": repostero.get("location"),
         "verificado": bool(repostero.get("is_verified")),
         "pasteles": pasteles_repostero,
         "total_pasteles": len(pasteles_repostero)
+    }
+
+def consultar_horarios_repostero(baker_id: int = None, nombre_pastel: str = "", nombre_empresa: str = "", contexto_anterior: str = "") -> dict:
+    """Consulta los días y horario oficial de atención de una repostería o del repostero de un pastel en Danhee Cake."""
+    all_bakers = get_bakers()
+    if not all_bakers:
+        return {"mensaje": "No hay reposteros registrados actualmente."}
+    
+    baker_obj = None
+    
+    if baker_id:
+        try:
+            bid = int(baker_id)
+            for b in all_bakers:
+                if b.get("id") == bid:
+                    baker_obj = b
+                    break
+        except (ValueError, TypeError):
+            pass
+            
+    term_search = nombre_pastel or nombre_empresa or contexto_anterior
+    if not baker_obj and term_search:
+        term_clean = quitar_acentos(term_search).lower()
+        all_cakes = get_cakes()
+        for c in all_cakes:
+            if c.get("name") and term_clean in quitar_acentos(str(c.get("name"))).lower():
+                cake_baker_id = c.get("baker_id")
+                for b in all_bakers:
+                    if b.get("id") == cake_baker_id:
+                        baker_obj = b
+                        break
+                if baker_obj:
+                    break
+                    
+        if not baker_obj:
+            for b in all_bakers:
+                bname = quitar_acentos(str(b.get("business_name", ""))).lower()
+                if term_clean in bname or bname in term_clean:
+                    baker_obj = b
+                    break
+                    
+    if not baker_obj:
+        baker_obj = all_bakers[0]
+        
+    empresa = baker_obj.get("business_name", "la repostería")
+    horario = baker_obj.get("business_hours") or "Lunes a Viernes: 8:00 - 18:00"
+    
+    return {
+        "baker_id": baker_obj.get("id"),
+        "empresa": empresa,
+        "horario_atencion": horario,
+        "mensaje": f"📅 **Horario de Atención de {empresa}**:\n\n📍 *{horario}*\n\n¿En qué día y hora te gustaría agendar tu cita de degustación dentro de este horario? 😊"
     }
 
 def calcular_precio_personalizado(tamanio: str, relleno: str, decoracion: str) -> dict:
