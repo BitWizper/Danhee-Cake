@@ -1,27 +1,85 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const { spawn } = require('child_process');
 const path = require('path');
 require('dotenv').config();
 const errorHandler = require('./middleware/errorHandler');
 const { askChatbot, streamChatbot } = require('./controllers/chat.controller');
 const chatRoutes = require('./routes/chat.routes');
+const { authLimiter, registerLimiter, chatLimiter, apiLimiter } = require('./middleware/rateLimiter');
 
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// Security headers con Helmet
+app.use(helmet({
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://unspoken-resurrect-bountiful.ngrok-free.dev"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"]
+    }
+  },
+  xContentTypeOptions: { nosniff: true },
+  xFrameOptions: { action: 'deny' },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
+
+// Desactivar header X-Powered-By
+disablePoweredBy = (req, res, next) => {
+  res.removeHeader('X-Powered-By');
+  next();
+};
+app.use(disablePoweredBy);
+
+// CORS restrictivo - solo permitir orígenes específicos
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://unspoken-resurrect-bountiful.ngrok-free.dev'
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS no permitido para este origen'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-// Rutas
+// Rate limiting general para API
+app.use('/api/', apiLimiter);
+
+// Rutas con rate limiting específico
+app.use('/api/auth/login', authLimiter, require('./routes/auth.routes'));
+app.use('/api/auth/register', registerLimiter, require('./routes/auth.routes'));
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/categories', require('./routes/categories.routes'));
 app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
-app.use('/api/chat', chatRoutes);
+app.use('/api/chat', chatLimiter, chatRoutes);
 app.post('/api/chat/stream', streamChatbot);
 
 // Ruta base

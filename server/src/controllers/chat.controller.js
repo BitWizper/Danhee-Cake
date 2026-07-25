@@ -116,7 +116,6 @@ const streamChatbot = async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'close');
   res.setHeader('X-Accel-Buffering', 'no');
-  res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
     // Llamar al endpoint de stream del backend en Python
