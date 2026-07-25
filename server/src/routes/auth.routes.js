@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { body } = require('express-validator');
+const handleValidationErrors = require('../middleware/validationHandler');
 
 const validateRegister = [
   body('name')
@@ -32,7 +33,7 @@ const validateLogin = [
     .isLength({ min: 1 }).withMessage('La contraseña no puede estar vacía'),
 ];
 
-router.post('/register', validateRegister, authController.register);
-router.post('/login', validateLogin, authController.login);
+router.post('/register', validateRegister, handleValidationErrors, authController.register);
+router.post('/login', validateLogin, handleValidationErrors, authController.login);
 
 module.exports = router;

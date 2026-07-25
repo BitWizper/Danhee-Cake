@@ -8,6 +8,8 @@ const errorHandler = require('./middleware/errorHandler');
 const { askChatbot, streamChatbot } = require('./controllers/chat.controller');
 const chatRoutes = require('./routes/chat.routes');
 const { authLimiter, registerLimiter, chatLimiter, apiLimiter } = require('./middleware/rateLimiter');
+const sanitizeMiddleware = require('./middleware/sanitize');
+const { auditLogger } = require('./middleware/auditLogger');
 
 
 const app = express();
@@ -22,19 +24,29 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline necesario para Vite en desarrollo
       scriptSrc: ["'self'"],
+      scriptSrcAttr: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://unspoken-resurrect-bountiful.ngrok-free.dev"],
-      fontSrc: ["'self'"],
+      connectSrc: ["'self'", "https://unspoken-resurrect-bountiful.ngrok-free.dev", "http://127.0.0.1:5005"],
+      fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"]
+      frameSrc: ["'none'"],
+      workerSrc: ["'self'", "blob:"],
+      manifestSrc: ["'self'"],
+      upgradeInsecureRequests: []
     }
   },
   xContentTypeOptions: { nosniff: true },
   xFrameOptions: { action: 'deny' },
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  crossOriginEmbedderPolicy: { policy: "require-corp" },
+  crossOriginOpenerPolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "same-origin" }
 }));
 
 // Desactivar header X-Powered-By
@@ -67,6 +79,12 @@ app.use(cors({
 
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
+
+// Sanitización global de inputs para prevenir SQLi y XSS
+app.use(sanitizeMiddleware);
+
+// Logging de auditoría para seguridad
+app.use(auditLogger);
 
 // Rate limiting general para API
 app.use('/api/', apiLimiter);
