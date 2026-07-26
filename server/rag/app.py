@@ -186,6 +186,15 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 
                 _set_current_client_id(client_id)
                 
+                # Definir send_event al inicio para poder usarlo en verificaciones tempranas
+                def send_event(event_type, data_dict):
+                    try:
+                        payload = json.dumps({"type": event_type, **data_dict}, ensure_ascii=False)
+                        self.wfile.write(f"data: {payload}\n\n".encode('utf-8'))
+                        self.wfile.flush()
+                    except Exception:
+                        pass
+                
                 # Debug: imprimir valores recibidos
                 print(f"[DEBUG] client_id: {client_id}, role: {role}, question: {question[:50]}...", file=sys.stderr)
                 
@@ -217,14 +226,6 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     self.send_header('Access-Control-Allow-Origin', '*')
                     self.end_headers()
                     
-                    def send_event(event_type, data_dict):
-                        try:
-                            payload = json.dumps({"type": event_type, **data_dict}, ensure_ascii=False)
-                            self.wfile.write(f"data: {payload}\n\n".encode('utf-8'))
-                            self.wfile.flush()
-                        except Exception:
-                            pass
-                    
                     send_event("state", {"status": "ready", "message": "Respuesta lista"})
                     for word in re.findall(r'\S+\s*', auth_msg):
                         send_event("token", {"content": word})
@@ -252,14 +253,6 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 self.send_header('Connection', 'close')
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
-                
-                def send_event(event_type, data_dict):
-                    try:
-                        payload = json.dumps({"type": event_type, **data_dict}, ensure_ascii=False)
-                        self.wfile.write(f"data: {payload}\n\n".encode('utf-8'))
-                        self.wfile.flush()
-                    except Exception:
-                        pass
                 
                 start_time = datetime.now()
                 ttft_ms = None
