@@ -10,6 +10,7 @@ const chatRoutes = require('./routes/chat.routes');
 const { authLimiter, registerLimiter, chatLimiter, apiLimiter } = require('./middleware/rateLimiter');
 const sanitizeMiddleware = require('./middleware/sanitize');
 const { auditLogger } = require('./middleware/auditLogger');
+const { advancedSecurity } = require('./middleware/securityAdvanced');
 
 
 const app = express();
@@ -58,6 +59,9 @@ disablePoweredBy = (req, res, next) => {
   next();
 };
 app.use(disablePoweredBy);
+
+// Seguridad avanzada con detección de VPN, fingerprinting y WAF
+app.use(advancedSecurity);
 
 // CORS restrictivo - solo permitir orígenes específicos
 const allowedOrigins = [
