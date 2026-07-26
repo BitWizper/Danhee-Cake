@@ -178,13 +178,14 @@ def _clean_baker_response(text: str) -> str:
     if not text:
         return text
 
-    # 0. Eliminar prefijos autogenerados por el LLM tipo "Respuesta a la pregunta de..."
+    # 0. Eliminar comillas envolventes al inicio y final si el LLM las genera
+    text = text.strip()
+    if (text.startswith('"') and text.endswith('"')) or (text.startswith("'") and text.endswith("'")):
+        text = text[1:-1].strip()
+
+    # Eliminar prefijos autogenerados por el LLM
     text = re.sub(r"(?i)^respuesta\s+a\s+la\s+pregunta\s+de\s+[^:\n]+:\s*", "", text)
     text = re.sub(r"(?i)^pensamiento:\s*.*?\n", "", text)
-
-    # 1. Eliminar bloques de código (```python, ```, etc.)
-    text = re.sub(r"```[\w]*\n.*?```", "", text, flags=re.DOTALL)
-    text = re.sub(r"`[^`]+`", "", text)
 
     # 2. Eliminar sugerencias de herramientas/comandos (ej: "Recuerda que puedes utilizar la herramienta 'X'...")
     text = re.sub(
@@ -265,28 +266,25 @@ class BakerAgent:
 
         q_clean = question.strip().lower()
 
-      # ── MANEJO DIRECTO DE PREGUNTAS DE ESTADO / CORTESÍA ───────────────────────
-        preguntas_estado = [
-            "como estas", "cómo estás", "como andas", "cómo andas", 
-            "como te va", "cómo te va", "que tal", "qué tal",
-            "como estas tu", "cómo estás tú", "como te encuentras"
-        ]
+     # ── MANEJO DIRECTO DE PREGUNTAS DE ESTADO / CORTESÍA ───────────────────────
+        # Regex que detecta cualquier variación de "cómo estás", "cómo te va", "qué tal", "cómo andas"
+        patron_estado = r"(como|cómo)\s+(estas|estás|andas|te va|te encuentras)|(qué|que)\s+tal"
         
-        # Si la pregunta contiene un saludo de cortesía sobre el estado del bot
-        if any(p in q_clean for p in preguntas_estado):
+        if re.search(patron_estado, q_clean):
             formalidad = detectar_formalidad(question)
             if formalidad == "formal":
                 reply = "¡Todo muy bien por aquí, muchas gracias por preguntar! 👨‍🍳 Estoy listo para asistirte en el taller digital. ¿En qué te puedo colaborar hoy?"
             elif formalidad == "casual":
-                reply = "¡Todo excelente por aquí en el taller digital, listo para ayudarte! 👩‍🍳✨ ¿Qué tal tú? ¿En qué andamos hoy?"
+                reply = "¡Todo excelente por aquí en el taller digital! 👩‍🍳✨ Súper listo para ayudarte. ¿Qué tal tú? ¿En qué andamos hoy, Chef?"
             else:
                 reply = "¡Hola! Todo muy bien por aquí, listo para ayudarte con tu catálogo y agenda. ¿En qué te puedo apoyar hoy?"
 
+            cleaned_reply = _clean_baker_response(reply)
             if conversation_id:
                 add_chat_message(conversation_id, "user", question)
-                add_chat_message(conversation_id, "assistant", reply)
-            return reply
-
+                add_chat_message(conversation_id, "assistant", cleaned_reply)
+            return cleaned_reply
+            
         # ── SALUDO PERSONALIZADO CON CONTEXTO ────────────────────────────────────
         saludos = ["hola", "buenos días", "buenas tardes", "buenas noches", "holis", "qué tal", "hey"]
         if any(saludo in q_clean for saludo in saludos) and client_id:
