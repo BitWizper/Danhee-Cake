@@ -36,13 +36,14 @@ services:
   database:
     image: postgres:15
     environment:
-      POSTGRES_USER: usuario
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: danhee_db
+      POSTGRES_USER: ${POSTGRES_USER:-usuario}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-danhee_db}
     volumes:
       - db_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # Ocultar puerto de base de datos (solo accesible dentro de la red docker)
+    # ports:
+    #   - "5432:5432"
     restart: always
     networks:
       - app-network

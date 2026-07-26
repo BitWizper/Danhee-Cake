@@ -3,6 +3,7 @@ const router = express.Router();
 const bakersController = require('../controllers/bakers.controller');
 const { authMiddleware, authorize } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { uploadWithSignatureCheck } = require('../middleware/upload');
 const { body, param } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
 
@@ -21,7 +22,7 @@ router.get('/cakes', authMiddleware, authorize('repostero'), bakersController.ge
 router.post('/cakes',
   authMiddleware,
   authorize('repostero'),
-  upload.single('image'),
+  uploadWithSignatureCheck('image'),
   [
     body('name').trim().notEmpty().withMessage('El nombre es requerido').isLength({ max: 100 }).withMessage('Nombre máximo 100 caracteres'),
     body('description').optional().isLength({ max: 1000 }).withMessage('Descripción máximo 1000 caracteres'),
@@ -35,7 +36,7 @@ router.post('/cakes',
 router.put('/cakes/:id',
   authMiddleware,
   authorize('repostero'),
-  upload.single('image'),
+  uploadWithSignatureCheck('image'),
   [
     param('id').isInt().withMessage('id debe ser un entero'),
     body('name').optional().trim().notEmpty().withMessage('El nombre es requerido').isLength({ max: 100 }).withMessage('Nombre máximo 100 caracteres'),

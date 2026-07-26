@@ -268,12 +268,22 @@ function trackIPHistory(ip, fingerprint) {
 
 // Middleware principal de seguridad avanzada
 const advancedSecurity = (req, res, next) => {
-  const ip = req.ip || req.connection.remoteAddress;
+  // Obtener IP real del cliente considerando proxies/VPN
+  const ip = req.ip || 
+              req.connection.remoteAddress || 
+              req.socket.remoteAddress ||
+              (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+              req.headers['x-real-ip'] ||
+              'unknown';
+  
+  // Normalizar IP (eliminar prefijo IPv6 si existe)
+  const normalizedIP = ip.replace(/^::ffff:/, '').replace(/^::1$/, '127.0.0.1');
+  
   const fingerprint = generateDeviceFingerprint(req);
   const userAgent = req.headers['user-agent'] || '';
   
   // 1. Verificar si IP está bloqueada
-  if (isIPBlocked(ip)) {
+  if (isIPBlocked(normalizedIP)) {
     return res.status(403).json({
       error: 'Access denied',
       message: 'Your IP has been temporarily blocked due to suspicious activity'
@@ -281,16 +291,16 @@ const advancedSecurity = (req, res, next) => {
   }
   
   // 2. Detectar VPN/Datacenter
-  if (SECURITY_CONFIG.vpnDetection.enabled && isVPNOrDatacenterIP(ip)) {
-    suspiciousIPs.set(ip, {
+  if (SECURITY_CONFIG.vpnDetection.enabled && isVPNOrDatacenterIP(normalizedIP)) {
+    suspiciousIPs.set(normalizedIP, {
       reason: 'VPN/Datacenter IP detected',
       timestamp: Date.now(),
-      ip
+      ip: normalizedIP
     });
     
     // Registrar en auditoría
     logSecurityEvent('VPN_DETECTED', {
-      ip,
+      ip: normalizedIP,
       userAgent,
       fingerprint
     });
@@ -300,15 +310,15 @@ const advancedSecurity = (req, res, next) => {
   
   // 3. Detectar User-Agent sospechoso
   if (isSuspiciousUserAgent(userAgent)) {
-    suspiciousIPs.set(ip, {
+    suspiciousIPs.set(normalizedIP, {
       reason: 'Suspicious User-Agent',
       timestamp: Date.now(),
       userAgent,
-      ip
+      ip: normalizedIP
     });
     
     logSecurityEvent('SUSPICIOUS_UA', {
-      ip,
+      ip: normalizedIP,
       userAgent,
       fingerprint
     });
@@ -317,10 +327,10 @@ const advancedSecurity = (req, res, next) => {
   // 4. Detectar patrones de ataque (WAF)
   const attackPattern = detectAttackPatterns(req);
   if (attackPattern) {
-    blockIP(ip);
+    blockIP(normalizedIP);
     
     logSecurityEvent('ATTACK_PATTERN_DETECTED', {
-      ip,
+      ip: normalizedIP,
       attackType: attackPattern.type,
       pattern: attackPattern.pattern,
       url: req.url,
@@ -335,7 +345,7 @@ const advancedSecurity = (req, res, next) => {
   
   // 5. Rate limiting con fingerprinting
   if (SECURITY_CONFIG.rateLimiting.enabled) {
-    const key = `${ip}_${fingerprint}`;
+    const key = `${normalizedIP}_${fingerprint}`;
     
     if (!deviceFingerprints.has(key)) {
       deviceFingerprints.set(key, {
@@ -354,10 +364,10 @@ const advancedSecurity = (req, res, next) => {
         
         // Bloquear si excede el límite
         if (data.count > SECURITY_CONFIG.rateLimiting.maxRequests) {
-          blockIP(ip);
+          blockIP(normalizedIP);
           
           logSecurityEvent('RATE_LIMIT_EXCEEDED', {
-            ip,
+            ip: normalizedIP,
             fingerprint,
             count: data.count,
             url: req.url
@@ -375,31 +385,31 @@ const advancedSecurity = (req, res, next) => {
   }
   
   // 6. Rastrear historial de IP para detectar cambios
-  const ipChange = trackIPHistory(ip, fingerprint);
+  const ipChange = trackIPHistory(normalizedIP, fingerprint);
   if (ipChange.detected) {
     logSecurityEvent('IP_CHANGE_DETECTED', {
-      currentIP: ip,
+      currentIP: normalizedIP,
       previousIP: ipChange.previousIP,
       fingerprint,
       message: ipChange.message
     });
     
     // Considerar bloquear si hay múltiples cambios de IP
-    suspiciousIPs.set(ip, {
+    suspiciousIPs.set(normalizedIP, {
       reason: 'Multiple IP changes detected',
       timestamp: Date.now(),
-      ip,
+      ip: normalizedIP,
       fingerprint
     });
   }
   
   // Agregar información de seguridad al request para uso posterior
   req.securityInfo = {
-    ip,
+    ip: normalizedIP,
     fingerprint,
-    isVPN: isVPNOrDatacenterIP(ip),
+    isVPN: isVPNOrDatacenterIP(normalizedIP),
     isSuspiciousUA: isSuspiciousUserAgent(userAgent),
-    suspiciousIPs: suspiciousIPs.has(ip)
+    suspiciousIPs: suspiciousIPs.has(normalizedIP)
   };
   
   next();
