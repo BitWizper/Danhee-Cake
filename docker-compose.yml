@@ -32,6 +32,8 @@ services:
       - database
     networks:
       - app-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   database:
     image: mysql:8.0
