@@ -29,8 +29,7 @@ services:
       - server_node_modules:/app/node_modules
     restart: always
     depends_on:
-      database:
-        condition: service_healthy
+      - database
     networks:
       - app-network
     extra_hosts:
@@ -51,11 +50,6 @@ services:
     restart: always
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   ngrok_tunnel:
     image: ngrok/ngrok:latest
