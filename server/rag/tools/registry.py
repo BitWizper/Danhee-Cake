@@ -39,6 +39,8 @@ from tools.baker_tools import (
     actualizar_mi_pastel,
     eliminar_mi_pastel,
     listar_categorias_disponibles,
+    consultar_mis_citas,
+    obtener_contexto_repostero,
 )
 
 from tools.common_tools import extraer_texto_pdf
@@ -78,6 +80,8 @@ FUNCTIONS_MAP = {
     "actualizar_mi_pastel": actualizar_mi_pastel,
     "eliminar_mi_pastel": eliminar_mi_pastel,
     "listar_categorias_disponibles": listar_categorias_disponibles,
+    "consultar_mis_citas_baker": consultar_mis_citas,
+    "obtener_contexto_repostero": obtener_contexto_repostero,
     
     # Alias resilientes
     "obtener_precios": obtener_precios_por_categoria,
@@ -384,8 +388,20 @@ BAKER_TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "consultar_mis_citas",
-            "description": "Consulta las citas de degustación agendadas con los clientes.",
+            "name": "consultar_mis_citas_baker",
+            "description": "Consulta las citas de degustación agendadas con los clientes para el repostero.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "obtener_contexto_repostero",
+            "description": "Obtiene información contextual del repostero como citas pendientes, total de pasteles en catálogo y estadísticas recientes para respuestas personalizadas.",
             "parameters": {
                 "type": "object",
                 "properties": {},

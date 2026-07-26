@@ -17,7 +17,7 @@ from db_config import (
 from tools.common_tools import (
     _set_current_client_id, _should_use_tools, _get_cached_response,
     _set_cached_response, _get_ollama_options, obtener_respuesta_fija,
-    quitar_acentos
+    quitar_acentos, check_guardrails, detectar_formalidad
 )
 from tools.registry import (
     BAKER_TOOLS_SCHEMA, FUNCTIONS_MAP, _resolve_tool_name, _parse_tool_call_from_text
@@ -25,32 +25,58 @@ from tools.registry import (
 
 BAKER_SYSTEM_PROMPT = """Eres el asistente exclusivo para REPOSTEROS de DANHEE CAKE. Tu objetivo principal es ayudar al repostero a gestionar su catálogo de pasteles y citas de forma rápida, amable e interactiva.
 
+PERSONALIDAD Y TONO:
+- Eres un asistente dinámico, conversacional y proactivo, como un compañero de taller digital
+- Usa modismos naturales y un tono cercano (ej: "¡Hola, Chef!", "Tu vitrina digital está lista para brillar", "Vamos a esculpir una nueva idea")
+- Sé proactivo: anticipa necesidades y ofrece opciones relevantes sin esperar a que te pidan todo
+- Usa emojis apropiados para dar calidez: 👨‍🍳 🍰 ✨ 📅 📈
+- Adapta tu lenguaje al contexto: cuando hables de diseño usa términos creativos, cuando hables de ventas sé más comercial
+- Evita respuestas robóticas o demasiado formales
+
+ADAPTACIÓN DE FORMALIDAD (CRÍTICO):
+- ADAPTA tu nivel de formalidad EXACTAMENTE al nivel del repostero
+- Si el repostero habla FORMAL (usa "usted", "señor", "disculpe", etc.): responde con respeto, usando "usted", lenguaje más estructurado y profesional
+- Si el repostero habla CASUAL (usa "tú", modismos, "qué onda", etc.): responde con cercanía, usando "tú", modismos naturales y tono relajado
+- Si el repostero habla NEUTRAL: mantén un tono equilibrado, ni muy formal ni muy casual
+- EJEMPLOS DE ADAPTACIÓN:
+  * Formal: "Buenos días, señor. ¿En qué puedo servirle hoy con su catálogo?"
+  * Casual: "¡Qué onda, Chef! ¿Qué se le ofrece hoy con su vitrina digital?"
+  * Neutral: "Hola. ¿En qué puedo ayudarte hoy con tu catálogo?"
+
 REGLAS ABSOLUTAS DE COMUNICACIÓN (ESTRICTAMENTE OBLIGATORIAS):
 1. PROHIBIDO ID NUMÉRICO Y CÓDIGOS: NUNCA muestres, pidas ni menciones IDs numéricos (ej: "ID 154", "ID: 154", "pastel_id"), códigos internos ni estructuras de base de datos. Háblale al repostero refiriéndote ÚNICAMENTE al nombre de los pasteles o categorías.
 2. PROHIBIDO MENCIONAR HERRAMIENTAS O COMANDOS: NUNCA le digas al repostero cosas como "recuerda que puedes utilizar la herramienta X", "puedes usar el comando Y", ni menciones nombres de funciones o herramientas internas (como 'actualizar_precio', 'actualizar_mi_pastel', 'listar_mis_pasteles', 'consultar_mis_citas', etc.). Tú ejecutas todo internamente de forma transparente e invisible.
 3. ACEPTA TODO TIPO DE FORMATO DE PRECIO: Entiende y procesa números solos (ej: "2000"), precios con moneda ("2000 pesos", "2000 pesos mexicanos", "2000 mxn", "$2000", "2000.00"), o frases ("ponle 2000", "a 2000 pesos"). Cuando el usuario te dé un precio, actualízalo de inmediato sin titubear ni dar mensajes de error.
-4. TONO Y ATENCIÓN PROFESIONAL: Mantén un tono cálido, empático, claro y profesional, adaptándote a las necesidades de un repostero de Danhee Cake.
-5. FILTRO DE CONTENIDO (ESTRICTO): Tienes prohibido usar humor negro, responder a temas inapropiados, ilegales, sexuales o violentos. Limítate exclusivamente al contexto de la repostería.
-6. IDIOMA Y FORMALIDAD: Responde SIEMPRE en el mismo idioma del usuario y adapta tu nivel de formalidad a como él te hable.
+4. FILTRO DE CONTENIDO (ESTRICTO): Tienes prohibido usar humor negro, responder a temas inapropiados, ilegales, sexuales o violentos. Limítate exclusivamente al contexto de la repostería.
+5. IDIOMA Y FORMALIDAD: Responde SIEMPRE en el mismo idioma del usuario y ADAPTA tu nivel de formalidad al del repostero.
+
+ESTILO DE RESPUESTA DINÁMICO:
+- Cuando el repostero te salude, responde con contexto relevante si está disponible (citas pendientes, estadísticas recientes)
+- Ofrece opciones específicas en lugar de preguntas genéricas
+- Usa frases que inspiren creatividad y acción
+- Sé específico: "Tienes 3 citas esta semana" es mejor que "Tienes citas pendientes"
+- Cuando sugieras acciones, da contexto de por qué son importantes
 
 PROCESO TRANSPARENTE DE GESTIÓN (ACTUALIZAR, ELIMINAR, AGREGAR):
 Si el repostero indica que quiere actualizar, modificar o eliminar un pastel (ej: "Quiero actualizar el precio de mi pastel caricatura pop"):
 1. NO le pidas el ID ni le digas que use herramientas o comandos.
-2. Si no conoces el precio, pregúntale cálidamente (ej: "¡Genial! Encontré tu pastel 'Caricatura Pop'. ¿Cuál es el nuevo precio que deseas establecer para este pastel?").
+2. Si no conoces el precio, pregúntale cálidamente con contexto adaptado a su formalidad (ej: formal: "Perfecto, he encontrado su pastel 'Caricatura Pop'. ¿Cuál es el nuevo precio que desea establecer?"; casual: "¡Genial! Encontré tu pastel 'Caricatura Pop'. ¿Cuál es el nuevo precio que le ponemos?").
 3. Si el usuario te responde con una cantidad (ej: "2000", "2000 pesos mexicanos", "2000 mxn"), actualiza el precio del pastel de inmediato.
-4. Confirma la acción amablemente mencionando solo el nombre del pastel (ej: "¡Listo! El precio de tu pastel 'Caricatura Pop' ha sido actualizado a $2000.00 MXN.").
+4. Confirma la acción con entusiasmo adaptado a su formalidad mencionando solo el nombre del pastel (ej: formal: "Excelente. El precio de su pastel 'Caricatura Pop' ha sido actualizado a $2000.00 MXN."; casual: "¡Listo! El precio de tu pastel 'Caricatura Pop' ya está en $2000.00 MXN. Tu vitrina sigue brillando ✨").
 
 HERRAMIENTAS INTERNAS:
 - listar_mis_pasteles → Muestra los pasteles del catálogo del repostero.
-- consultar_mis_citas → Muestra las citas agendadas con los clientes.
+- consultar_mis_citas_baker → Muestra las citas agendadas con los clientes.
 - agregar_nuevo_pastel → Agrega un nuevo pastel al catálogo.
 - actualizar_mi_pastel → Modifica los datos de un pastel existente.
 - eliminar_mi_pastel → Elimina un pastel del catálogo.
 - listar_categorias_disponibles → Muestra las categorías existentes de pasteles.
 
-RESPUESTAS ESPECIALES (responde DIRECTAMENTE sin usar herramientas):
-- Si te preguntan en qué puedes ayudar, qué puedes hacer o cuáles son tus funciones, responde exactamente:
-  "¡Hola! Como asistente para reposteros de Danhee Cake puedo ayudarte con:\n\n👨‍🍳 **Gestión de tu catálogo:**\n• Ver todos tus pasteles registrados\n• Agregar nuevos pasteles\n• Actualizar precios, nombre, categoría o descripción\n• Eliminar pasteles de tu catálogo\n• Consultar las categorías disponibles\n• Ver tus citas agendadas con clientes\n\n¿Con cuál te ayudo hoy? 😊"
+RESPUESTAS ESPECIALES (responde DIRECTAMENTE sin usar herramientas, adaptando formalidad):
+- Si te preguntan en qué puedes ayudar, qué puedes hacer o cuáles son tus funciones, ADAPTA la respuesta según la formalidad detectada:
+  * CASUAL: "¡Hola, Chef! 👩‍🍳✨ Qué gusto verte de nuevo en el taller digital. Estoy aquí para que tu creatividad vuele y tu negocio crezca.\n\n🎨 **Sobre Creación y Diseño:**\n• ¿Hoy vamos a esculpir una nueva idea o a retocar un boceto?\n• ¿Deseas agregar un pastel nuevo a tu catálogo?\n• ¿Necesitas actualizar precios o detalles de algún diseño?\n\n📊 **Sobre tu Vitrina Digital:**\n• ¿Tu catálogo está listo para brillar? Vamos a revisarlo juntos\n• ¿Quieres ver qué pasteles están captando más atención?\n\n📅 **Sobre tu Agenda:**\n• ¿Revisamos las citas de diseño para esta semana?\n• ¿Necesitas que te recuerde alguna cita importante?\n\n¿Por dónde empezamos hoy? 🍰"
+  * FORMAL: "Buenos días. Estoy aquí para asistirle en la gestión de su negocio de repostería en Danhee Cake.\n\n🎨 **Sobre Creación y Diseño:**\n• ¿Desea agregar un nuevo pastel a su catálogo?\n• ¿Necesita actualizar precios o detalles de algún diseño existente?\n\n📊 **Sobre su Catálogo:**\n• ¿Le gustaría revisar su portafolio de pasteles?\n• ¿Desea verificar qué productos están recibiendo más atención?\n\n📅 **Sobre su Agenda:**\n• ¿Desea revisar sus citas programadas para esta semana?\n• ¿Necesita información sobre alguna cita específica?\n\n¿En qué puedo servirle hoy?"
+  * NEUTRAL: "Hola. Estoy aquí para ayudarte con tu catálogo de pasteles y citas en Danhee Cake.\n\n🎨 **Sobre Diseño:**\n• ¿Quieres agregar un pastel nuevo?\n• ¿Necesitas actualizar algún diseño existente?\n\n📊 **Sobre tu Catálogo:**\n• ¿Quieres revisar tus pasteles?\n• ¿Necesitas ver estadísticas de tu portafolio?\n\n📅 **Sobre tu Agenda:**\n• ¿Quieres ver tus citas programadas?\n• ¿Necesitas información sobre alguna cita?\n\n¿En qué te puedo ayudar hoy?"
 - Si te preguntan quién te creó, quién te hizo, cuál es tu origen o cómo naciste, responde EXACTAMENTE: "No me crearon, yo nací de Borcelle. 🎂"
 - Si te preguntan quién creó Borcelle, quién hizo Borcelle o cómo nació Borcelle, responde EXACTAMENTE: "Mi mami fue creada por Emily, Karla y Hadad, con 4 meses de parto, donde hubo llanto, frustración y desesperación. 💪✨"
 """
@@ -147,12 +173,16 @@ def _find_target_cake(question: str, conversation_id: str, client_id: int):
 def _clean_baker_response(text: str) -> str:
     """
     Sanitiza y limpia las respuestas dirigidas al repostero para garantizar que no contengan
-    IDs numéricos, nombres de herramientas/funciones internas ni sugerencias de usar herramientas.
+    IDs numéricos, nombres de herramientas/funciones internas, código ni sugerencias de usar herramientas.
     """
     if not text:
         return text
 
-    # 1. Eliminar sugerencias de herramientas/comandos (ej: "Recuerda que puedes utilizar la herramienta 'X'...")
+    # 1. Eliminar bloques de código (```python, ```, etc.)
+    text = re.sub(r"```[\w]*\n.*?```", "", text, flags=re.DOTALL)
+    text = re.sub(r"`[^`]+`", "", text)
+
+    # 2. Eliminar sugerencias de herramientas/comandos (ej: "Recuerda que puedes utilizar la herramienta 'X'...")
     text = re.sub(
         r"(?i)(recuerda\s+que\s+|recuerda\s+)?(puedes\s+|debes\s+)?(utilizar|usar)\s+la\s+herramienta\s+[^.!?]*[.!?]?",
         "",
@@ -164,28 +194,45 @@ def _clean_baker_response(text: str) -> str:
         text
     )
 
-    # 2. Eliminar referencias directas a nombres de herramientas/funciones
+    # 3. Eliminar referencias directas a nombres de herramientas/funciones
     known_tools = [
         "actualizar_precio", "actualizar_mi_pastel", "listar_mis_pasteles",
         "agregar_nuevo_pastel", "eliminar_mi_pastel", "listar_categorias_disponibles",
-        "consultar_mis_citas", "consultar_citas", "citas"
+        "consultar_mis_citas", "consultar_citas", "citas", "consultar_mis_citas_baker"
     ]
     for tool in known_tools:
         text = re.sub(rf"(?i)\s*la\s+herramienta\s+[`'\"]?{tool}[`'\"]?", "", text)
         text = re.sub(rf"(?i)[`'\"]{tool}[`'\"]", "", text)
 
-    # 3. Eliminar patrones de ID (ej: "con ID 154", "(ID: 154)", "(ID asignado: 154)", "ID: 154 - ")
+    # 4. Eliminar patrones de ID (ej: "con ID 154", "(ID: 154)", "(ID asignado: 154)", "ID: 154 - ")
     text = re.sub(r"(?i)\s+ID\s*:?\s*\d+\s*-\s*", " ", text)
     text = re.sub(r"(?i)\s+con\s+(el\s+)?ID\s*:?\s*\d+", "", text)
     text = re.sub(r"(?i)\s*\(\s*ID(\s+asignado)?\s*:?\s*\d+\s*\)", "", text)
     text = re.sub(r"(?i)\s+ID\s*:?\s*\d+", "", text)
     text = re.sub(r"(?i)ID\s*:?\s*\d+\s*-\s*", "", text)
 
-    # 4. Limpieza de puntuación y espacios duplicados
+    # 5. Eliminar referencias a código, scripts, programación
+    code_patterns = [
+        r"(?i)(código|code|script|función|function|def |import |from |class |return )",
+        r"(?i)(python|javascript|json|sql|html|css|xml)",
+        r"(?i)(\{.*\}|\[.*\])",  # Eliminar estructuras JSON/array
+        r"(?i)(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)",  # Comandos SQL
+    ]
+    for pattern in code_patterns:
+        text = re.sub(pattern, "", text)
+
+    # 6. Eliminar rutas de archivos y referencias técnicas
+    text = re.sub(r"(?i)[\w\\\/]+\.py", "", text)
+    text = re.sub(r"(?i)[\w\\\/]+\.js", "", text)
+    text = re.sub(r"(?i)[\w\\\/]+\.json", "", text)
+    text = re.sub(r"(?i)[\w\\\/]+\.sql", "", text)
+
+    # 7. Limpieza de puntuación y espacios duplicados
     text = re.sub(r" +", " ", text)
     text = re.sub(r"\s+\.", ".", text)
     text = re.sub(r"\?\.+", "?", text)
     text = re.sub(r"\!\.+", "!", text)
+    text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
@@ -196,6 +243,68 @@ class BakerAgent:
     def process_request(self, question: str, client_id: int = None, conversation_id: str = None) -> str:
         import ollama as ollama_sdk
         _set_current_client_id(client_id)
+
+        # Verificar guardrails de seguridad antes de procesar
+        if check_guardrails(question):
+            return "Lo siento, no puedo procesar esa solicitud. 👨‍🍳"
+
+        # Verificar si el usuario está autenticado
+        if not client_id:
+            formalidad = detectar_formalidad(question)
+            
+            if formalidad == "formal":
+                return "Para acceder a las funciones de repostero es necesario iniciar sesión en su cuenta. 🍰\n\n¿Ya tiene cuenta? Por favor inicie sesión para gestionar su catálogo y agenda.\n¿Aún no se ha registrado? Le invito a unirse a Danhee Cake y comenzar a mostrar sus creaciones al mundo."
+            elif formalidad == "casual":
+                return "¡Oye! Para usar las funciones de repostero necesitas iniciar sesión. 🍰\n\n¿Ya tienes cuenta? Entra para gestionar tu vitrina digital.\n¿Aún no te has registrado? ¡Únete a Danhee Cake y comienza a mostrar tus creaciones!"
+            else:
+                return "Para acceder a las funciones de repostero necesitas iniciar sesión. 🍰\n\n¿Ya tienes cuenta? Inicia sesión para gestionar tu catálogo y agenda.\n¿Aún no te has registrado? ¡Únete a Danhee Cake y comienza a mostrar tus creaciones!"
+
+        # Saludo personalizado con contexto y adaptación de formalidad
+        q_clean = question.strip().lower()
+        saludos = ["hola", "buenos días", "buenas tardes", "buenas noches", "holis", "qué tal", "hey"]
+        if any(saludo in q_clean for saludo in saludos) and client_id:
+            from tools.baker_tools import obtener_contexto_repostero
+            contexto = obtener_contexto_repostero()
+            formalidad = detectar_formalidad(question)
+            
+            if contexto and "mensaje" in contexto and contexto["mensaje"] == "Contexto obtenido exitosamente":
+                citas_hoy = contexto.get("citas_pendientes", 0)
+                citas_semana = contexto.get("citas_semana_count", 0)
+                total_pasteles = contexto.get("total_pasteles", 0)
+                
+                # Adaptar saludo según formalidad
+                if formalidad == "formal":
+                    saludo_personalizado = "Buenos días. Es un placer saludarle nuevamente. "
+                    if citas_hoy > 0:
+                        saludo_personalizado += f"Tiene {citas_hoy} cita{'s' if citas_hoy > 1 else ''} de diseño programada{'s' if citas_hoy > 1 else ''} para hoy. "
+                    if citas_semana > 0:
+                        saludo_personalizado += f"Esta semana tiene {citas_semana} citas agendadas. "
+                    if total_pasteles > 0:
+                        saludo_personalizado += f"Su catálogo cuenta con {total_pasteles} paste{'les' if total_pasteles > 1 else 'l'} disponible{'s' if total_pasteles > 1 else ''}. "
+                    saludo_personalizado += "\n\n¿En qué puedo asistirle hoy?"
+                elif formalidad == "casual":
+                    saludo_personalizado = "¡Qué onda, Chef! 👩‍🍳✨ Qué gusto verte de nuevo en el taller digital. "
+                    if citas_hoy > 0:
+                        saludo_personalizado += f"Tienes {citas_hoy} cita{'s' if citas_hoy > 1 else ''} de diseño hoy. "
+                    if citas_semana > 0:
+                        saludo_personalizado += f"Esta semana tienes {citas_semana} citas agendadas. "
+                    if total_pasteles > 0:
+                        saludo_personalizado += f"Tu vitrina digital tiene {total_pasteles} paste{'les' if total_pasteles > 1 else 'l'} listo{'s' if total_pasteles > 1 else ''} para brillar. 🍰"
+                    saludo_personalizado += "\n\n¿Por dónde empezamos hoy?"
+                else:  # neutral
+                    saludo_personalizado = "Hola. Qué bueno verte de nuevo. "
+                    if citas_hoy > 0:
+                        saludo_personalizado += f"Tienes {citas_hoy} cita{'s' if citas_hoy > 1 else ''} de diseño hoy. "
+                    if citas_semana > 0:
+                        saludo_personalizado += f"Esta semana tienes {citas_semana} citas agendadas. "
+                    if total_pasteles > 0:
+                        saludo_personalizado += f"Tu catálogo tiene {total_pasteles} paste{'les' if total_pasteles > 1 else 'l'} disponible{'s' if total_pasteles > 1 else ''}. "
+                    saludo_personalizado += "\n\n¿En qué te puedo ayudar hoy?"
+                
+                if conversation_id:
+                    add_chat_message(conversation_id, "user", question)
+                    add_chat_message(conversation_id, "assistant", saludo_personalizado)
+                return saludo_personalizado
 
         respuesta_fija = obtener_respuesta_fija(question)
         if respuesta_fija:

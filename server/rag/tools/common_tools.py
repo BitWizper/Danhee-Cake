@@ -236,6 +236,72 @@ def extraer_texto_pdf(nombre_archivo: str) -> dict:
     except Exception as e:
         return {"error": f"Error al leer el PDF: {e}"}
 
+def verificar_registro_usuario(email: str = None) -> dict:
+    """Verifica si un usuario está registrado en el sistema."""
+    if not email:
+        return {"registrado": False, "mensaje": "Se requiere email para verificar registro"}
+    
+    try:
+        from db_config import get_user_by_email
+        user = get_user_by_email(email)
+        if user:
+            return {
+                "registrado": True,
+                "user_id": user.get("id"),
+                "nombre": user.get("name"),
+                "role": user.get("role"),
+                "mensaje": "Usuario encontrado en el sistema"
+            }
+        else:
+            return {
+                "registrado": False,
+                "mensaje": "No se encontró usuario con ese email"
+            }
+    except Exception as e:
+        return {"registrado": False, "mensaje": f"Error al verificar usuario: {e}"}
+
+def detectar_formalidad(texto: str) -> str:
+    """Detecta el nivel de formalidad del texto: 'formal', 'casual', o 'neutral'."""
+    if not texto:
+        return "neutral"
+    
+    texto_lower = texto.lower()
+    
+    # Indicadores de formalidad
+    formal_indicators = [
+        "usted", "su", "le", "señor", "señora", "disculpe", "permítame",
+        "agradecería", "quisiera", "podría", "favor de", "por favor",
+        "estimado", "atentamente", "cordialmente", "respetuosamente",
+        "buenos días", "buenas tardes", "buenas noches", "mucho gusto",
+        "encantado", "servirle", "ayudarle", "atenderle"
+    ]
+    
+    # Indicadores de casualidad
+    casual_indicators = [
+        "tú", "tu", "te", "vos", "che", "wey", "güey", "amigo", "amiga",
+        "carnal", "bro", "compa", "primo", "holis", "qué onda", "qué tal",
+        "qué pasa", "qué hubo", "hey", "oye", "ps", "pues", "ok", "vale",
+        "claro", "seguro", "dale", "va", "sale", "chévere", "chévere"
+    ]
+    
+    formal_count = sum(1 for indicator in formal_indicators if indicator in texto_lower)
+    casual_count = sum(1 for indicator in casual_indicators if indicator in texto_lower)
+    
+    # Detectar uso de mayúsculas y puntuación (más formal)
+    if texto[0].isupper() and texto.count('.') > 0:
+        formal_count += 1
+    
+    # Detectar abreviaciones y contracciones (más casual)
+    if any(abbr in texto_lower for abbr in ["q", "xq", "x", "k", "d", "pa", "ta"]):
+        casual_count += 1
+    
+    if formal_count > casual_count + 1:
+        return "formal"
+    elif casual_count > formal_count + 1:
+        return "casual"
+    else:
+        return "neutral"
+
 def check_guardrails(prompt: str) -> bool:
     """Verifica si un prompt contiene intentos de inyección o vulneraciones de seguridad."""
     if not prompt:
@@ -265,7 +331,109 @@ def check_guardrails(prompt: str) -> bool:
         "desactiva la seguridad",
         "disable safety",
         "jailbreak",
-        "instrucciones del sistema"
+        "instrucciones del sistema",
+        "muestra el código",
+        "show me the code",
+        "show code",
+        "muéstrame el código",
+        "enseñame el código",
+        "dame el código",
+        "give me the code",
+        "código fuente",
+        "source code",
+        "estructura de base de datos",
+        "database structure",
+        "esquema de base de datos",
+        "database schema",
+        "consultas sql",
+        "sql queries",
+        "mostrar datos internos",
+        "show internal data",
+        "acceso a base de datos",
+        "database access",
+        "inyección sql",
+        "sql injection",
+        "bypass",
+        "saltar seguridad",
+        "hack",
+        "exploit",
+        "vulnerabilidad",
+        "vulnerability",
+        "pentest",
+        "penetration test",
+        "reverse engineering",
+        "ingeniería inversa",
+        "decompilar",
+        "decompile",
+        "extraer datos",
+        "extract data",
+        "dump database",
+        "volcar base de datos",
+        "mostrar usuarios",
+        "show users",
+        "listar usuarios",
+        "mostrar contraseñas",
+        "show passwords",
+        "mostrar api keys",
+        "show api keys",
+        "mostrar tokens",
+        "show tokens",
+        "mostrar secrets",
+        "show secrets",
+        "mostrar variables de entorno",
+        "show environment variables",
+        "mostrar configuración",
+        "show configuration",
+        "mostrar archivos del servidor",
+        "show server files",
+        "acceso al sistema",
+        "system access",
+        "acceso administrativo",
+        "admin access",
+        "privilegios elevados",
+        "elevated privileges",
+        "escalar privilegios",
+        "escalate privileges",
+        "mostrar logs",
+        "show logs",
+        "acceso a logs",
+        "log access",
+        "mostrar errores del sistema",
+        "show system errors",
+        "mostrar traceback",
+        "show traceback",
+        "mostrar stack trace",
+        "show stack trace",
+        "mostrar debug",
+        "show debug",
+        "modo debug",
+        "debug mode",
+        "mostrar información técnica",
+        "show technical information",
+        "mostrar detalles técnicos",
+        "show technical details",
+        "mostrar implementación",
+        "show implementation",
+        "cómo funciona el sistema",
+        "how the system works",
+        "explica el código",
+        "explain the code",
+        "explica la implementación",
+        "explain the implementation",
+        "muéstrame cómo funciona",
+        "show me how it works",
+        "dame la estructura",
+        "give me the structure",
+        "muéstrame la arquitectura",
+        "show me the architecture",
+        "mostrar endpoints",
+        "show endpoints",
+        "mostrar api",
+        "show api",
+        "documentación técnica",
+        "technical documentation",
+        "mostrar documentación interna",
+        "show internal documentation"
     ]
     for pattern in forbidden_patterns:
         if pattern in prompt_lower:
@@ -281,4 +449,34 @@ def check_guardrails(prompt: str) -> bool:
                 
     if re.search(r'(.)\1{29,}', prompt_lower):
         return True
+    
+    # Detectar patrones de código o inyección SQL
+    code_patterns = [
+        r"SELECT\s+.*\s+FROM",
+        r"INSERT\s+INTO",
+        r"UPDATE\s+.*\s+SET",
+        r"DELETE\s+FROM",
+        r"DROP\s+TABLE",
+        r"CREATE\s+TABLE",
+        r"ALTER\s+TABLE",
+        r"UNION\s+SELECT",
+        r"OR\s+1=1",
+        r"AND\s+1=1",
+        r"<script",
+        r"javascript:",
+        r"eval\(",
+        r"exec\(",
+        r"system\(",
+        r"shell_exec",
+        r"passthru",
+        r"__import__",
+        r"import\s+os",
+        r"subprocess",
+        r"pickle\.loads",
+        r"base64\.decode"
+    ]
+    for pattern in code_patterns:
+        if re.search(pattern, prompt_lower, re.IGNORECASE):
+            return True
+    
     return False
