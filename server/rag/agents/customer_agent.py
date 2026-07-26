@@ -13,7 +13,7 @@ sys.path.insert(0, str(base_dir))
 from db_config import get_chat_history, add_chat_message
 from tools.common_tools import (
     _set_current_client_id, _should_use_tools, _get_cached_response,
-    _set_cached_response, _get_ollama_options, obtener_respuesta_fija, quitar_acentos
+    _set_cached_response, _get_ollama_options, _get_ollama_options_cliente, obtener_respuesta_fija, quitar_acentos
 )
 from tools.registry import (
     TOOLS_SCHEMA, FUNCTIONS_MAP, _resolve_tool_name, _parse_tool_call_from_text
@@ -51,15 +51,21 @@ REGLAS DE HORARIO DE CITAS Y CONTEXTO DEL PASTEL (SEGUIR SIEMPRE):
 
 INSTRUCCIONES CLAVE DE HERRAMIENTAS:
 1. SIEMPRE usa las herramientas disponibles para obtener datos reales antes de responder. NO inventes información.
-2. IDENTIFICACIÓN EXACTA DEL PASTEL (MUY IMPORTANTE):
+2. PROHIBICIÓN ABSOLUTA DE ALUCINACIONES (NUNCA LA ROMPAS):
+   - NUNCA inventes pasteles, precios, categorías, reposteros, horarios o cualquier información que no esté en la base de datos.
+   - Si la herramienta no devuelve resultados, di honestamente que no encontraste esa información y sugiere alternativas reales.
+   - NUNCA describas características, ingredientes o detalles de un pastel que no estén en la base de datos.
+   - NUNCA inventes nombres de empresas, reposteros o ubicaciones que no existan en el sistema.
+   - Si el usuario pregunta por algo que no existe, di: "Lo siento, no encontré eso en Danhee Cake. ¿Te gustaría ver otras opciones?"
+3. IDENTIFICACIÓN EXACTA DEL PASTEL (MUY IMPORTANTE):
    - Si el usuario pregunta por un pastel específico, extrae el nombre EXACTAMENTE tal como lo menciona el usuario (ej: si dice "pastel de fresa", usa nombre_pastel="pastel de fresa"; si dice "Red Velvet", usa nombre_pastel="Red Velvet"). NUNCA uses el nombre de otro pastel diferente aunque aparezca en el historial.
    - Si el usuario dice "dame más información del pastel de fresa", el nombre a buscar es "fresa" o "pastel de fresa", NO "Red Velvet 2 pisos" ni ningún otro.
    - USA OBLIGATORIAMENTE la herramienta `consultar_detalle_pastel_por_id` con el nombre_pastel correcto.
-3. Si el usuario pregunta qué días abren, sus horarios o disponibilidad general de la repostería, USA `consultar_horarios_repostero`.
-4. CATÁLOGO DE PASTELES: Cuando el cliente pida ver pasteles por categoría o en general, usa `consultar_pasteles_por_categoria` o `consultar_catalogo_pasteles`. La herramienta ya te devolverá los primeros 4 pasteles ordenados del más económico al más caro. Preséntaselos así.
-5. PASTELES DESTACADOS: Usa `consultar_mas_destacados` ÚNICAMENTE cuando el cliente pida EXPLÍCITAMENTE ver los más destacados, populares, mejor calificados o con más reseñas. NO la uses si solo pide ver pasteles en general.
-6. Si el usuario consulta sus citas o diseños agendados, USA `consultar_mis_citas` o `consultar_mis_disenos`.
-7. PROCESO DE AGENDADO DE CITAS DE DEGUSTACIÓN (PASO A PASO PROFESIONAL):
+4. Si el usuario pregunta qué días abren, sus horarios o disponibilidad general de la repostería, USA `consultar_horarios_repostero`.
+5. CATÁLOGO DE PASTELES: Cuando el cliente pida ver pasteles por categoría o en general, usa `consultar_pasteles_por_categoria` o `consultar_catalogo_pasteles`. La herramienta ya te devolverá los primeros 4 pasteles ordenados del más económico al más caro. Preséntaselos así.
+6. PASTELES DESTACADOS: Usa `consultar_mas_destacados` ÚNICAMENTE cuando el cliente pida EXPLÍCITAMENTE ver los más destacados, populares, mejor calificados o con más reseñas. NO la uses si solo pide ver pasteles en general.
+7. Si el usuario consulta sus citas o diseños agendados, USA `consultar_mis_citas` o `consultar_mis_disenos`.
+8. PROCESO DE AGENDADO DE CITAS DE DEGUSTACIÓN (PASO A PASO PROFESIONAL):
    - TODOS los pasteles en Danhee Cake pertenecen a reposteros registrados DENTRO de la plataforma. NUNCA digas que no tienes acceso o que un negocio no está en Danhee Cake.
    - Cuando el usuario diga "quiero agendar una cita" sobre un pastel que ya fue mencionado, usa el contexto del pastel y su empresa. Responde con algo como: "¡Perfecto! Te agendo tu cita de degustación para el pastel [nombre] con [empresa]. Su horario es [horario]. ¿Qué día y hora te viene bien?"
    - Muestra los días y horario real de atención obtenidos del repostero.
@@ -82,6 +88,7 @@ INSTRUCCIONES CLAVE DE HERRAMIENTAS:
 
 REGLAS DE RESPUESTA Y COMPORTAMIENTO:
 - PROHIBICIÓN ABSOLUTA DE CÓDIGO: NUNCA incluyas en tus respuestas nombres de funciones, llamadas a herramientas, código Python/JSON, backticks (`), ni referencias técnicas de ningún tipo. Si quieres decir que buscaste algo, solo di el resultado. EJEMPLO PROHIBIDO: 'usa la función `consultar_detalle_pastel_por_id`'. EJEMPLO CORRECTO: 'Aquí está la información del pastel 🍰'.
+- PROHIBICIÓN ABSOLUTA DE PDFs Y ARCHIVOS: NUNCA menciones nombres de archivos PDF, rutas de archivos, ni intentes "enviar" o "adjuntar" archivos. NUNCA digas "te envío el PDF", "aquí está el archivo", "consulta el documento", ni nada similar. Toda la información debe estar en el texto de tu respuesta.
 - NUNCA MUESTRES ETIQUETAS DE PLANTILLA: Queda estrictamente prohibido incluir en tus respuestas textos como '[Nombre del cliente]', '[Fecha]', etc. Háblale directamente al usuario ("¿Cuál es tu nombre, Mily?").
 - FALTAS DE ORTOGRAFÍA: Sé totalmente comprensivo con errores ortográficos, falta de tildes o escritura informal. Entiende la intención sin juzgar ni corregir.
 - CONTINUIDAD DE CONVERSACIÓN: Mantén SIEMPRE el contexto. Si el usuario pregunta 'uno llamativo', 'cuánto cuesta', 'dónde queda' o similares sin especificar pastel/categoría, usa el contexto previo de la conversación para entender a qué se refiere y responde usando las herramientas correctas.
@@ -150,9 +157,14 @@ def _limpiar_respuesta(text: str) -> str:
     # Eliminar IDs numéricos de 5 o más dígitos (posibles IDs de BD)
     text = re.sub(r'\b\d{5,}\b', '', text)
     # Eliminar nombres de archivos internos (.pdf, .txt, .docx, etc.)
-    text = re.sub(r'\b[a-zA-Z_]+\.(pdf|txt|docx|json|log)\b', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b[a-zA-Z_0-9-]+\.(pdf|txt|docx|json|log|doc|png|jpg|jpeg)\b', '', text, flags=re.IGNORECASE)
+    # Eliminar menciones a rutas de archivos
+    text = re.sub(r'[a-zA-Z]:\\[^\\]*\\[^\\]*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'/[^/\s]+/[^/\s]+', '', text, flags=re.IGNORECASE)
     # Eliminar menciones a palabras técnicas comunes
     text = re.sub(r'\b(tool_calls|function|parameters|arguments|type|name|kwargs|args|conversation_id|client_id)\b', '', text, flags=re.IGNORECASE)
+    # Eliminar menciones a "archivo", "documento", "PDF", "adjuntar", "enviar archivo"
+    text = re.sub(r'\b(archivo|documentos?|pdf|adjuntar|enviar archivo|descargar archivo|archivo adjunto)\b', '', text, flags=re.IGNORECASE)
     # Eliminar espacios dobles que puedan quedar
     text = re.sub(r'\s+', ' ', text).strip()
     # --- FIN FILTROS NUEVOS ---
@@ -463,7 +475,7 @@ class CustomerAgent:
                 model=self.llm_model,
                 messages=messages,
                 tools=tools_payload,
-                options=_get_ollama_options(),
+                options=_get_ollama_options_cliente(),
                 keep_alive="5m"
             )
         except Exception as e:
@@ -527,7 +539,7 @@ class CustomerAgent:
                 final_response = ollama_sdk.chat(
                     model=self.llm_model,
                     messages=messages,
-                    options=_get_ollama_options(),
+                    options=_get_ollama_options_cliente(),
                     keep_alive="5m"
                 )
                 final_content = final_response.get("message", {}).get("content", "").strip()
@@ -703,7 +715,7 @@ class CustomerAgent:
                     fr = ollama_sdk.chat(
                         model=self.llm_model,
                         messages=tmp_messages,
-                        options=_get_ollama_options(),
+                        options=_get_ollama_options_cliente(),
                         keep_alive="5m"
                     )
                     res_text = (fr.get("message", {}).get("content", "") or "").strip()

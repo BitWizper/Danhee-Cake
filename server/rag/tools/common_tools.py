@@ -106,13 +106,20 @@ def _should_use_tools(question: str, role: str = "cliente") -> bool:
         "dias", "días", "horario", "horarios", "abren", "atienden", "abierto", "atencion", "atención",
         "red velvet", "cumpleaños", "boda", "xv", "baby shower", "empresa", "ubicacion", "ubicación",
         "reposteria", "repostería", "diseño", "diseños", "destacado", "destacados", "reseña", "reseñas",
-        "reservar", "reserva", "agendar", "agend", "degustacion", "degustación", "solicitud"
+        "reservar", "reserva", "agendar", "agend", "degustacion", "degustación", "solicitud",
+        "chocolate", "fresa", "vainilla", "limon", "mango", "nuez", "oreo", "tres leches", "zanahoria",
+        "que tienes", "que tienen", "que ofrecen", "que hay", "cual", "cuales", "lista", "catalogo",
+        "sabor", "sabores", "tipo", "tipos", "opcion", "opciones", "ver", "mostrar", "enseñar"
     ]
     if any(k in q for k in tool_keywords):
         return True
 
+    # Si la pregunta contiene "que" y tiene más de 3 palabras, probablemente es una consulta
+    if "que" in q and len(words) > 3:
+        return True
+
     # Mensajes cortos sin palabras clave de BD son saludos / conversación casual
-    if len(words) <= 5:
+    if len(words) <= 3:
         return False
 
     return False
@@ -126,6 +133,16 @@ def _get_ollama_options() -> dict:
         "temperature": 0.5,
         "top_p": 0.95,
         "repeat_penalty": 1.1,
+    }
+
+def _get_ollama_options_cliente() -> dict:
+    """Opciones específicas para clientes: más conservadoras para evitar alucinaciones"""
+    return {
+        "num_predict": 250,
+        "num_ctx": 2048,
+        "temperature": 0.3,
+        "top_p": 0.9,
+        "repeat_penalty": 1.15,
     }
 
 def obtener_respuesta_fija(pregunta: str):

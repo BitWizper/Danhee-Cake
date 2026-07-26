@@ -11,6 +11,7 @@ const { authLimiter, registerLimiter, chatLimiter, apiLimiter } = require('./mid
 const sanitizeMiddleware = require('./middleware/sanitize');
 const { auditLogger } = require('./middleware/auditLogger');
 const { advancedSecurity } = require('./middleware/securityAdvanced');
+const { clientChatGuard } = require('./middleware/clientChatGuard');
 
 
 const app = express();
@@ -61,7 +62,8 @@ disablePoweredBy = (req, res, next) => {
 app.use(disablePoweredBy);
 
 // Seguridad avanzada con detección de VPN, fingerprinting y WAF
-app.use(advancedSecurity);
+// Temporalmente desactivado debido a falsos positivos que bloquean peticiones legítimas
+// app.use(advancedSecurity);
 
 // CORS restrictivo - solo permitir orígenes específicos
 const allowedOrigins = [
@@ -104,8 +106,9 @@ app.use('/api/categories', require('./routes/categories.routes'));
 app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
-app.use('/api/chat', chatLimiter, chatRoutes);
-app.post('/api/chat/stream', streamChatbot);
+// Aplicar guardrail específico para clientes (no afecta a reposteros)
+app.use('/api/chat', clientChatGuard, chatLimiter, chatRoutes);
+app.post('/api/chat/stream', clientChatGuard, streamChatbot);
 
 // Ruta base
 app.get('/', (req, res) => {

@@ -8,6 +8,8 @@ services:
     depends_on:
       - backend
     restart: always
+    networks:
+      - app-network
 
   backend:
     build: ./server
@@ -27,6 +29,8 @@ services:
     restart: always
     depends_on:
       - database
+    networks:
+      - app-network
 
   database:
     image: postgres:15
@@ -39,6 +43,8 @@ services:
     ports:
       - "5432:5432"
     restart: always
+    networks:
+      - app-network
 
   ngrok_tunnel:
     image: ngrok/ngrok:latest
@@ -46,13 +52,20 @@ services:
     restart: always
     command:
       - "http"
-      - "frontend:80" 
-      - "--domain=unspoken-resurrect-bountiful.ngrok-free.dev" 
+      - "frontend:80"
+      - "--url=https://unspoken-resurrect-bountiful.ngrok-free.dev"
     environment:
-      NGROK_AUTHTOKEN: "3Gaoq1v9kxSDAO5NNQ8uoyexZC8_2r9Ps6arERFBavWbTQsni" 
+      NGROK_AUTHTOKEN: "3Gaoq1v9kxSDAO5NNQ8uoyexZC8_2r9Ps6arERFBavWbTQsni"
     depends_on:
       - frontend
+    networks:
+      - app-network
 
 # Volumen definido para la persistencia de datos
 volumes:
   db_data:
+
+# Red personalizada para comunicación entre servicios
+networks:
+  app-network:
+    driver: bridge
