@@ -227,6 +227,24 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                     send_event("done", {})
                     return
                 
+                # Verificación de autenticación para reposteros
+                if role == 'repostero' and not client_id:
+                    from tools.common_tools import detectar_formalidad
+                    formalidad = detectar_formalidad(question)
+                    
+                    if formalidad == "formal":
+                        auth_msg = "Para acceder a las funciones de repostero es necesario iniciar sesión en su cuenta. 🍰\n\n¿Ya tiene cuenta? Por favor inicie sesión para gestionar su catálogo y agenda.\n¿Aún no se ha registrado? Le invito a unirse a Danhee Cake y comenzar a mostrar sus creaciones al mundo."
+                    elif formalidad == "casual":
+                        auth_msg = "¡Oye! Para usar las funciones de repostero necesitas iniciar sesión. 🍰\n\n¿Ya tienes cuenta? Entra para gestionar tu vitrina digital.\n¿Aún no te has registrado? ¡Únete a Danhee Cake y comienza a mostrar tus creaciones!"
+                    else:
+                        auth_msg = "Para acceder a las funciones de repostero necesitas iniciar sesión. 🍰\n\n¿Ya tienes cuenta? Inicia sesión para gestionar tu catálogo y agenda.\n¿Aún no te has registrado? ¡Únete a Danhee Cake y comienza a mostrar tus creaciones!"
+                    
+                    send_event("state", {"status": "ready", "message": "Respuesta lista"})
+                    for word in re.findall(r'\S+\s*', auth_msg):
+                        send_event("token", {"content": word})
+                    send_event("done", {})
+                    return
+                
                 if not conversation_id and client_id:
                     last_conv = get_last_conversation_by_client(client_id)
                     if last_conv:
