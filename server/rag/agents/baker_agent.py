@@ -265,14 +265,20 @@ class BakerAgent:
 
         q_clean = question.strip().lower()
 
-        # ── MANEJO DIRECTO DE PREGUNTAS DE ESTADO / CORTESÍA ───────────────────────
-        preguntas_estado = ["como estas", "cómo estás", "como andas", "cómo andas", "como te va", "cómo te va"]
+      # ── MANEJO DIRECTO DE PREGUNTAS DE ESTADO / CORTESÍA ───────────────────────
+        preguntas_estado = [
+            "como estas", "cómo estás", "como andas", "cómo andas", 
+            "como te va", "cómo te va", "que tal", "qué tal",
+            "como estas tu", "cómo estás tú", "como te encuentras"
+        ]
+        
+        # Si la pregunta contiene un saludo de cortesía sobre el estado del bot
         if any(p in q_clean for p in preguntas_estado):
             formalidad = detectar_formalidad(question)
             if formalidad == "formal":
-                reply = "Todo muy bien por aquí, muchas gracias. Estoy listo para asistirte en la gestión de tu taller digital. ¿En qué te puedo colaborar hoy?"
+                reply = "¡Todo muy bien por aquí, muchas gracias por preguntar! 👨‍🍳 Estoy listo para asistirte en el taller digital. ¿En qué te puedo colaborar hoy?"
             elif formalidad == "casual":
-                reply = "¡Todo excelente por aquí en el taller digital! 👩‍🍳✨ Súper listo para ayudarte. ¿En qué andamos hoy, Chef?"
+                reply = "¡Todo excelente por aquí en el taller digital, listo para ayudarte! 👩‍🍳✨ ¿Qué tal tú? ¿En qué andamos hoy?"
             else:
                 reply = "¡Hola! Todo muy bien por aquí, listo para ayudarte con tu catálogo y agenda. ¿En qué te puedo apoyar hoy?"
 
