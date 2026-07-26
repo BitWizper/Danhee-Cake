@@ -14,6 +14,9 @@ const { auditLogger } = require('./middleware/auditLogger');
 
 const app = express();
 
+// Configurar trust proxy para nginx (solo confiar en el primer proxy)
+app.set('trust proxy', 1);
+
 // Security headers con Helmet
 app.use(helmet({
   hsts: {
@@ -41,7 +44,7 @@ app.use(helmet({
       upgradeInsecureRequests: []
     }
   },
-  xContentTypeOptions: { nosniff: true },
+  xContentTypeOptions: true,
   xFrameOptions: { action: 'deny' },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   crossOriginEmbedderPolicy: { policy: "require-corp" },

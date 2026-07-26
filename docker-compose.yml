@@ -23,6 +23,7 @@ services:
     volumes:
       - ./server:/app
       - /app/node_modules
+      - /app/rag/chroma
     restart: always
     depends_on:
       - database
