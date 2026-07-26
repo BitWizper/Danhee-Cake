@@ -42,6 +42,7 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-danhee_db}
       MYSQL_USER: ${DB_USER:-usuario}
       MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+      MYSQL_ALLOW_EMPTY_PASSWORD: "no"
     volumes:
       - db_data:/var/lib/mysql
     # Ocultar puerto de base de datos (solo accesible dentro de la red docker)
@@ -50,6 +51,7 @@ services:
     restart: always
     networks:
       - app-network
+    command: --default-authentication-plugin=mysql_native_password
 
   ngrok_tunnel:
     image: ngrok/ngrok:latest
