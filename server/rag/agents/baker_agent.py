@@ -49,13 +49,12 @@ REGLAS ABSOLUTAS DE COMUNICACIÓN (ESTRICTAMENTE OBLIGATORIAS):
 3. ACEPTA TODO TIPO DE FORMATO DE PRECIO: Entiende y procesa números solos (ej: "2000"), precios con moneda ("2000 pesos", "2000 pesos mexicanos", "2000 mxn", "$2000", "2000.00"), o frases ("ponle 2000", "a 2000 pesos"). Cuando el usuario te dé un precio, actualízalo de inmediato sin titubear ni dar mensajes de error.
 4. FILTRO DE CONTENIDO (ESTRICTO): Tienes prohibido usar humor negro, responder a temas inapropiados, ilegales, sexuales o violentos. Limítate exclusivamente al contexto de la repostería.
 5. IDIOMA Y FORMALIDAD: Responde SIEMPRE en el mismo idioma del usuario y ADAPTA tu nivel de formalidad al del repostero.
+6. PROHIBIDO PREFIJOS DE EVALUACIÓN: NUNCA incluyas frases como "Respuesta a la pregunta...", "Pensamiento:", "Análisis:" o encabezados explicativos. Responde DIRECTAMENTE al repostero.
 
 ESTILO DE RESPUESTA DINÁMICO:
-- Cuando el repostero te salude, responde con contexto relevante si está disponible (citas pendientes, estadísticas recientes)
-- Ofrece opciones específicas en lugar de preguntas genéricas
-- Usa frases que inspiren creatividad y acción
-- Sé específico: "Tienes 3 citas esta semana" es mejor que "Tienes citas pendientes"
-- Cuando sugieras acciones, da contexto de por qué son importantes
+- Cuando el repostero te salude o pregunte cómo estás, responde de forma cálida, natural y breve (1 a 2 oraciones), sin desplegar inmediatamente todo el menú a menos que lo solicite de forma explícita.
+- Ofrece opciones específicas en lugar de preguntas genéricas cuando te pidan ayuda directa.
+- Usa frases que inspiren creatividad y acción.
 
 PROCESO TRANSPARENTE DE GESTIÓN (ACTUALIZAR, ELIMINAR, AGREGAR):
 Si el repostero indica que quiere actualizar, modificar o eliminar un pastel (ej: "Quiero actualizar el precio de mi pastel caricatura pop"):
@@ -73,7 +72,8 @@ HERRAMIENTAS INTERNAS:
 - listar_categorias_disponibles → Muestra las categorías existentes de pasteles.
 
 RESPUESTAS ESPECIALES (responde DIRECTAMENTE sin usar herramientas, adaptando formalidad):
-- Si te preguntan en qué puedes ayudar, qué puedes hacer o cuáles son tus funciones, ADAPTA la respuesta según la formalidad detectada:
+- Si te preguntan "cómo estás", "cómo te va" o saludos personales, responde amablemente y de forma breve (ej: "¡Todo excelente por aquí en el taller digital, listo para apoyarte! ¿En qué andamos hoy? 👨‍🍳✨").
+- Si te preguntan EXPLICÍTAMENTE en qué puedes ayudar, qué puedes hacer o cuáles son tus funciones, ADAPTA la respuesta según la formalidad detectada:
   * CASUAL: "¡Hola, Chef! 👩‍🍳✨ Qué gusto verte de nuevo en el taller digital. Estoy aquí para que tu creatividad vuele y tu negocio crezca.\n\n🎨 **Sobre Creación y Diseño:**\n• ¿Hoy vamos a esculpir una nueva idea o a retocar un boceto?\n• ¿Deseas agregar un pastel nuevo a tu catálogo?\n• ¿Necesitas actualizar precios o detalles de algún diseño?\n\n📊 **Sobre tu Vitrina Digital:**\n• ¿Tu catálogo está listo para brillar? Vamos a revisarlo juntos\n• ¿Quieres ver qué pasteles están captando más atención?\n\n📅 **Sobre tu Agenda:**\n• ¿Revisamos las citas de diseño para esta semana?\n• ¿Necesitas que te recuerde alguna cita importante?\n\n¿Por dónde empezamos hoy? 🍰"
   * FORMAL: "Buenos días. Estoy aquí para asistirle en la gestión de su negocio de repostería en Danhee Cake.\n\n🎨 **Sobre Creación y Diseño:**\n• ¿Desea agregar un nuevo pastel a su catálogo?\n• ¿Necesita actualizar precios o detalles de algún diseño existente?\n\n📊 **Sobre su Catálogo:**\n• ¿Le gustaría revisar su portafolio de pasteles?\n• ¿Desea verificar qué productos están recibiendo más atención?\n\n📅 **Sobre su Agenda:**\n• ¿Desea revisar sus citas programadas para esta semana?\n• ¿Necesita información sobre alguna cita específica?\n\n¿En qué puedo servirle hoy?"
   * NEUTRAL: "Hola. Estoy aquí para ayudarte con tu catálogo de pasteles y citas en Danhee Cake.\n\n🎨 **Sobre Diseño:**\n• ¿Quieres agregar un pastel nuevo?\n• ¿Necesitas actualizar algún diseño existente?\n\n📊 **Sobre tu Catálogo:**\n• ¿Quieres revisar tus pasteles?\n• ¿Necesitas ver estadísticas de tu portafolio?\n\n📅 **Sobre tu Agenda:**\n• ¿Quieres ver tus citas programadas?\n• ¿Necesitas información sobre alguna cita?\n\n¿En qué te puedo ayudar hoy?"
@@ -178,6 +178,10 @@ def _clean_baker_response(text: str) -> str:
     if not text:
         return text
 
+    # 0. Eliminar prefijos autogenerados por el LLM tipo "Respuesta a la pregunta de..."
+    text = re.sub(r"(?i)^respuesta\s+a\s+la\s+pregunta\s+de\s+[^:\n]+:\s*", "", text)
+    text = re.sub(r"(?i)^pensamiento:\s*.*?\n", "", text)
+
     # 1. Eliminar bloques de código (```python, ```, etc.)
     text = re.sub(r"```[\w]*\n.*?```", "", text, flags=re.DOTALL)
     text = re.sub(r"`[^`]+`", "", text)
@@ -259,8 +263,25 @@ class BakerAgent:
             else:
                 return "Para acceder a las funciones de repostero necesitas iniciar sesión. 🍰\n\n¿Ya tienes cuenta? Inicia sesión para gestionar tu catálogo y agenda.\n¿Aún no te has registrado? ¡Únete a Danhee Cake y comienza a mostrar tus creaciones!"
 
-        # Saludo personalizado con contexto y adaptación de formalidad
         q_clean = question.strip().lower()
+
+        # ── MANEJO DIRECTO DE PREGUNTAS DE ESTADO / CORTESÍA ───────────────────────
+        preguntas_estado = ["como estas", "cómo estás", "como andas", "cómo andas", "como te va", "cómo te va"]
+        if any(p in q_clean for p in preguntas_estado):
+            formalidad = detectar_formalidad(question)
+            if formalidad == "formal":
+                reply = "Todo muy bien por aquí, muchas gracias. Estoy listo para asistirte en la gestión de tu taller digital. ¿En qué te puedo colaborar hoy?"
+            elif formalidad == "casual":
+                reply = "¡Todo excelente por aquí en el taller digital! 👩‍🍳✨ Súper listo para ayudarte. ¿En qué andamos hoy, Chef?"
+            else:
+                reply = "¡Hola! Todo muy bien por aquí, listo para ayudarte con tu catálogo y agenda. ¿En qué te puedo apoyar hoy?"
+
+            if conversation_id:
+                add_chat_message(conversation_id, "user", question)
+                add_chat_message(conversation_id, "assistant", reply)
+            return reply
+
+        # ── SALUDO PERSONALIZADO CON CONTEXTO ────────────────────────────────────
         saludos = ["hola", "buenos días", "buenas tardes", "buenas noches", "holis", "qué tal", "hey"]
         if any(saludo in q_clean for saludo in saludos) and client_id:
             from tools.baker_tools import obtener_contexto_repostero
@@ -314,9 +335,8 @@ class BakerAgent:
             return cleaned
 
         # ── MANEJO DIRECTO DE ACTUALIZACIÓN DE PRECIO ────────────────────────────
-        q_clean = question.strip()
         extracted_price = _extract_price(q_clean)
-        has_update_kw = any(kw in q_clean.lower() for kw in ["actualiz", "cambia", "modifica", "precio", "ponle", "establecer", "nuevo precio"]) or bool(extracted_price)
+        has_update_kw = any(kw in q_clean for kw in ["actualiz", "cambia", "modifica", "precio", "ponle", "establecer", "nuevo precio"]) or bool(extracted_price)
 
         if has_update_kw and client_id:
             target_cake, all_cakes, baker_id = _find_target_cake(q_clean, conversation_id, client_id)
@@ -339,7 +359,7 @@ class BakerAgent:
                     add_chat_message(conversation_id, "assistant", reply)
                 return reply
 
-            elif target_cake and extracted_price is None and any(kw in q_clean.lower() for kw in ["actualiz", "cambia", "modifica", "precio"]):
+            elif target_cake and extracted_price is None and any(kw in q_clean for kw in ["actualiz", "cambia", "modifica", "precio"]):
                 reply = f"¡Genial! Encontré tu pastel **'{target_cake['name']}'**. ¿Cuál es el nuevo precio que deseas establecer para este pastel?"
                 if conversation_id:
                     add_chat_message(conversation_id, "user", question)
@@ -347,7 +367,7 @@ class BakerAgent:
                 return reply
 
         # ── MANEJO DIRECTO DE ELIMINACIÓN DE PASTEL ─────────────────────────────
-        has_delete_kw = any(kw in q_clean.lower() for kw in ["elimina", "borra", "quita", "remover"])
+        has_delete_kw = any(kw in q_clean for kw in ["elimina", "borra", "quita", "remover"])
         if has_delete_kw and client_id:
             target_cake, all_cakes, baker_id = _find_target_cake(q_clean, conversation_id, client_id)
             if target_cake:
