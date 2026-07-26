@@ -3,8 +3,11 @@ const jwt = require('jsonwebtoken');
 
 const askChatbot = async (req, res) => {
   const { message } = req.body;
+  
+  console.log(`[Chat DEBUG] Recibida solicitud - message: ${message}`);
 
   if (!message || message.trim() === "") {
+    console.log(`[Chat DEBUG] Mensaje vacío, retornando error`);
     return res.status(400).json({ error: "El mensaje no puede estar vacío" });
   }
 
@@ -33,12 +36,15 @@ const askChatbot = async (req, res) => {
   }
 
   try {
-    const response = await fetch("http://127.0.0.1:5005/chat", {
+    console.log(`[Chat DEBUG] Intentando conectar a http://backend:5005/chat`);
+    const response = await fetch("http://backend:5005/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, client_id, role, client_datetime: req.body.client_datetime || null }),
     });
 
+    console.log(`[Chat DEBUG] Response status: ${response.status}`);
+    
     if (!response.ok) {
       const errText = await response.text();
       console.error("[Node Server] Error del servicio RAG Python:", errText);
@@ -69,7 +75,7 @@ const getChatHistory = async (req, res) => {
     if (conversation_id) params.set("conversation_id", conversation_id);
     if (client_id) params.set("client_id", client_id);
 
-    const response = await fetch(`http://127.0.0.1:5005/chat/history?${params.toString()}`);
+    const response = await fetch(`http://backend:5005/chat/history?${params.toString()}`);
 
     if (!response.ok) {
       const errText = await response.text();
@@ -119,7 +125,7 @@ const streamChatbot = async (req, res) => {
 
   try {
     // Llamar al endpoint de stream del backend en Python
-    const pythonRes = await fetch("http://127.0.0.1:5005/chat/stream", {
+    const pythonRes = await fetch("http://backend:5005/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, client_id, conversation_id, role, client_datetime: req.body.client_datetime || null }),
@@ -177,7 +183,7 @@ const deleteChatHistory = async (req, res) => {
   const { conversation_id, client_id } = req.body;
 
   try {
-    const response = await fetch("http://127.0.0.1:5005/chat/delete", {
+    const response = await fetch("http://backend:5005/chat/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ conversation_id, client_id }),

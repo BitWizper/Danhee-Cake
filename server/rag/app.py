@@ -90,9 +90,10 @@ def generate_response_with_tools(question: str, client_id: int = None, conversat
 
 class RAGRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        pass
+        print(f"[HTTP] {self.address_string()} - {format % args}", file=sys.stderr)
     
     def do_GET(self):
+        print(f"[DEBUG] do_GET llamado con path: {self.path}", file=sys.stderr)
         """Manejar solicitudes GET para obtener historial de chat"""
         from urllib.parse import urlparse, parse_qs
         parsed = urlparse(self.path)
@@ -123,7 +124,10 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
     
     def do_POST(self):
         import re
+        print(f"[DEBUG] do_POST llamado con path: {self.path}", file=sys.stderr)
+        
         if self.path == '/chat':
+            print(f"[DEBUG] Procesando /chat endpoint", file=sys.stderr)
             try:
                 content_length = int(self.headers['Content-Length'])
                 post_data = self.rfile.read(content_length)
@@ -132,6 +136,8 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 client_id = req_data.get('client_id')
                 conversation_id = req_data.get('conversation_id')
                 role = req_data.get('role')
+                
+                print(f"[DEBUG] /chat - question: {question[:30]}..., client_id: {client_id}, role: {role}", file=sys.stderr)
                 
                 _set_current_client_id(client_id)
                 
@@ -174,6 +180,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
             return
 
         elif self.path == '/chat/stream':
+            print(f"[DEBUG] Recibida solicitud POST en /chat/stream", file=sys.stderr)
             try:
                 content_length = int(self.headers['Content-Length'])
                 post_data = self.rfile.read(content_length)
@@ -183,6 +190,8 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 conversation_id = req_data.get('conversation_id')
                 role = req_data.get('role')
                 client_datetime = req_data.get('client_datetime')
+                
+                print(f"[DEBUG] Datos recibidos - question: {question[:30]}..., client_id: {client_id}, role: {role}", file=sys.stderr)
                 
                 _set_current_client_id(client_id)
                 
