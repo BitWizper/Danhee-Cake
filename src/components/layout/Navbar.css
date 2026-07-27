@@ -313,8 +313,11 @@
   display: none;
   flex-direction: column;
   gap: 5px;
-  padding: 4px;
+  padding: 8px;
   margin-left: auto;
+  position: relative;
+  z-index: 1001;
+  cursor: pointer;
 }
 .navbar__hamburger span {
   display: block;
@@ -375,6 +378,12 @@
     display: flex !important;
     order: 3 !important;
     margin-left: 0 !important;
+    background: rgba(201, 169, 110, 0.1) !important;
+    border-radius: var(--radius-md) !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+    align-items: center !important;
   }
 
   .navbar__links {
@@ -394,7 +403,7 @@
     transform: translateY(-120%) !important;
     transition: transform var(--transition-slow) !important;
     margin-left: 0 !important;
-    z-index: 999 !important;
+    z-index: 998 !important;
     max-height: calc(100vh - var(--navbar-height, 72px));
     overflow-y: auto !important;
   }

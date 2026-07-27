@@ -98,12 +98,6 @@ function ChatBot() {
   };
 
   const startListening = async () => {
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (e) {
-      alert('Permiso de micrófono denegado o no disponible.');
-      return;
-    }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Tu navegador no soporta el reconocimiento de voz. Por favor usa Google Chrome o Microsoft Edge.");
@@ -162,12 +156,11 @@ function ChatBot() {
         } else if (event.error === "network") {
           console.warn("Error de red en reconocimiento de voz.");
           alert("El reconocimiento de voz requiere conexión a Internet. Por favor verifica tu conexión.");
+        } else if (event.error === "not-allowed") {
+          alert("Acceso al micrófono denegado. Por favor, habilita los permisos de micrófono en tu navegador y recarga la página.");
         } else {
-          if (event.error === "not-allowed") {
-            alert("Acceso al micrófono denegado. Habilita los permisos de micrófono en tu navegador.");
-          } else {
-            console.error("Error en reconocimiento de voz:", event.error);
-          }
+          console.error("Error en reconocimiento de voz:", event.error);
+          alert("Error al acceder al micrófono: " + event.error);
         }
         autoSubmitRef.current = false;
         setIsListening(false);
@@ -195,6 +188,11 @@ function ChatBot() {
       if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     } catch (err) {
       console.error("Error al iniciar Web Speech:", err);
+      if (err.name === 'NotAllowedError' || err.message?.includes('permission')) {
+        alert("Permiso de micrófono denegado. Por favor, habilita los permisos de micrófono en tu navegador y recarga la página.");
+      } else {
+        alert("Error al iniciar el reconocimiento de voz: " + err.message);
+      }
       setIsListening(false);
     }
   };

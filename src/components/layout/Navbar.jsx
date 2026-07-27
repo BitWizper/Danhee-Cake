@@ -18,10 +18,8 @@ const Navbar = () => {
   }, []);
 
   useEffect(() => {
-    if (!menuOpen) return;
-    const t = setTimeout(() => setMenuOpen(false), 0);
-    return () => clearTimeout(t);
-  }, [location, menuOpen]);
+    setMenuOpen(false);
+  }, [location]);
 
   const { user, isAuthenticated, logout } = useAuth();
   const { getRecentItems, getTotalItems } = useCart();
@@ -164,6 +162,7 @@ const Navbar = () => {
           className={`navbar__hamburger ${menuOpen ? 'navbar__hamburger--open' : ''}`}
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Abrir menú"
+          type="button"
         >
           <span /><span /><span />
         </button>
