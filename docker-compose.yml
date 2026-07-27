@@ -22,12 +22,12 @@ services:
       - START_RAG=true
       # Si te conectas a Ollama localmente, usa esta variable:
       - OLLAMA_HOST=host.docker.internal
-      # Configuración de base de datos local (Docker) - sobrescribe Clever Cloud
-      - DB_HOST=database
+      # Configuración de base de datos Clever Cloud (desde .env)
+      - DB_HOST=bvtdjsmypbwpngczasgf-mysql.services.clever-cloud.com
       - DB_PORT=3306
-      - DB_NAME=danhee_db
-      - DB_USER=usuario
-      - DB_PASSWORD=password
+      - DB_NAME=bvtdjsmypbwpngczasgf
+      - DB_USER=ueixm6eypteu4pjt
+      - DB_PASSWORD=2BIOKddsIrsSJGKlxClR
     volumes:
       - ./server:/app
       - /app/node_modules

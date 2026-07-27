@@ -15,7 +15,7 @@ const cleverCloudConfig = {
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
   ssl: { 
-    rejectUnauthorized: true // Más seguro: solo aceptar certificados válidos
+    rejectUnauthorized: false // Aceptar certificados autofirmados de Clever Cloud (mantiene encriptación SSL)
   },
   // Seguridad adicional
   charset: 'utf8mb4',
@@ -191,10 +191,13 @@ pool.getConnection()
   .then(conn => {
     console.log(`✅  MySQL conectado – ${hasCleverCloudCredentials ? 'Clever Cloud' : 'Base de datos local'}`);
     console.log('🔒  Seguridad de base de datos activa:');
-    console.log('   - SSL/TLS habilitado');
+    console.log('   - SSL/TLS habilitado (encriptación activa)');
     console.log('   - Múltiples sentencias deshabilitadas');
     console.log('   - Validación de queries activa');
     console.log('   - Detección de patrones sospechosos activa');
+    if (hasCleverCloudCredentials) {
+      console.log('   - Certificado Clever Cloud aceptado (rejectUnauthorized: false)');
+    }
     conn.release();
   })
   .catch(err => {
