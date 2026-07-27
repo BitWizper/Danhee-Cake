@@ -105,6 +105,11 @@ const httpSecurity = (req, res, next) => {
   const userAgent = req.headers['user-agent'];
   const ip = req.ip;
   
+  // Saltar validaciones estrictas para rutas de auth (rate limiting se maneja en app.js)
+  if (req.path === '/api/auth/login' || req.path === '/api/auth/register') {
+    return next();
+  }
+  
   // 1. Validar longitud de URL
   if (req.url.length > HTTP_SECURITY_CONFIG.maxUrlLength) {
     logSecurityEvent('URL_TOO_LONG', {

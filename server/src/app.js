@@ -14,6 +14,7 @@ const { advancedSecurity } = require('./middleware/securityAdvanced');
 const { clientChatGuard } = require('./middleware/clientChatGuard');
 const { httpSecurity, validateBodySize, preventClickjacking, preventMimeSniffing, preventXSS } = require('./middleware/httpSecurity');
 const { ipBlocker, attackDetector, recordFailedAttempt, recordSuccessfulAttempt } = require('./middleware/ipBlocker');
+const { ipBlocker } = require('./middleware/rateLimiter');
 
 
 const app = express();
@@ -162,9 +163,14 @@ const sanitizeQueryParams = (req, res, next) => {
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
 app.use('/uploads', express.static('uploads'));
 
-// Middleware de seguridad HTTP (antes de sanitización)
+// Rate limiting específico para auth
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', registerLimiter);
+
+// Middleware de seguridad HTTP
 app.use(httpSecurity);
 app.use(validateBodySize);
 app.use(preventClickjacking);
@@ -181,12 +187,9 @@ app.use(auditLogger);
 
 // Rate limiting general para API
 app.use('/api/', apiLimiter);
-
-// Rate limiting específico por método HTTP
 app.use('/api/', methodLimiter);
-
-// Rate limiting para operaciones de escritura
 app.use('/api/', writeLimiter);
+app.use('/api/', readLimiter);
 
 // Middleware de bloqueo por IP (solo para rutas protegidas)
 app.use('/api/auth', ipBlocker);
@@ -200,12 +203,7 @@ app.use('/api/appointments', attackDetector);
 app.use('/api/chat', attackDetector);
 app.use('/api/admin', attackDetector);
 
-// Rate limiting para operaciones de lectura
-app.use('/api/', readLimiter);
-
-// Rutas con rate limiting específico
-app.use('/api/auth/login', authLimiter, require('./routes/auth.routes'));
-app.use('/api/auth/register', registerLimiter, require('./routes/auth.routes'));
+// Rutas
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/categories', require('./routes/categories.routes'));
 app.use('/api/cakes', require('./routes/cakes.routes'));
