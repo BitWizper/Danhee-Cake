@@ -22,6 +22,12 @@ services:
       - START_RAG=true
       # Si te conectas a Ollama localmente, usa esta variable:
       - OLLAMA_HOST=host.docker.internal
+      # Configuración de base de datos local (Docker) - sobrescribe Clever Cloud
+      - DB_HOST=database
+      - DB_PORT=3306
+      - DB_NAME=danhee_db
+      - DB_USER=usuario
+      - DB_PASSWORD=password
     volumes:
       - ./server:/app
       - /app/node_modules
@@ -51,7 +57,7 @@ services:
     restart: always
     networks:
       - app-network
-    command: --default-authentication-plugin=mysql_native_password
+    command: --default-authentication-plugin=mysql_native_password --ssl=0
 
   ngrok_tunnel:
     image: ngrok/ngrok:latest

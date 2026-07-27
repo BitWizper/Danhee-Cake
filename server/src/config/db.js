@@ -37,6 +37,10 @@ const localDbConfig = {
   connectTimeout: 30000,
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
+  // SSL deshabilitado para Docker local (red interna aislada, no expuesta a internet)
+  // La base de datos MySQL 8.0 usa SSL por defecto, pero en Docker local no es necesario
+  // ya que la red Docker es aislada y no accesible desde fuera
+  ssl: false,
   // Seguridad adicional
   charset: 'utf8mb4',
   timezone: '+00:00',
@@ -46,10 +50,11 @@ const localDbConfig = {
 
 // Determinar qué configuración usar: Clever Cloud si hay credenciales, sino local
 const hasCleverCloudCredentials = process.env.DB_HOST && 
-                                   process.env.DB_HOST.includes('clever-cloud.com');
+                                   (process.env.DB_HOST.includes('clever-cloud.com') || process.env.DB_HOST.includes('clever-cloud'));
 const config = hasCleverCloudCredentials ? cleverCloudConfig : localDbConfig;
 
 console.log(`🔗 Usando configuración: ${hasCleverCloudCredentials ? 'Clever Cloud' : 'Base de datos local (Docker)'}`);
+console.log(`📍 DB_HOST: ${process.env.DB_HOST || 'no configurado'}`);
 
 const pool = mysql2.createPool(config);
 
