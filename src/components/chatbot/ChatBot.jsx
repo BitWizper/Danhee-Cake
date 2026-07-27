@@ -1,6 +1,20 @@
-import { useEffect, useRef, useState } from "react";
-import { FaPaperPlane, FaRobot, FaTimes, FaMicrophone, FaMicrophoneSlash, FaEllipsisV } from "react-icons/fa";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { FaPaperPlane, FaRobot, FaTimes, FaMicrophone, FaMicrophoneSlash, FaEllipsisV, FaShieldAlt } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
+import {
+  CHAT_SECURITY_CONFIG,
+  validateMessage,
+  sanitizeMessage,
+  sanitizeDisplayText,
+  isSpamMessage,
+  isValidConversationId,
+  isValidUUID,
+  isValidSSEEvent,
+  getChatRateLimitStatus,
+  checkAndRecordChatRateLimit,
+  syncChatServerRateLimit,
+  formatBlockTime,
+} from "../../utils/chatSecurity";
 import "./ChatBot.css";
 
 const WELCOME_MESSAGE = {
@@ -15,83 +29,6 @@ const BAKER_WELCOME_MESSAGE = {
   text: "Hola, soy el asistente de repostería de Danhee Cake. Te puedo ayudar a listar, agregar, modificar o eliminar pasteles en tu catálogo.",
 };
 
-// Configuración de seguridad para el chatbot
-const CHAT_SECURITY_CONFIG = {
-  maxMessageLength: 2000,
-  maxWords: 300,
-  minMessageLength: 1,
-  cooldownPeriod: 2000, // 2 segundos entre mensajes
-  blockedPatterns: [
-    /<script[^>]*>.*?<\/script>/gi,
-    /javascript:/gi,
-    /on\w+\s*=/gi, // Event handlers como onclick, onerror, etc.
-    /eval\s*\(/gi,
-    /exec\s*\(/gi,
-    /system\s*\(/gi,
-    /require\s*\(/gi,
-    /import\s*\(/gi,
-    /\$\{.*\}/gi, // Template injection
-    /__proto__/gi, // Prototype pollution
-    /constructor/gi, // Constructor pollution
-    /prototype/gi, // Prototype pollution
-    /this\[.*\]/gi, // Property access
-    /\.\.\/\.\//gi, // Path traversal
-    /<iframe/gi,
-    /<embed/gi,
-    /<object/gi,
-    /document\./gi,
-    /window\./gi,
-    /localStorage\./gi,
-    /sessionStorage\./gi,
-    /cookie/gi,
-  ]
-};
-
-// Función para validar el mensaje del usuario
-const validateMessage = (message) => {
-  if (!message || typeof message !== 'string') {
-    return { valid: false, error: 'El mensaje es requerido' };
-  }
-
-  const trimmed = message.trim();
-
-  if (trimmed.length < CHAT_SECURITY_CONFIG.minMessageLength) {
-    return { valid: false, error: 'El mensaje debe tener al menos 1 carácter' };
-  }
-
-  if (trimmed.length > CHAT_SECURITY_CONFIG.maxMessageLength) {
-    return { valid: false, error: `El mensaje no puede exceder ${CHAT_SECURITY_CONFIG.maxMessageLength} caracteres` };
-  }
-
-  const wordCount = trimmed.split(/\s+/).length;
-  if (wordCount > CHAT_SECURITY_CONFIG.maxWords) {
-    return { valid: false, error: `El mensaje no puede exceder ${CHAT_SECURITY_CONFIG.maxWords} palabras` };
-  }
-
-  // Verificar patrones bloqueados
-  for (const pattern of CHAT_SECURITY_CONFIG.blockedPatterns) {
-    if (pattern.test(trimmed)) {
-      return { valid: false, error: 'El mensaje contiene patrones no permitidos por seguridad' };
-    }
-  }
-
-  // Verificar caracteres peligrosos
-  const dangerousChars = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
-  if (dangerousChars.test(trimmed)) {
-    return { valid: false, error: 'El mensaje contiene caracteres inválidos' };
-  }
-
-  return { valid: true };
-};
-
-// Función para sanitizar el mensaje (remover caracteres peligrosos)
-const sanitizeMessage = (message) => {
-  if (!message) return '';
-  return message
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Caracteres de control
-    .trim();
-};
-
 function ChatBot() {
   const { user } = useAuth();
 
@@ -104,6 +41,13 @@ function ChatBot() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [lastMessageTime, setLastMessageTime] = useState(0);
   const [validationError, setValidationError] = useState("");
+  const [rateLimitStatus, setRateLimitStatus] = useState({
+    remaining: CHAT_SECURITY_CONFIG.rateLimit.maxMessages,
+    total: CHAT_SECURITY_CONFIG.rateLimit.maxMessages,
+    blocked: false,
+    blockedUntil: 0,
+  });
+  const [blockCountdown, setBlockCountdown] = useState(0);
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -112,6 +56,38 @@ function ChatBot() {
   const autoSubmitRef = useRef(false);
   const menuRef = useRef(null);
   const chatBodyRef = useRef(null);
+  const countdownIntervalRef = useRef(null);
+
+  const refreshRateLimitStatus = useCallback(() => {
+    const status = getChatRateLimitStatus();
+    setRateLimitStatus(status);
+    return status;
+  }, []);
+
+  const startBlockCountdown = useCallback((blockedUntil) => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((blockedUntil - Date.now()) / 1000));
+      setBlockCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+        setValidationError("");
+        refreshRateLimitStatus();
+      }
+    };
+
+    tick();
+    countdownIntervalRef.current = setInterval(tick, 1000);
+  }, [refreshRateLimitStatus]);
+
+  const showValidationError = useCallback((msg, persist = false) => {
+    setValidationError(msg);
+    if (!persist) {
+      setTimeout(() => setValidationError(""), 3500);
+    }
+  }, []);
 
   const getWelcomeMessage = () => {
     const storedUser = JSON.parse(localStorage.getItem("user") || "null");
@@ -120,18 +96,14 @@ function ChatBot() {
 
   const startNewChat = () => {
     if (isSending) return;
-
     const shouldReset = window.confirm(
       "¿Quieres iniciar un nuevo chat? Tu historial quedara guardado y podras verlo cuando quieras."
     );
-
     if (!shouldReset) return;
-
     if (isListening && recognitionRef.current) {
       autoSubmitRef.current = false;
       recognitionRef.current.stop();
     }
-
     localStorage.removeItem("conversation_id");
     setMessage("");
     setLoadingState({ status: "", message: "" });
@@ -141,13 +113,10 @@ function ChatBot() {
 
   const deleteCurrentChat = async () => {
     if (isSending) return;
-
     const shouldDelete = window.confirm(
       "¿Estás seguro de que deseas borrar este chat? Se eliminará todo el historial de la conversación actual y se reiniciará desde 0."
     );
-
     if (!shouldDelete) return;
-
     if (isListening && recognitionRef.current) {
       autoSubmitRef.current = false;
       recognitionRef.current.stop();
@@ -155,14 +124,19 @@ function ChatBot() {
 
     const conversation_id = localStorage.getItem("conversation_id");
     const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+    const clientId = storedUser?.id && isValidUUID(storedUser.id) ? storedUser.id : null;
+
+    if (conversation_id && !isValidConversationId(conversation_id)) {
+      localStorage.removeItem("conversation_id");
+    }
 
     try {
       await fetch("/api/chat/history", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          conversation_id: conversation_id || null,
-          client_id: storedUser?.id || null,
+          conversation_id: isValidConversationId(conversation_id) ? conversation_id : null,
+          client_id: clientId,
         }),
       });
     } catch (err) {
@@ -184,11 +158,10 @@ function ChatBot() {
     }
 
     try {
-      // Limpiar estado anterior al iniciar nueva grabación
       setMessage("");
       lastTranscriptRef.current = "";
       autoSubmitRef.current = false;
-      
+
       const rec = new SpeechRecognition();
       rec.continuous = false;
       rec.interimResults = true;
@@ -196,50 +169,40 @@ function ChatBot() {
 
       rec.onstart = () => {
         setIsListening(true);
-        if (silenceTimeoutRef.current) {
-          clearTimeout(silenceTimeoutRef.current);
-        }
+        if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
       };
 
       rec.onresult = (event) => {
         let fullTranscript = "";
         let isFinal = false;
-        
         for (let i = 0; i < event.results.length; ++i) {
           fullTranscript += event.results[i][0].transcript;
           if (event.results[i].isFinal) isFinal = true;
         }
-        
         if (fullTranscript) {
           lastTranscriptRef.current = fullTranscript;
           setMessage(fullTranscript);
         }
-
-        // Si la transcripción es final, esperar pausa y luego detener + enviar
         if (isFinal) {
           if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
           autoSubmitRef.current = true;
           silenceTimeoutRef.current = setTimeout(() => {
-            if (recognitionRef.current) {
-              recognitionRef.current.stop();
-            }
+            if (recognitionRef.current) recognitionRef.current.stop();
           }, 600);
         }
       };
 
       rec.onerror = (event) => {
         if (event.error === "no-speech") {
-          console.warn("No se detectó voz. Por favor, intenta de nuevo.");
+          console.warn("No se detectó voz.");
         } else if (event.error === "aborted") {
-          console.warn("Reconocimiento de voz cancelado.");
+          console.warn("Reconocimiento cancelado.");
         } else if (event.error === "network") {
-          console.warn("Error de red en reconocimiento de voz.");
-          alert("El reconocimiento de voz requiere conexión a Internet. Por favor verifica tu conexión.");
+          alert("El reconocimiento de voz requiere conexión a Internet.");
         } else if (event.error === "not-allowed") {
-          alert("Acceso al micrófono denegado. Por favor, habilita los permisos de micrófono en tu navegador y recarga la página.");
+          alert("Acceso al micrófono denegado. Habilita los permisos en tu navegador.");
         } else {
           console.error("Error en reconocimiento de voz:", event.error);
-          alert("Error al acceder al micrófono: " + event.error);
         }
         autoSubmitRef.current = false;
         setIsListening(false);
@@ -249,10 +212,8 @@ function ChatBot() {
         setIsListening(false);
         if (autoSubmitRef.current && lastTranscriptRef.current.trim()) {
           autoSubmitRef.current = false;
-          const fakeEvent = { preventDefault: () => {} };
-          sendMessageText(lastTranscriptRef.current.trim(), fakeEvent);
+          sendMessageText(lastTranscriptRef.current.trim(), { preventDefault: () => {} });
         }
-        // Clean up refs after voice ends
         recognitionRef.current = null;
         lastTranscriptRef.current = "";
         if (silenceTimeoutRef.current) {
@@ -260,15 +221,14 @@ function ChatBot() {
           silenceTimeoutRef.current = null;
         }
       };
-      
+
       recognitionRef.current = rec;
       rec.start();
-      // Reset any previous timeout when starting a new recording
       if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     } catch (err) {
       console.error("Error al iniciar Web Speech:", err);
-      if (err.name === 'NotAllowedError' || err.message?.includes('permission')) {
-        alert("Permiso de micrófono denegado. Por favor, habilita los permisos de micrófono en tu navegador y recarga la página.");
+      if (err.name === "NotAllowedError" || err.message?.includes("permission")) {
+        alert("Permiso de micrófono denegado.");
       } else {
         alert("Error al iniciar el reconocimiento de voz: " + err.message);
       }
@@ -277,42 +237,38 @@ function ChatBot() {
   };
 
   const toggleListening = () => {
-      if (isListening) {
-        autoSubmitRef.current = false;
-        if (recognitionRef.current) {
-          recognitionRef.current.stop();
-        }
-        // Ensure cleanup after manual stop
-        recognitionRef.current = null;
-        lastTranscriptRef.current = "";
-        autoSubmitRef.current = false;
-        setIsListening(false);
-        if (silenceTimeoutRef.current) {
-          clearTimeout(silenceTimeoutRef.current);
-          silenceTimeoutRef.current = null;
-        }
-        return;
+    if (isListening) {
+      autoSubmitRef.current = false;
+      if (recognitionRef.current) recognitionRef.current.stop();
+      recognitionRef.current = null;
+      lastTranscriptRef.current = "";
+      setIsListening(false);
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
       }
+      return;
+    }
+    startListening();
+  };
 
-      startListening();
-    };
-
-  // Cargar el historial de conversación del usuario autenticado
   const loadConversationHistory = async () => {
     try {
       const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-      if (!storedUser?.id) return;
+      if (!storedUser?.id || !isValidUUID(storedUser.id)) return;
 
-      const response = await fetch(`/api/chat/history?client_id=${storedUser.id}`);
-      const welcomeMsg = storedUser?.role === 'repostero' ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
+      const response = await fetch(
+        `/api/chat/history?client_id=${encodeURIComponent(storedUser.id)}`
+      );
+      const welcomeMsg = storedUser?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
 
       if (response.ok) {
         const data = await response.json();
         if (data.messages && data.messages.length > 0) {
           const historyMessages = data.messages.map((msg, index) => ({
             id: `hist-${index}`,
-            sender: msg.role === 'user' ? 'user' : 'bot',
-            text: msg.content
+            sender: msg.role === "user" ? "user" : "bot",
+            text: sanitizeDisplayText(typeof msg.content === "string" ? msg.content : ""),
           }));
           setChat(historyMessages);
         } else {
@@ -324,26 +280,36 @@ function ChatBot() {
     } catch (error) {
       console.error("Error cargando historial:", error);
       const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-      const welcomeMsg = storedUser?.role === 'repostero' ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
+      const welcomeMsg = storedUser?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
       setChat([welcomeMsg]);
     }
   };
 
-  // Cuando el usuario cambia (login o logout)
   useEffect(() => {
     const welcomeMsg = getWelcomeMessage();
     if (user) {
-      localStorage.removeItem('conversation_id');
+      localStorage.removeItem("conversation_id");
       loadConversationHistory();
     } else {
       setChat([welcomeMsg]);
-      localStorage.removeItem('conversation_id');
+      localStorage.removeItem("conversation_id");
     }
     setMessage("");
     setIsSending(false);
     setOpen(false);
     setMenuOpen(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  useEffect(() => {
+    if (open) refreshRateLimitStatus();
+  }, [open, refreshRateLimitStatus]);
+
+  useEffect(() => {
+    return () => {
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutsideMenu = (event) => {
@@ -351,88 +317,99 @@ function ChatBot() {
         setMenuOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutsideMenu);
     return () => document.removeEventListener("mousedown", handleClickOutsideMenu);
   }, []);
 
-  // Limpiar recursos de grabación cuando se desmonta el componente
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      if (silenceTimeoutRef.current) {
-        clearTimeout(silenceTimeoutRef.current);
-      }
+      if (recognitionRef.current) recognitionRef.current.stop();
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     };
   }, []);
 
   useEffect(() => {
     if (open) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 80);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
     }
   }, [open]);
 
   useEffect(() => {
-    if (open) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (open) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat, loadingState]);
 
   const _doSend = async (trimmedMessage) => {
-    const userMessage = {
-      id: Date.now().toString(),
-      sender: "user",
-      text: trimmedMessage,
-    };
-
+    const userMessage = { id: Date.now().toString(), sender: "user", text: trimmedMessage };
     setChat((prev) => [...prev, userMessage]);
     setIsSending(true);
     setLoadingState({ status: "thinking", message: "Conectando con el asistente..." });
 
     try {
       const token = localStorage.getItem("token");
-      const conversation_id = localStorage.getItem("conversation_id");
-      const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+      const rawConvId = localStorage.getItem("conversation_id");
+      const conversation_id = isValidConversationId(rawConvId) ? rawConvId : null;
 
-      const headers = {
-        "Content-Type": "application/json",
-      };
-
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+      if (rawConvId && !isValidConversationId(rawConvId)) {
+        console.warn("[Security] conversation_id inválido, reseteando.");
+        localStorage.removeItem("conversation_id");
       }
 
-      // Conectarse al endpoint de streaming del Node Server
+      const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+      const clientId = storedUser?.id && isValidUUID(storedUser.id) ? storedUser.id : null;
+
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       const res = await fetch("/api/chat/stream", {
         method: "POST",
-        headers: headers,
+        headers,
         body: JSON.stringify({
           message: trimmedMessage,
-          conversation_id: conversation_id,
-          client_id: storedUser ? storedUser.id : null,
-          role: storedUser ? storedUser.role : null,
+          conversation_id,
+          client_id: clientId,
+          role: storedUser?.role || null,
           client_datetime: new Date().toISOString(),
         }),
       });
 
+      if (res.status === 429) {
+        const retryAfter = res.headers.get("Retry-After");
+        const resetHeader = res.headers.get("RateLimit-Reset");
+        let retrySec = retryAfter ? parseInt(retryAfter, 10) : null;
+        if (!retrySec && resetHeader) {
+          const resetTime = parseInt(resetHeader, 10);
+          if (!Number.isNaN(resetTime)) {
+            retrySec = Math.max(1, resetTime - Math.floor(Date.now() / 1000));
+          }
+        }
+        syncChatServerRateLimit(retrySec);
+        const status = getChatRateLimitStatus();
+        startBlockCountdown(status.blockedUntil);
+        showValidationError(
+          `⏳ Demasiados mensajes. Espera ${formatBlockTime(status.blockedUntil - Date.now())} para continuar.`,
+          true
+        );
+        setChat((prev) => prev.filter((m) => m.id !== userMessage.id));
+        setIsSending(false);
+        setLoadingState({ status: "", message: "" });
+        refreshRateLimitStatus();
+        return;
+      }
+
+      if (res.status === 403) {
+        showValidationError("Tu mensaje fue bloqueado por seguridad.");
+        setChat((prev) => prev.filter((m) => m.id !== userMessage.id));
+        setIsSending(false);
+        setLoadingState({ status: "", message: "" });
+        return;
+      }
+
       if (!res.ok) {
-        throw new Error("Error al iniciar el stream de respuesta");
+        throw new Error(`Error al iniciar el stream: ${res.status}`);
       }
 
       const botMessageId = (Date.now() + 1).toString();
-      // Insertar placeholder para el bot
-      setChat((prev) => [
-        ...prev,
-        {
-          id: botMessageId,
-          sender: "bot",
-          text: "",
-        },
-      ]);
+      setChat((prev) => [...prev, { id: botMessageId, sender: "bot", text: "" }]);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -445,7 +422,7 @@ function ChatBot() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n\n");
-        buffer = lines.pop(); // Mantener el fragmento incompleto
+        buffer = lines.pop();
 
         for (const line of lines) {
           const cleanLine = line.trim();
@@ -455,21 +432,30 @@ function ChatBot() {
           try {
             const data = JSON.parse(jsonStr);
 
+            if (!isValidSSEEvent(data)) {
+              console.warn("[Security] Evento SSE ignorado:", data?.type);
+              continue;
+            }
+
             if (data.type === "conversation_id") {
-              localStorage.setItem("conversation_id", data.conversation_id);
+              if (isValidConversationId(data.conversation_id)) {
+                localStorage.setItem("conversation_id", data.conversation_id);
+              }
             } else if (data.type === "state") {
-              setLoadingState({ status: data.status, message: data.message });
+              setLoadingState({
+                status: data.status,
+                message: sanitizeDisplayText(data.message),
+              });
             } else if (data.type === "token") {
               setLoadingState({ status: "", message: "" });
               fullBotResponse += data.content;
-
               setChat((prev) => {
                 const updated = [...prev];
                 const index = updated.findIndex((msg) => msg.id === botMessageId);
                 if (index !== -1) {
                   updated[index] = {
                     ...updated[index],
-                    text: fullBotResponse,
+                    text: sanitizeDisplayText(fullBotResponse),
                   };
                 }
                 return updated;
@@ -477,14 +463,13 @@ function ChatBot() {
             } else if (data.type === "error") {
               setLoadingState({ status: "", message: "" });
               fullBotResponse = data.content;
-
               setChat((prev) => {
                 const updated = [...prev];
                 const index = updated.findIndex((msg) => msg.id === botMessageId);
                 if (index !== -1) {
                   updated[index] = {
                     ...updated[index],
-                    text: fullBotResponse,
+                    text: sanitizeDisplayText(fullBotResponse),
                   };
                 }
                 return updated;
@@ -496,7 +481,6 @@ function ChatBot() {
         }
       }
 
-      // Notificar a la UI (Dashboard / Portafolio) para actualizar precios y catálogo automáticamente
       if (storedUser?.role === "repostero") {
         window.dispatchEvent(new CustomEvent("baker-catalog-updated"));
       }
@@ -513,81 +497,86 @@ function ChatBot() {
     } finally {
       setIsSending(false);
       setLoadingState({ status: "", message: "" });
+      refreshRateLimitStatus();
     }
   };
 
-  // Wrapper para el formulario (usa el estado message)
+  const _handleSend = (rawText) => {
+    const trimmedMessage = (rawText || "").trim();
+
+    const rlStatus = getChatRateLimitStatus();
+    if (rlStatus.blocked) {
+      startBlockCountdown(rlStatus.blockedUntil);
+      showValidationError(
+        `⏳ Límite alcanzado. Espera ${formatBlockTime(rlStatus.blockedUntil - Date.now())} para continuar.`,
+        true
+      );
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastMessageTime < CHAT_SECURITY_CONFIG.cooldownPeriod) {
+      const remaining = Math.ceil(
+        (CHAT_SECURITY_CONFIG.cooldownPeriod - (now - lastMessageTime)) / 1000
+      );
+      showValidationError(`Espera ${remaining}s antes de enviar otro mensaje.`);
+      return;
+    }
+
+    const validation = validateMessage(trimmedMessage);
+    if (!validation.valid) {
+      showValidationError(validation.error);
+      return;
+    }
+
+    if (isSpamMessage(trimmedMessage, chat)) {
+      showValidationError("Por favor evita repetir el mismo mensaje varias veces.");
+      return;
+    }
+
+    if (!trimmedMessage || isSending) return;
+
+    const rlResult = checkAndRecordChatRateLimit();
+    if (!rlResult.allowed) {
+      startBlockCountdown(rlResult.blockedUntil);
+      showValidationError(
+        `⏳ Demasiados mensajes. Espera ${formatBlockTime(rlResult.blockedUntil - Date.now())} para continuar.`,
+        true
+      );
+      return;
+    }
+
+    const sanitized = sanitizeMessage(trimmedMessage);
+    setMessage("");
+    setLastMessageTime(now);
+    setValidationError("");
+    setRateLimitStatus({ ...rlResult, blocked: false });
+    _doSend(sanitized);
+  };
+
   const sendMessage = (event) => {
     event.preventDefault();
-    const trimmedMessage = message.trim();
-    
-    // Verificar cooldown
-    const now = Date.now();
-    if (now - lastMessageTime < CHAT_SECURITY_CONFIG.cooldownPeriod) {
-      const remainingTime = Math.ceil((CHAT_SECURITY_CONFIG.cooldownPeriod - (now - lastMessageTime)) / 1000);
-      setValidationError(`Por favor, espera ${remainingTime} segundos antes de enviar otro mensaje`);
-      setTimeout(() => setValidationError(""), 3000);
-      return;
-    }
-    
-    // Validar mensaje
-    const validation = validateMessage(trimmedMessage);
-    if (!validation.valid) {
-      setValidationError(validation.error);
-      setTimeout(() => setValidationError(""), 3000);
-      return;
-    }
-    
-    if (!trimmedMessage || isSending) return;
-    
-    // Sanitizar mensaje
-    const sanitized = sanitizeMessage(trimmedMessage);
-    setMessage("");
-    setLastMessageTime(now);
-    setValidationError("");
-    _doSend(sanitized);
+    _handleSend(message);
   };
 
-  // Versión usada por el auto-envío de voz (recibe texto directamente)
   const sendMessageText = (text, event) => {
     if (event) event.preventDefault();
-    const trimmedMessage = (text || "").trim();
-    
-    // Verificar cooldown
-    const now = Date.now();
-    if (now - lastMessageTime < CHAT_SECURITY_CONFIG.cooldownPeriod) {
-      const remainingTime = Math.ceil((CHAT_SECURITY_CONFIG.cooldownPeriod - (now - lastMessageTime)) / 1000);
-      setValidationError(`Por favor, espera ${remainingTime} segundos antes de enviar otro mensaje`);
-      setTimeout(() => setValidationError(""), 3000);
-      return;
-    }
-    
-    // Validar mensaje
-    const validation = validateMessage(trimmedMessage);
-    if (!validation.valid) {
-      setValidationError(validation.error);
-      setTimeout(() => setValidationError(""), 3000);
-      return;
-    }
-    
-    if (!trimmedMessage || isSending) return;
-    
-    // Sanitizar mensaje
-    const sanitized = sanitizeMessage(trimmedMessage);
-    setMessage("");
-    setLastMessageTime(now);
-    setValidationError("");
-    _doSend(sanitized);
+    _handleSend(text);
   };
 
   const renderFormattedText = (text) => {
-    if (!text) return null;
-    const lines = text.split("\n");
+    const safeText = sanitizeDisplayText(text);
+    if (!safeText) return null;
+
+    const lines = safeText.split("\n");
     return lines.map((line, idx) => {
       let cleanLine = line.trim();
       if (!cleanLine) return <div key={idx} style={{ height: "4px" }} />;
 
-      const isBullet = /^[*\-•]\s+/.test(cleanLine) || /^\.\s+\*\*/.test(cleanLine) || /^[*\-•]\s+\*\*/.test(cleanLine);
+      const isBullet =
+        /^[*\-•]\s+/.test(cleanLine) ||
+        /^\.\s+\*\*/.test(cleanLine) ||
+        /^[*\-•]\s+\*\*/.test(cleanLine);
       if (isBullet) {
         cleanLine = cleanLine.replace(/^[*\-•\.]\s+/, "").replace(/^\.\s+/, "");
       }
@@ -608,9 +597,21 @@ function ChatBot() {
           </div>
         );
       }
-
       return <div key={idx} style={{ margin: "2px 0" }}>{lineContent}</div>;
     });
+  };
+
+  const renderRateLimitIndicator = () => {
+    const { remaining, total, blocked } = rateLimitStatus;
+    if (blocked || remaining >= total) return null;
+    const pct = (remaining / total) * 100;
+    const isLow = remaining <= 5;
+    return (
+      <div className={`chat-quota-bar ${isLow ? "low" : ""}`}>
+        <div className="chat-quota-fill" style={{ width: `${pct}%` }} />
+        <span className="chat-quota-label">{remaining}/{total} mensajes restantes</span>
+      </div>
+    );
   };
 
   return (
@@ -625,7 +626,6 @@ function ChatBot() {
 
       {open && (
         <div className="chat-container glass animate-scaleIn">
-
           <div className="chat-header">
             <div>
               <span className="chat-eyebrow">Asistente virtual</span>
@@ -649,20 +649,10 @@ function ChatBot() {
 
                 {menuOpen && (
                   <div className="chat-menu-dropdown" role="menu">
-                    <button
-                      type="button"
-                      className="chat-menu-item"
-                      onClick={startNewChat}
-                      disabled={isSending}
-                    >
+                    <button type="button" className="chat-menu-item" onClick={startNewChat} disabled={isSending}>
                       Nuevo chat
                     </button>
-                    <button
-                      type="button"
-                      className="chat-menu-item danger"
-                      onClick={deleteCurrentChat}
-                      disabled={isSending}
-                    >
+                    <button type="button" className="chat-menu-item danger" onClick={deleteCurrentChat} disabled={isSending}>
                       Borrar chat
                     </button>
                   </div>
@@ -672,75 +662,73 @@ function ChatBot() {
           </div>
 
           <div className="chat-body" ref={chatBodyRef} role="log" aria-live="polite">
-
             {chat.map((msg) => (
-              <div
-                key={msg.id}
-                className={`chat-message ${msg.sender}`}
-              >
-                <span className="chat-message-label">
-                  {msg.sender === "user" ? "Tú" : "Danhee"}
-                </span>
+              <div key={msg.id} className={`chat-message ${msg.sender}`}>
+                <span className="chat-message-label">{msg.sender === "user" ? "Tú" : "Danhee"}</span>
                 {renderFormattedText(msg.text)}
               </div>
             ))}
 
             {loadingState.status && (
               <div className="chat-loading-state">
-                <span className="loading-spinner"></span>
-                <span className="loading-text">{loadingState.message}</span>
+                <span className="loading-spinner" />
+                <span className="loading-text">{sanitizeDisplayText(loadingState.message)}</span>
               </div>
             )}
 
             <div ref={messagesEndRef} />
-
           </div>
 
-          <form className="chat-footer" onSubmit={sendMessage}>
+          {renderRateLimitIndicator()}
 
+          {validationError && (
+            <div className={`chat-validation-error ${validationError.startsWith("⏳") ? "blocked" : ""} shake`}>
+              {validationError.startsWith("⏳") && (
+                <FaShieldAlt style={{ marginRight: 6, flexShrink: 0 }} />
+              )}
+              {validationError}
+              {blockCountdown > 0 && (
+                <span className="block-countdown"> ({blockCountdown}s)</span>
+              )}
+            </div>
+          )}
+
+          <form className="chat-footer" onSubmit={sendMessage}>
             <button
               type="button"
               className={`mic-button ${isListening ? "active" : ""}`}
               onClick={toggleListening}
-              title={isListening ? "Detener grabación de voz" : "Grabar voz"}
-              disabled={isSending}
+              title={isListening ? "Detener grabación" : "Grabar voz"}
+              disabled={isSending || rateLimitStatus.blocked}
             >
               {isListening ? <FaMicrophoneSlash /> : <FaMicrophone />}
             </button>
 
             <input
               type="text"
-              placeholder={isListening ? "Escuchando..." : "Pregunta algo..."}
+              placeholder={
+                rateLimitStatus.blocked
+                  ? `Bloqueado (${blockCountdown}s)...`
+                  : isListening
+                  ? "Escuchando..."
+                  : "Pregunta algo..."
+              }
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              disabled={isSending}
+              disabled={isSending || rateLimitStatus.blocked}
               maxLength={CHAT_SECURITY_CONFIG.maxMessageLength}
+              autoComplete="off"
+              spellCheck={false}
             />
 
-            <button type="submit" disabled={isSending || !message.trim()}>
+            <button
+              type="submit"
+              disabled={isSending || !message.trim() || rateLimitStatus.blocked}
+            >
               <FaPaperPlane />
               Enviar
             </button>
-
           </form>
-
-          {validationError && (
-            <div className="chat-validation-error" style={{
-              position: 'absolute',
-              bottom: '70px',
-              left: '10px',
-              right: '10px',
-              backgroundColor: '#ff4444',
-              color: 'white',
-              padding: '8px 12px',
-              borderRadius: '4px',
-              fontSize: '12px',
-              zIndex: 1000
-            }}>
-              {validationError}
-            </div>
-          )}
-
         </div>
       )}
     </>
