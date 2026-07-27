@@ -1,5 +1,6 @@
 // controllers/appointments.controller.js
 const db = require('../config/db');
+const { sanitizeString, validateNumber } = require('../middleware/inputValidator');
 
 /**
  * Crear una nueva cita (requiere autenticación).
@@ -10,18 +11,31 @@ exports.create = async (req, res, next) => {
   const { baker_id, date, time_slot, notes } = req.body;
   const client_id = req.user.id;
 
+  // Validar y sanitizar inputs
+  const sanitizedBakerId = sanitizeString(baker_id, 50);
+  const sanitizedDate = sanitizeString(date, 50);
+  const sanitizedTimeSlot = sanitizeString(time_slot, 50);
+  const sanitizedNotes = sanitizeString(notes, 500);
+
   // Validaciones
-  if (!baker_id || !date || !time_slot) {
+  if (!sanitizedBakerId || !sanitizedDate || !sanitizedTimeSlot) {
     return res.status(400).json({
       success: false,
       message: 'Se requieren baker_id, date y time_slot.'
     });
   }
 
+  if (!validateNumber(sanitizedBakerId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'baker_id debe ser un número válido.'
+    });
+  }
+
   try {
     const [result] = await db.execute(
       'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [client_id, baker_id, date, time_slot, notes || null, 'pending']
+      [client_id, sanitizedBakerId, sanitizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
     );
 
     res.status(201).json({
@@ -55,8 +69,15 @@ exports.createInternal = async (req, res, next) => {
 
   const { client_id, baker_id, date, time_slot, notes } = req.body;
 
+  // Validar y sanitizar inputs
+  const sanitizedClientId = sanitizeString(client_id, 50);
+  const sanitizedBakerId = sanitizeString(baker_id, 50);
+  const sanitizedDate = sanitizeString(date, 50);
+  const sanitizedTimeSlot = sanitizeString(time_slot, 50);
+  const sanitizedNotes = sanitizeString(notes, 500);
+
   // Validaciones
-  if (!client_id || !baker_id || !date || !time_slot) {
+  if (!sanitizedClientId || !sanitizedBakerId || !sanitizedDate || !sanitizedTimeSlot) {
     console.log('[Appointment] ❌ Faltan campos requeridos:', { client_id, baker_id, date, time_slot });
     return res.status(400).json({
       success: false,
@@ -64,17 +85,24 @@ exports.createInternal = async (req, res, next) => {
     });
   }
 
+  if (!validateNumber(sanitizedClientId) || !validateNumber(sanitizedBakerId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'client_id y baker_id deben ser números válidos.'
+    });
+  }
+
   console.log(`[Appointment] 📝 Creando cita interna desde chatbot:`);
-  console.log(`   Cliente ID: ${client_id}`);
-  console.log(`   Repostero ID: ${baker_id}`);
-  console.log(`   Fecha: ${date}`);
-  console.log(`   Hora: ${time_slot}`);
-  console.log(`   Notas: ${notes || 'Sin notas'}`);
+  console.log(`   Cliente ID: ${sanitizedClientId}`);
+  console.log(`   Repostero ID: ${sanitizedBakerId}`);
+  console.log(`   Fecha: ${sanitizedDate}`);
+  console.log(`   Hora: ${sanitizedTimeSlot}`);
+  console.log(`   Notas: ${sanitizedNotes || 'Sin notas'}`);
 
   try {
     const [result] = await db.execute(
       'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [client_id, baker_id, date, time_slot, notes || null, 'pending']
+      [sanitizedClientId, sanitizedBakerId, sanitizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
     );
 
     console.log(`[Appointment] ✅ Cita creada exitosamente con ID: ${result.insertId}`);
@@ -84,10 +112,10 @@ exports.createInternal = async (req, res, next) => {
       message: 'Cita agendada exitosamente desde el chatbot.',
       data: {
         id: result.insertId,
-        client_id,
-        baker_id,
-        date,
-        time_slot
+        client_id: sanitizedClientId,
+        baker_id: sanitizedBakerId,
+        date: sanitizedDate,
+        time_slot: sanitizedTimeSlot
       }
     });
   } catch (err) {
@@ -103,25 +131,38 @@ exports.createInternal = async (req, res, next) => {
 exports.createGuest = async (req, res, next) => {
   const { baker_id, date, time_slot, notes } = req.body;
 
+  // Validar y sanitizar inputs
+  const sanitizedBakerId = sanitizeString(baker_id, 50);
+  const sanitizedDate = sanitizeString(date, 50);
+  const sanitizedTimeSlot = sanitizeString(time_slot, 50);
+  const sanitizedNotes = sanitizeString(notes, 500);
+
   // Validaciones
-  if (!baker_id || !date || !time_slot) {
+  if (!sanitizedBakerId || !sanitizedDate || !sanitizedTimeSlot) {
     return res.status(400).json({
       success: false,
       message: 'Se requieren baker_id, date y time_slot.'
     });
   }
 
+  if (!validateNumber(sanitizedBakerId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'baker_id debe ser un número válido.'
+    });
+  }
+
   console.log(`[Appointment] 👤 Solicitud guest desde chatbot:`);
-  console.log(`   Repostero ID: ${baker_id}`);
-  console.log(`   Fecha: ${date}`);
-  console.log(`   Hora: ${time_slot}`);
-  console.log(`   Notas: ${notes || 'Sin notas'}`);
+  console.log(`   Repostero ID: ${sanitizedBakerId}`);
+  console.log(`   Fecha: ${sanitizedDate}`);
+  console.log(`   Hora: ${sanitizedTimeSlot}`);
+  console.log(`   Notas: ${sanitizedNotes || 'Sin notas'}`);
 
   try {
     // Para guest, guardamos la solicitud con client_id = NULL
     const [result] = await db.execute(
       'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [null, baker_id, date, time_slot, notes || null, 'pending']
+      [null, sanitizedBakerId, sanitizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
     );
 
     console.log(`[Appointment] ✅ Solicitud guest creada con ID: ${result.insertId}`);
@@ -172,10 +213,21 @@ exports.getUserAppointments = async (req, res, next) => {
 exports.getBakerAvailability = async (req, res, next) => {
   const { baker_id, date } = req.params;
 
+  // Validar y sanitizar inputs
+  const sanitizedBakerId = sanitizeString(baker_id, 50);
+  const sanitizedDate = sanitizeString(date, 50);
+
+  if (!validateNumber(sanitizedBakerId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'baker_id debe ser un número válido.'
+    });
+  }
+
   try {
     const [appointments] = await db.execute(
       'SELECT time_slot FROM appointments WHERE baker_id = ? AND date = ?',
-      [baker_id, date]
+      [sanitizedBakerId, sanitizedDate]
     );
 
     const horarios_ocupados = appointments.map(a => a.time_slot);
@@ -201,11 +253,21 @@ exports.cancelAppointment = async (req, res, next) => {
   const client_id = req.user.id;
   const { id } = req.params;
 
+  // Validar y sanitizar inputs
+  const sanitizedId = sanitizeString(id, 50);
+
+  if (!validateNumber(sanitizedId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'ID debe ser un número válido.'
+    });
+  }
+
   try {
     // Verificar que la cita existe y pertenece al cliente
     const [rows] = await db.execute(
       'SELECT id, status FROM appointments WHERE id = ? AND client_id = ?',
-      [id, client_id]
+      [sanitizedId, client_id]
     );
 
     if (rows.length === 0) {
@@ -218,7 +280,7 @@ exports.cancelAppointment = async (req, res, next) => {
     // Actualizar estado a 'cancelled'
     await db.execute(
       'UPDATE appointments SET status = ? WHERE id = ?',
-      ['cancelled', id]
+      ['cancelled', sanitizedId]
     );
 
     res.json({

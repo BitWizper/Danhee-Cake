@@ -1,8 +1,22 @@
 // Controlador sencillo para generar comprobantes OXXO mock
+const { sanitizeString, validateNumber } = require('../middleware/inputValidator');
+
 const generateOxxoTicket = (req, res) => {
   try {
     const { orderId, amount } = req.body;
-    if (!orderId || !amount) return res.status(400).json({ success: false, message: 'orderId y amount son requeridos' });
+    
+    // Validar y sanitizar inputs
+    const sanitizedOrderId = sanitizeString(orderId, 100);
+    const sanitizedAmount = sanitizeString(amount, 50);
+    
+    if (!sanitizedOrderId || !sanitizedAmount) {
+      return res.status(400).json({ success: false, message: 'orderId y amount son requeridos' });
+    }
+    
+    // Validar que amount sea un número válido
+    if (!validateNumber(sanitizedAmount, 0)) {
+      return res.status(400).json({ success: false, message: 'amount debe ser un número positivo válido' });
+    }
 
     // Generar referencia simulada (12 dígitos)
     const reference = Math.floor(100000000000 + Math.random() * 899999999999).toString();
@@ -10,7 +24,7 @@ const generateOxxoTicket = (req, res) => {
 
     const ticket = {
       reference,
-      amount,
+      amount: parseFloat(sanitizedAmount),
       expiresAt,
       instructions: 'Presenta este código en cualquier tienda OXXO y paga en efectivo. Conserva el comprobante hasta confirmar tu pago.',
       printUrl: `https://example.com/print/oxxo/${reference}`,

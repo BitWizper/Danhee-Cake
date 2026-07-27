@@ -1,14 +1,23 @@
 // controllers/chat.controller.js
 const jwt = require('jsonwebtoken');
+const { sanitizeString } = require('../middleware/inputValidator');
 
 const askChatbot = async (req, res) => {
   const { message } = req.body;
-  
-  console.log(`[Chat DEBUG] Recibida solicitud - message: ${message}`);
 
-  if (!message || message.trim() === "") {
+  // Sanitizar mensaje para prevenir XSS y otros ataques
+  const sanitizedMessage = sanitizeString(message, 5000);
+
+  console.log(`[Chat DEBUG] Recibida solicitud - message: ${sanitizedMessage}`);
+
+  if (!sanitizedMessage || sanitizedMessage.trim() === "") {
     console.log(`[Chat DEBUG] Mensaje vacío, retornando error`);
     return res.status(400).json({ error: "El mensaje no puede estar vacío" });
+  }
+
+  // Validar longitud máxima del mensaje
+  if (sanitizedMessage.length > 5000) {
+    return res.status(400).json({ error: "El mensaje excede el límite de 5000 caracteres" });
   }
 
   // ── Detectar si el usuario está logueado ──────────────────────────────────
@@ -40,7 +49,7 @@ const askChatbot = async (req, res) => {
     const response = await fetch("http://backend:5005/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, client_id, role, client_datetime: req.body.client_datetime || null }),
+      body: JSON.stringify({ message: sanitizedMessage, client_id, role, client_datetime: req.body.client_datetime || null }),
     });
 
     console.log(`[Chat DEBUG] Response status: ${response.status}`);
@@ -66,14 +75,18 @@ const askChatbot = async (req, res) => {
 const getChatHistory = async (req, res) => {
   const { conversation_id, client_id } = req.query;
 
-  if (!conversation_id && !client_id) {
+  // Sanitizar parámetros
+  const sanitizedConversationId = sanitizeString(conversation_id, 100);
+  const sanitizedClientId = sanitizeString(client_id, 100);
+
+  if (!sanitizedConversationId && !sanitizedClientId) {
     return res.status(400).json({ error: "Se requiere conversation_id o client_id" });
   }
 
   try {
     const params = new URLSearchParams();
-    if (conversation_id) params.set("conversation_id", conversation_id);
-    if (client_id) params.set("client_id", client_id);
+    if (sanitizedConversationId) params.set("conversation_id", sanitizedConversationId);
+    if (sanitizedClientId) params.set("client_id", sanitizedClientId);
 
     const response = await fetch(`http://backend:5005/chat/history?${params.toString()}`);
 
@@ -96,8 +109,16 @@ const getChatHistory = async (req, res) => {
 const streamChatbot = async (req, res) => {
   const { message, conversation_id } = req.body;
 
-  if (!message || message.trim() === "") {
+  // Sanitizar inputs
+  const sanitizedMessage = sanitizeString(message, 5000);
+  const sanitizedConversationId = sanitizeString(conversation_id, 100);
+
+  if (!sanitizedMessage || sanitizedMessage.trim() === "") {
     return res.status(400).json({ error: "El mensaje no puede estar vacío" });
+  }
+
+  if (sanitizedMessage.length > 5000) {
+    return res.status(400).json({ error: "El mensaje excede el límite de 5000 caracteres" });
   }
 
   let client_id = null;
@@ -128,7 +149,7 @@ const streamChatbot = async (req, res) => {
     const pythonRes = await fetch("http://backend:5005/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, client_id, conversation_id, role, client_datetime: req.body.client_datetime || null }),
+      body: JSON.stringify({ message: sanitizedMessage, client_id, conversation_id: sanitizedConversationId, role, client_datetime: req.body.client_datetime || null }),
     });
 
     if (!pythonRes.ok) {
@@ -182,11 +203,15 @@ const streamChatbot = async (req, res) => {
 const deleteChatHistory = async (req, res) => {
   const { conversation_id, client_id } = req.body;
 
+  // Sanitizar inputs
+  const sanitizedConversationId = sanitizeString(conversation_id, 100);
+  const sanitizedClientId = sanitizeString(client_id, 100);
+
   try {
     const response = await fetch("http://backend:5005/chat/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversation_id, client_id }),
+      body: JSON.stringify({ conversation_id: sanitizedConversationId, client_id: sanitizedClientId }),
     });
 
     if (!response.ok) {

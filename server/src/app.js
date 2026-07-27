@@ -7,11 +7,12 @@ require('dotenv').config();
 const errorHandler = require('./middleware/errorHandler');
 const { askChatbot, streamChatbot } = require('./controllers/chat.controller');
 const chatRoutes = require('./routes/chat.routes');
-const { authLimiter, registerLimiter, chatLimiter, apiLimiter } = require('./middleware/rateLimiter');
+const { authLimiter, registerLimiter, chatLimiter, apiLimiter, methodLimiter, writeLimiter, readLimiter } = require('./middleware/rateLimiter');
 const sanitizeMiddleware = require('./middleware/sanitize');
 const { auditLogger } = require('./middleware/auditLogger');
 const { advancedSecurity } = require('./middleware/securityAdvanced');
 const { clientChatGuard } = require('./middleware/clientChatGuard');
+const { httpSecurity, validateBodySize, preventClickjacking, preventMimeSniffing, preventXSS } = require('./middleware/httpSecurity');
 
 
 const app = express();
@@ -51,7 +52,13 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   crossOriginEmbedderPolicy: { policy: "require-corp" },
   crossOriginOpenerPolicy: { policy: "same-origin" },
-  crossOriginResourcePolicy: { policy: "same-origin" }
+  crossOriginResourcePolicy: { policy: "same-origin" },
+  // Headers adicionales de seguridad
+  xDnsPrefetchControl: { allow: false },
+  xDownloadOptions: { open: false },
+  xPermittedCrossDomainPolicies: { permittedPolicies: "none" },
+  // No revelar información del servidor
+  hidePoweredBy: true
 }));
 
 // Desactivar header X-Powered-By
@@ -74,16 +81,23 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function(origin, callback) {
+    // Permitir solicitudes sin origin (como mobile apps, curl, postman)
     if (!origin) return callback(null, true);
+    
+    // Verificar si el origen está en la lista permitida
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      console.error(`[CORS] Origen no permitido: ${origin}`);
       callback(new Error('CORS no permitido para este origen'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
+  maxAge: 86400, // 24 horas de caché para preflight requests
+  optionsSuccessStatus: 204 // Responder con 204 para OPTIONS exitosos
 }));
 
 // Validación de tipos de datos en request body para prevenir NoSQL injection
@@ -148,6 +162,14 @@ const sanitizeQueryParams = (req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/uploads', express.static('uploads'));
+
+// Middleware de seguridad HTTP (antes de sanitización)
+app.use(httpSecurity);
+app.use(validateBodySize);
+app.use(preventClickjacking);
+app.use(preventMimeSniffing);
+app.use(preventXSS);
+
 app.use(sanitizeQueryParams);
 
 // Sanitización global de inputs para prevenir SQLi y XSS
@@ -158,6 +180,15 @@ app.use(auditLogger);
 
 // Rate limiting general para API
 app.use('/api/', apiLimiter);
+
+// Rate limiting específico por método HTTP
+app.use('/api/', methodLimiter);
+
+// Rate limiting para operaciones de escritura
+app.use('/api/', writeLimiter);
+
+// Rate limiting para operaciones de lectura
+app.use('/api/', readLimiter);
 
 // Rutas con rate limiting específico
 app.use('/api/auth/login', authLimiter, require('./routes/auth.routes'));

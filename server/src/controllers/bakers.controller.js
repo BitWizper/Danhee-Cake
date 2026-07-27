@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { sanitizeString, validateNumber } = require('../middleware/inputValidator');
 
 const normalizeImageUrl = (imageUrl) => {
   if (!imageUrl) return imageUrl;
@@ -123,9 +124,17 @@ exports.updateAppointmentStatus = async (req, res, next) => {
   const { status } = req.body;
   const userId = req.user.id;
 
+  // Validar y sanitizar inputs
+  const sanitizedId = sanitizeString(id, 50);
+  const sanitizedStatus = sanitizeString(status, 50);
+
   const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
-  if (!validStatuses.includes(status)) {
+  if (!sanitizedStatus || !validStatuses.includes(sanitizedStatus)) {
     return res.status(400).json({ success: false, message: 'Estado no válido.' });
+  }
+
+  if (!validateNumber(sanitizedId)) {
+    return res.status(400).json({ success: false, message: 'ID inválido.' });
   }
 
   try {
@@ -135,7 +144,7 @@ exports.updateAppointmentStatus = async (req, res, next) => {
 
     const [result] = await db.execute(
       'UPDATE appointments SET status = ? WHERE id = ? AND baker_id = ?',
-      [status, id, bakerId]
+      [sanitizedStatus, sanitizedId, bakerId]
     );
 
     if (result.affectedRows === 0) {
@@ -154,6 +163,20 @@ exports.updateAppointmentStatus = async (req, res, next) => {
 exports.addCake = async (req, res, next) => {
   const { name, description, price, category_id, is_featured } = req.body;
 
+  // Validar y sanitizar inputs
+  const sanitizedName = sanitizeString(name, 200);
+  const sanitizedDescription = sanitizeString(description, 1000);
+  const sanitizedPrice = sanitizeString(price, 50);
+  const sanitizedCategoryId = sanitizeString(category_id, 50);
+
+  if (!sanitizedName || sanitizedName.trim() === '') {
+    return res.status(400).json({ success: false, message: 'El nombre es requerido.' });
+  }
+
+  if (!validateNumber(sanitizedPrice, 0)) {
+    return res.status(400).json({ success: false, message: 'El precio debe ser un número positivo.' });
+  }
+
   try {
     const userId = req.user.id;
     const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
@@ -168,7 +191,7 @@ exports.addCake = async (req, res, next) => {
 
     const [result] = await db.execute(
       'INSERT INTO cakes (baker_id, category_id, name, description, price, image_url, is_featured) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [bakerId, category_id || null, name, description || null, price || 0, imageUrl, is_featured === 'true' || is_featured === true ? 1 : 0]
+      [bakerId, sanitizedCategoryId || null, sanitizedName, sanitizedDescription || null, sanitizedPrice || 0, imageUrl, is_featured === 'true' || is_featured === true ? 1 : 0]
     );
 
     res.status(201).json({
@@ -216,6 +239,25 @@ exports.updateCake = async (req, res, next) => {
   const { id } = req.params;
   const { name, description, price, category_id, is_featured } = req.body;
 
+  // Validar y sanitizar inputs
+  const sanitizedId = sanitizeString(id, 50);
+  const sanitizedName = sanitizeString(name, 200);
+  const sanitizedDescription = sanitizeString(description, 1000);
+  const sanitizedPrice = sanitizeString(price, 50);
+  const sanitizedCategoryId = sanitizeString(category_id, 50);
+
+  if (!validateNumber(sanitizedId)) {
+    return res.status(400).json({ success: false, message: 'ID inválido.' });
+  }
+
+  if (sanitizedName && sanitizedName.trim() === '') {
+    return res.status(400).json({ success: false, message: 'El nombre no puede estar vacío.' });
+  }
+
+  if (sanitizedPrice && !validateNumber(sanitizedPrice, 0)) {
+    return res.status(400).json({ success: false, message: 'El precio debe ser un número positivo.' });
+  }
+
   try {
     const userId = req.user.id;
     const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
@@ -223,7 +265,7 @@ exports.updateCake = async (req, res, next) => {
     const bakerId = profiles[0].id;
 
     // Verificar propiedad
-    const [cakes] = await db.execute('SELECT image_url FROM cakes WHERE id = ? AND baker_id = ?', [id, bakerId]);
+    const [cakes] = await db.execute('SELECT image_url FROM cakes WHERE id = ? AND baker_id = ?', [sanitizedId, bakerId]);
     if (cakes.length === 0) return res.status(403).json({ success: false, message: 'No tienes permiso o el pastel no existe.' });
 
     let imageUrl = normalizeImageUrl(cakes[0].image_url);
@@ -233,7 +275,7 @@ exports.updateCake = async (req, res, next) => {
 
     await db.execute(
       'UPDATE cakes SET name = ?, description = ?, price = ?, category_id = ?, image_url = ?, is_featured = ? WHERE id = ?',
-      [name, description, price, category_id || null, imageUrl, is_featured === 'true' || is_featured === true ? 1 : 0, id]
+      [sanitizedName, sanitizedDescription, sanitizedPrice, sanitizedCategoryId || null, imageUrl, is_featured === 'true' || is_featured === true ? 1 : 0, sanitizedId]
     );
 
     res.json({ success: true, message: 'Pastel actualizado correctamente.' });
@@ -247,13 +289,21 @@ exports.updateCake = async (req, res, next) => {
  */
 exports.deleteCake = async (req, res, next) => {
   const { id } = req.params;
+
+  // Validar y sanitizar inputs
+  const sanitizedId = sanitizeString(id, 50);
+
+  if (!validateNumber(sanitizedId)) {
+    return res.status(400).json({ success: false, message: 'ID inválido.' });
+  }
+
   try {
     const userId = req.user.id;
     const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
     if (profiles.length === 0) return res.status(404).json({ success: false, message: 'Perfil de repostero no encontrado.' });
     const bakerId = profiles[0].id;
 
-    const [result] = await db.execute('DELETE FROM cakes WHERE id = ? AND baker_id = ?', [id, bakerId]);
+    const [result] = await db.execute('DELETE FROM cakes WHERE id = ? AND baker_id = ?', [sanitizedId, bakerId]);
     if (result.affectedRows === 0) return res.status(403).json({ success: false, message: 'No tienes permiso para eliminar este pastel.' });
 
     res.json({ success: true, message: 'Pastel eliminado del portafolio.' });
@@ -267,13 +317,21 @@ exports.deleteCake = async (req, res, next) => {
  */
 exports.getProfile = async (req, res, next) => {
   const { id } = req.params;
+
+  // Validar y sanitizar inputs
+  const sanitizedId = sanitizeString(id, 50);
+
+  if (!validateNumber(sanitizedId)) {
+    return res.status(400).json({ success: false, message: 'ID inválido.' });
+  }
+
   try {
     const [profiles] = await db.execute(`
       SELECT b.*, u.name, u.avatar_url, u.email
       FROM baker_profiles b
       JOIN users u ON b.user_id = u.id
       WHERE b.id = ?
-    `, [id]);
+    `, [sanitizedId]);
 
     if (profiles.length === 0) {
       return res.status(404).json({ success: false, message: 'Repostero no encontrado.' });
@@ -295,18 +353,25 @@ exports.updateProfile = async (req, res, next) => {
   const { business_name, location, specialty, bio, business_hours } = req.body;
   const userId = req.user.id;
 
+  // Validar y sanitizar inputs
+  const sanitizedBusinessName = sanitizeString(business_name, 200);
+  const sanitizedLocation = sanitizeString(location, 200);
+  const sanitizedSpecialty = sanitizeString(specialty, 200);
+  const sanitizedBio = sanitizeString(bio, 1000);
+  const sanitizedBusinessHours = sanitizeString(business_hours, 255);
+
   try {
     try {
       await db.execute(
         'UPDATE baker_profiles SET business_name = ?, location = ?, specialty = ?, bio = ?, business_hours = ? WHERE user_id = ?',
-        [business_name, location, specialty, bio, business_hours || null, userId]
+        [sanitizedBusinessName, sanitizedLocation, sanitizedSpecialty, sanitizedBio, sanitizedBusinessHours || null, userId]
       );
     } catch (dbErr) {
       if (dbErr.code === 'ER_BAD_FIELD_ERROR' || dbErr.message.includes('business_hours')) {
         await db.execute('ALTER TABLE baker_profiles ADD COLUMN business_hours VARCHAR(255) DEFAULT "Lunes a Viernes: 9:00 - 18:00 | Sábado: 10:00 - 14:00"');
         await db.execute(
           'UPDATE baker_profiles SET business_name = ?, location = ?, specialty = ?, bio = ?, business_hours = ? WHERE user_id = ?',
-          [business_name, location, specialty, bio, business_hours || null, userId]
+          [sanitizedBusinessName, sanitizedLocation, sanitizedSpecialty, sanitizedBio, sanitizedBusinessHours || null, userId]
         );
       } else {
         throw dbErr;
