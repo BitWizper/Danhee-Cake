@@ -14,7 +14,6 @@ const { advancedSecurity } = require('./middleware/securityAdvanced');
 const { clientChatGuard } = require('./middleware/clientChatGuard');
 const { httpSecurity, validateBodySize, preventClickjacking, preventMimeSniffing, preventXSS } = require('./middleware/httpSecurity');
 const { ipBlocker, attackDetector, recordFailedAttempt, recordSuccessfulAttempt } = require('./middleware/ipBlocker');
-const { ipBlocker } = require('./middleware/rateLimiter');
 
 
 const app = express();
@@ -166,10 +165,6 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 app.use('/uploads', express.static('uploads'));
 
-// Rate limiting específico para auth
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', registerLimiter);
-
 // Middleware de seguridad HTTP
 app.use(httpSecurity);
 app.use(validateBodySize);
@@ -203,7 +198,7 @@ app.use('/api/appointments', attackDetector);
 app.use('/api/chat', attackDetector);
 app.use('/api/admin', attackDetector);
 
-// Rutas
+// Rutas (rate limiting específico aplicado en archivos de rutas)
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/categories', require('./routes/categories.routes'));
 app.use('/api/cakes', require('./routes/cakes.routes'));
