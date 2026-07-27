@@ -1,9 +1,15 @@
 const rateLimit = require('express-rate-limit');
 
+// Función para obtener IP real del cliente (considerando proxies)
+const getClientIP = (req) => {
+  return req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+};
+
 // Rate limiting general para endpoints sensibles
 exports.authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: 5, // máximo 5 intentos por ventana
+  keyGenerator: (req) => getClientIP(req),
   message: {
     success: false,
     message: 'Demasiados intentos. Por favor, intenta de nuevo en 15 minutos.'
@@ -17,6 +23,7 @@ exports.authLimiter = rateLimit({
 exports.registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hora
   max: 3, // máximo 3 registros por hora por IP
+  keyGenerator: (req) => getClientIP(req),
   message: {
     success: false,
     message: 'Demasiados intentos de registro. Por favor, intenta de nuevo en 1 hora.'
@@ -29,6 +36,7 @@ exports.registerLimiter = rateLimit({
 exports.chatLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minuto
   max: 20, // máximo 20 mensajes por minuto
+  keyGenerator: (req) => getClientIP(req),
   message: {
     success: false,
     message: 'Demasiadas solicitudes al chat. Por favor, espera un momento.'
@@ -41,6 +49,7 @@ exports.chatLimiter = rateLimit({
 exports.apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: 100, // máximo 100 solicitudes por ventana
+  keyGenerator: (req) => getClientIP(req),
   message: {
     success: false,
     message: 'Demasiadas solicitudes. Por favor, reduce el ritmo.'
