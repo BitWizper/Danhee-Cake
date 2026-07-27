@@ -101,11 +101,23 @@ exports.register = async (req, res, next) => {
 };
 
 exports.login = async (req, res, next) => {
-  const { email, password } = req.body;
+  // Aceptar username como alias de email para compatibilidad
+  const { email, username, password } = req.body;
+  const loginEmail = email || username;
 
   try {
+    // Validar campos requeridos
+    if (!loginEmail || !password) {
+      return res.status(400).json({ success: false, message: 'Email y contraseña son obligatorios.' });
+    }
+
+    // Validar formato de email
+    if (!isValidEmail(loginEmail)) {
+      return res.status(400).json({ success: false, message: 'Formato de correo electrónico inválido.' });
+    }
+
     // Buscar usuario
-    const [users] = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
+    const [users] = await db.execute('SELECT * FROM users WHERE email = ?', [loginEmail.toLowerCase().trim()]);
     if (users.length === 0) {
       return res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
     }

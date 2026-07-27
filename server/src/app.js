@@ -86,8 +86,68 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json());
+// Validación de tipos de datos en request body para prevenir NoSQL injection
+const validateRequestBody = (req, res, next) => {
+  const body = req.body;
+
+  // Función para validar que un valor sea string y no objeto/array
+  const validateString = (value, fieldName) => {
+    if (value !== null && value !== undefined) {
+      if (typeof value !== 'string') {
+        return false;
+      }
+      // Verificar que no sea un string que parece un objeto JSON
+      if (value.startsWith('{') || value.startsWith('[') || value.includes('$')) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Validar campos comunes de autenticación
+  if (body.email && !validateString(body.email, 'email')) {
+    return res.status(400).json({ success: false, message: 'El campo email debe ser una cadena de texto válida.' });
+  }
+  if (body.username && !validateString(body.username, 'username')) {
+    return res.status(400).json({ success: false, message: 'El campo username debe ser una cadena de texto válida.' });
+  }
+  if (body.password && !validateString(body.password, 'password')) {
+    return res.status(400).json({ success: false, message: 'El campo password debe ser una cadena de texto válida.' });
+  }
+  if (body.name && !validateString(body.name, 'name')) {
+    return res.status(400).json({ success: false, message: 'El campo name debe ser una cadena de texto válida.' });
+  }
+
+  next();
+};
+
+// Sanitización de parámetros query para prevenir SQLi en GET
+const sanitizeQueryParams = (req, res, next) => {
+  const sanitizeQueryValue = (value) => {
+    if (typeof value === 'string') {
+      return value
+        .replace(/['";\\]/g, '')
+        .replace(/--/g, '')
+        .replace(/\/\*/g, '')
+        .replace(/\*\//g, '')
+        .replace(/@@/g, '')
+        .trim()
+        .substring(0, 100);
+    }
+    return value;
+  };
+
+  for (const key in req.query) {
+    req.query[key] = sanitizeQueryValue(req.query[key]);
+  }
+
+  next();
+};
+
+app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static('uploads'));
+app.use(validateRequestBody);
+app.use(sanitizeQueryParams);
 
 // Sanitización global de inputs para prevenir SQLi y XSS
 app.use(sanitizeMiddleware);
