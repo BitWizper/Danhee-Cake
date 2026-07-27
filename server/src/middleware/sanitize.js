@@ -82,15 +82,50 @@ const sanitizeObject = (obj) => {
 
 // Middleware para sanitizar body, query y params
 const sanitizeMiddleware = (req, res, next) => {
+  // Para rutas de autenticación: solo detectar patrones peligrosos, NO mutar los valores.
+  // Los datos van a bcrypt y queries parametrizadas, nunca se renderizan como HTML.
+  const isAuthRoute = req.originalUrl.startsWith('/api/auth/');
+
+  const sanitizeForAuth = (str) => {
+    if (typeof str !== 'string') return str;
+    const trimmed = str.trim();
+    for (const pattern of sqlInjectionPatterns) {
+      if (pattern.test(trimmed)) {
+        throw new Error('Input contiene patrones sospechosos de SQL injection');
+      }
+    }
+    for (const pattern of xssPatterns) {
+      if (pattern.test(trimmed)) {
+        throw new Error('Input contiene patrones sospechosos de XSS');
+      }
+    }
+    return trimmed; // devolver sin mutar
+  };
+
+  const sanitizeForGeneral = (obj) => sanitizeObject(obj);
+
   try {
-    if (req.body) {
-      req.body = sanitizeObject(req.body);
-    }
-    if (req.query) {
-      req.query = sanitizeObject(req.query);
-    }
-    if (req.params) {
-      req.params = sanitizeObject(req.params);
+    if (isAuthRoute) {
+      // Solo validar body de auth sin mutar los valores
+      if (req.body && typeof req.body === 'object') {
+        for (const key in req.body) {
+          if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+            if (typeof req.body[key] === 'string') {
+              sanitizeForAuth(req.body[key]); // lanza si es peligroso
+            }
+          }
+        }
+      }
+    } else {
+      if (req.body) {
+        req.body = sanitizeObject(req.body);
+      }
+      if (req.query) {
+        req.query = sanitizeObject(req.query);
+      }
+      if (req.params) {
+        req.params = sanitizeObject(req.params);
+      }
     }
     next();
   } catch (error) {

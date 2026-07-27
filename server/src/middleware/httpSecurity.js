@@ -106,7 +106,9 @@ const httpSecurity = (req, res, next) => {
   const ip = req.ip;
   
   // Saltar validaciones estrictas para rutas de auth (rate limiting se maneja en app.js)
-  if (req.path === '/api/auth/login' || req.path === '/api/auth/register') {
+  // Nota: req.path es relativo al router mount point; usamos req.originalUrl para el path completo
+  const originalPath = req.originalUrl.split('?')[0];
+  if (originalPath === '/api/auth/login' || originalPath === '/api/auth/register') {
     return next();
   }
   
