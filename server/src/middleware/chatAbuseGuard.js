@@ -1,16 +1,9 @@
 const { logAttack } = require('./attackLogger');
+const { getClientIP } = require('./clientIp');
 
 const state = {
   chatRequests: new Map(),
   chatBlocks: new Map()
-};
-
-const getClientIP = (req) => {
-  const forwarded = req.headers && req.headers['x-forwarded-for'];
-  if (forwarded) {
-    return String(forwarded).split(',')[0].trim();
-  }
-  return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
 };
 
 const getUserKey = (req) => {

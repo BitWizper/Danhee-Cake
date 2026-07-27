@@ -27,14 +27,18 @@ const logAudit = (level, message, meta = {}) => {
   console.log(`[AUDIT ${level}] ${message}`, meta);
 };
 
+const { getClientIP } = require('./clientIp');
+
 const auditLogger = (req, res, next) => {
   const startTime = Date.now();
+  const clientIp = getClientIP(req);
   
   // Log de solicitud
   logAudit('INFO', 'Incoming request', {
     method: req.method,
     path: req.path,
-    ip: req.ip,
+    ip: clientIp,
+    proxiedIp: req.ip,
     userAgent: req.get('user-agent'),
     contentType: req.get('content-type')
   });

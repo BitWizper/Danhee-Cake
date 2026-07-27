@@ -24,14 +24,8 @@ const IP_BLOCKER_CONFIG = {
     '172.19.0.0',
     '172.20.0.0'
   ],
-  // Rutas públicas que no deben ser bloqueadas por IP
-  publicRoutes: [
-    '/api/categories',
-    '/api/cakes',
-    '/api/bakers',
-    '/',
-    '/index.html'
-  ]
+  // No se exime ninguna ruta de API: todas las rutas públicas deben ser analizadas
+  publicRoutes: []
 };
 
 // Almacenamiento en memoria
@@ -40,9 +34,7 @@ const blockedIPs = new Set(); // IPs actualmente bloqueadas
 const suspiciousIPs = new Set(); // IPs marcadas como sospechosas
 
 // Función para obtener IP real del cliente
-const getClientIP = (req) => {
-  return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
-};
+const { getClientIP } = require('./clientIp');
 
 // Función para verificar si una IP está en whitelist
 const isWhitelisted = (ip) => {

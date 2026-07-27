@@ -25,8 +25,9 @@ const { getSecuritySummary } = require('./middleware/securityDashboard');
 
 const app = express();
 
-// Configurar trust proxy para nginx (solo confiar en el primer proxy)
-app.set('trust proxy', 1);
+// Configurar confianza en proxies para que Express use X-Forwarded-* correctamente
+// Esto permite detectar la IP real del cliente incluso detrás de ngrok y otros proxies.
+app.set('trust proxy', true);
 
 // Security headers con Helmet
 app.use(helmet({
@@ -63,7 +64,6 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "same-origin" },
   // Headers adicionales de seguridad
   xDnsPrefetchControl: { allow: false },
-  xDownloadOptions: { open: false },
   xPermittedCrossDomainPolicies: { permittedPolicies: "none" },
   // No revelar información del servidor
   hidePoweredBy: true
@@ -248,17 +248,11 @@ app.use('/api/', methodLimiter);
 app.use('/api/', writeLimiter);
 app.use('/api/', readLimiter);
 
-// Middleware de bloqueo por IP (solo para rutas protegidas)
-app.use('/api/auth', ipBlocker);
-app.use('/api/appointments', ipBlocker);
-app.use('/api/chat', ipBlocker);
-app.use('/api/admin', ipBlocker);
+// Middleware de bloqueo por IP para todas las rutas de API públicas
+app.use('/api', ipBlocker);
 
-// Middleware de detección de ataques (solo para rutas protegidas)
-app.use('/api/auth', attackDetector);
-app.use('/api/appointments', attackDetector);
-app.use('/api/chat', attackDetector);
-app.use('/api/admin', attackDetector);
+// Middleware de detección de ataques para todas las rutas de API
+app.use('/api', attackDetector);
 
 // Rutas (rate limiting específico aplicado en archivos de rutas)
 app.use('/api/auth', require('./routes/auth.routes'));

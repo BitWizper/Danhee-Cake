@@ -20,6 +20,10 @@ services:
       - PORT=5000
       - NODE_ENV=production
       - START_RAG=true
+      # Si se quiere forzar la base local en Docker, establecer DB_USE_LOCAL_DB=true.
+      - LOCAL_DB_NAME=danhee_db
+      - LOCAL_DB_USER=usuario
+      - LOCAL_DB_PASSWORD=password
       # Si te conectas a Ollama localmente, usa esta variable:
       - OLLAMA_HOST=host.docker.internal
       # Configuración de base de datos Clever Cloud (desde .env)
@@ -45,9 +49,9 @@ services:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${DB_NAME:-danhee_db}
-      MYSQL_USER: ${DB_USER:-usuario}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+      MYSQL_DATABASE: ${LOCAL_DB_NAME:-danhee_db}
+      MYSQL_USER: ${LOCAL_DB_USER:-usuario}
+      MYSQL_PASSWORD: ${LOCAL_DB_PASSWORD:-password}
       MYSQL_ALLOW_EMPTY_PASSWORD: "no"
     volumes:
       - db_data:/var/lib/mysql

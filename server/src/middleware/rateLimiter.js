@@ -1,17 +1,9 @@
 const rateLimit = require('express-rate-limit');
 const { persistBlock, isPersistedBlocked, clearExpiredBlocks } = require('./securityDashboard');
+const { getClientIP } = require('./clientIp');
 
 // Almacenamiento de IPs bloqueadas
 const blockedIPs = new Map();
-
-// Función para obtener IP real del cliente (considerando proxies y headers)
-const getClientIP = (req) => {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
-  return req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
-};
 
 // Función para bloquear IP
 const blockIP = (ip, durationMinutes = 30) => {

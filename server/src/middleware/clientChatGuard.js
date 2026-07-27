@@ -4,6 +4,7 @@
 
 const jwt = require('jsonwebtoken');
 const { logSecurityEvent } = require('./auditLogger');
+const { getClientIP } = require('./clientIp');
 
 // Configuración
 const CLIENT_CHAT_CONFIG = {
@@ -246,7 +247,8 @@ const clientChatGuard = (req, res, next) => {
   }
   
   // Usar IP como identificador para usuarios no autenticados
-  const identifier = userId || req.ip;
+  const { getClientIP } = require('./clientIp');
+  const identifier = userId || getClientIP(req);
   
   // 1. Validar que el mensaje existe
   if (!message || typeof message !== 'string') {

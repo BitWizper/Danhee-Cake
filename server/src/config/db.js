@@ -1,3 +1,4 @@
+const fs = require('fs');
 const mysql2 = require('mysql2/promise');
 require('dotenv').config();
 
@@ -28,9 +29,9 @@ const cleverCloudConfig = {
 const localDbConfig = {
   host: 'database', // Nombre del servicio en docker-compose
   port: 3306,
-  database: process.env.DB_NAME || 'danhee_db',
-  user: process.env.DB_USER || 'usuario',
-  password: process.env.DB_PASSWORD || 'password',
+  database: process.env.LOCAL_DB_NAME || process.env.DB_NAME || 'danhee_db',
+  user: process.env.LOCAL_DB_USER || 'usuario',
+  password: process.env.LOCAL_DB_PASSWORD || 'password',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -48,13 +49,18 @@ const localDbConfig = {
   namedPlaceholders: true
 };
 
-// Determinar qué configuración usar: Clever Cloud si hay credenciales, sino local
+// Determinar qué configuración usar.
+// Usar Clever Cloud si hay credenciales remotas y no se fuerza la base local explícitamente.
+const isDockerRuntime = fs.existsSync('/.dockerenv');
+const shouldUseLocalDb = process.env.DB_USE_LOCAL_DB === 'true' || process.env.DB_USE_LOCAL_DB === '1';
 const hasCleverCloudCredentials = process.env.DB_HOST && 
                                    (process.env.DB_HOST.includes('clever-cloud.com') || process.env.DB_HOST.includes('clever-cloud'));
-const config = hasCleverCloudCredentials ? cleverCloudConfig : localDbConfig;
+const config = shouldUseLocalDb ? localDbConfig : (hasCleverCloudCredentials ? cleverCloudConfig : localDbConfig);
 
-console.log(`🔗 Usando configuración: ${hasCleverCloudCredentials ? 'Clever Cloud' : 'Base de datos local (Docker)'}`);
-console.log(`📍 DB_HOST: ${process.env.DB_HOST || 'no configurado'}`);
+console.log(`🔗 Usando configuración: ${shouldUseLocalDb ? 'Base de datos local (Docker)' : (hasCleverCloudCredentials ? 'Clever Cloud' : 'Base de datos local (Docker)')}`);
+console.log(`📍 DB_HOST usado en conexión: ${config.host}`);
+console.log(`📦 DB_NAME usado en conexión: ${config.database}`);
+console.log(`👤 DB_USER usado en conexión: ${config.user}`);
 
 const pool = mysql2.createPool(config);
 
