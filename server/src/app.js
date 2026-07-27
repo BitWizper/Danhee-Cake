@@ -20,6 +20,7 @@ const { validateAllParameters } = require('./middleware/parameterValidator');
 const { apiGuard } = require('./middleware/apiGuard');
 const { apiFuzzingGuard } = require('./middleware/apiFuzzingGuard');
 const { logAttack } = require('./middleware/attackLogger');
+const { getSecuritySummary } = require('./middleware/securityDashboard');
 
 
 const app = express();
@@ -273,6 +274,13 @@ app.post('/api/chat/stream', clientChatGuard, streamChatbot);
 // Ruta base
 app.get('/', (req, res) => {
   res.json({ message: 'Bienvenido a la API de Danhee' });
+});
+
+app.get('/api/security/alerts', (req, res) => {
+  res.json({
+    success: true,
+    data: getSecuritySummary()
+  });
 });
 
 // Manejo de errores

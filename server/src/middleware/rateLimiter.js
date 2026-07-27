@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { persistBlock, isPersistedBlocked, clearExpiredBlocks } = require('./securityDashboard');
 
 // Almacenamiento de IPs bloqueadas
 const blockedIPs = new Map();
@@ -16,11 +17,13 @@ const getClientIP = (req) => {
 const blockIP = (ip, durationMinutes = 30) => {
   const unblockTime = Date.now() + durationMinutes * 60 * 1000;
   blockedIPs.set(ip, unblockTime);
+  persistBlock(ip, durationMinutes, 'rate_limit');
   console.log(`[SECURITY] IP ${ip} bloqueada por ${durationMinutes} minutos`);
 };
 
 // Función para verificar si una IP está bloqueada
 const isIPBlocked = (ip) => {
+  clearExpiredBlocks();
   const unblockTime = blockedIPs.get(ip);
   if (unblockTime && Date.now() < unblockTime) {
     return true;
@@ -28,7 +31,7 @@ const isIPBlocked = (ip) => {
   if (unblockTime) {
     blockedIPs.delete(ip);
   }
-  return false;
+  return isPersistedBlocked(ip);
 };
 
 // Middleware para verificar IP bloqueada
