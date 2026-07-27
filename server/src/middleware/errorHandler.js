@@ -20,7 +20,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Errores de sintaxis JSON (body-parser)
-  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+  if (err instanceof SyntaxError && err.status === 400) {
     return res.status(400).json({
       success: false,
       message: 'JSON inválido. Verifica el formato de tu solicitud.',

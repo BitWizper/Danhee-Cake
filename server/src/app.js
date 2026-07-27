@@ -101,10 +101,6 @@ const validateRequestBody = (req, res, next) => {
       if (typeof value !== 'string') {
         return false;
       }
-      // Verificar que no sea un string que parece un objeto JSON
-      if (value.startsWith('{') || value.startsWith('[') || value.includes('$')) {
-        return false;
-      }
     }
     return true;
   };
@@ -150,8 +146,8 @@ const sanitizeQueryParams = (req, res, next) => {
 };
 
 app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/uploads', express.static('uploads'));
-app.use(validateRequestBody);
 app.use(sanitizeQueryParams);
 
 // Sanitización global de inputs para prevenir SQLi y XSS
