@@ -1,6 +1,21 @@
 // controllers/appointments.controller.js
 const db = require('../config/db');
+const bcrypt = require('bcryptjs');
 const { sanitizeString, validateNumber } = require('../middleware/inputValidator');
+
+const normalizeAppointmentDate = (value) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const directMatch = trimmed.match(/^\d{4}-\d{2}-\d{2}$/);
+  if (directMatch) return trimmed;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return parsed.toISOString().slice(0, 10);
+};
 
 /**
  * Crear una nueva cita (requiere autenticación).
@@ -14,11 +29,12 @@ exports.create = async (req, res, next) => {
   // Validar y sanitizar inputs
   const sanitizedBakerId = sanitizeString(baker_id, 50);
   const sanitizedDate = sanitizeString(date, 50);
+  const normalizedDate = normalizeAppointmentDate(sanitizedDate);
   const sanitizedTimeSlot = sanitizeString(time_slot, 50);
   const sanitizedNotes = sanitizeString(notes, 500);
 
   // Validaciones
-  if (!sanitizedBakerId || !sanitizedDate || !sanitizedTimeSlot) {
+  if (!sanitizedBakerId || !normalizedDate || !sanitizedTimeSlot) {
     return res.status(400).json({
       success: false,
       message: 'Se requieren baker_id, date y time_slot.'
@@ -35,7 +51,7 @@ exports.create = async (req, res, next) => {
   try {
     const [result] = await db.execute(
       'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [client_id, sanitizedBakerId, sanitizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
+      [client_id, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
     );
 
     res.status(201).json({
@@ -73,11 +89,12 @@ exports.createInternal = async (req, res, next) => {
   const sanitizedClientId = sanitizeString(client_id, 50);
   const sanitizedBakerId = sanitizeString(baker_id, 50);
   const sanitizedDate = sanitizeString(date, 50);
+  const normalizedDate = normalizeAppointmentDate(sanitizedDate);
   const sanitizedTimeSlot = sanitizeString(time_slot, 50);
   const sanitizedNotes = sanitizeString(notes, 500);
 
   // Validaciones
-  if (!sanitizedClientId || !sanitizedBakerId || !sanitizedDate || !sanitizedTimeSlot) {
+  if (!sanitizedClientId || !sanitizedBakerId || !normalizedDate || !sanitizedTimeSlot) {
     console.log('[Appointment] ❌ Faltan campos requeridos:', { client_id, baker_id, date, time_slot });
     return res.status(400).json({
       success: false,
@@ -102,7 +119,7 @@ exports.createInternal = async (req, res, next) => {
   try {
     const [result] = await db.execute(
       'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [sanitizedClientId, sanitizedBakerId, sanitizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
+      [sanitizedClientId, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
     );
 
     console.log(`[Appointment] ✅ Cita creada exitosamente con ID: ${result.insertId}`);
@@ -134,11 +151,12 @@ exports.createGuest = async (req, res, next) => {
   // Validar y sanitizar inputs
   const sanitizedBakerId = sanitizeString(baker_id, 50);
   const sanitizedDate = sanitizeString(date, 50);
+  const normalizedDate = normalizeAppointmentDate(sanitizedDate);
   const sanitizedTimeSlot = sanitizeString(time_slot, 50);
   const sanitizedNotes = sanitizeString(notes, 500);
 
   // Validaciones
-  if (!sanitizedBakerId || !sanitizedDate || !sanitizedTimeSlot) {
+  if (!sanitizedBakerId || !normalizedDate || !sanitizedTimeSlot) {
     return res.status(400).json({
       success: false,
       message: 'Se requieren baker_id, date y time_slot.'
@@ -159,18 +177,30 @@ exports.createGuest = async (req, res, next) => {
   console.log(`   Notas: ${sanitizedNotes || 'Sin notas'}`);
 
   try {
-    // Para guest, guardamos la solicitud con client_id = NULL
-    const [result] = await db.execute(
-      'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [null, sanitizedBakerId, sanitizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
+    // Crear un usuario temporal de tipo invitado para mantener la integridad referencial
+    const guestEmail = `guest-${Date.now()}-${Math.floor(Math.random() * 10000)}@local.invalid`;
+    const guestPassword = `Guest${Date.now()}A1!`;
+    const guestName = 'Invitado';
+    const hashedGuestPassword = await bcrypt.hash(guestPassword, 10);
+
+    const [guestUser] = await db.execute(
+      'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
+      [guestName, guestEmail, hashedGuestPassword, 'cliente']
     );
 
-    console.log(`[Appointment] ✅ Solicitud guest creada con ID: ${result.insertId}`);
+    const guestClientId = guestUser.insertId;
+
+    const [result] = await db.execute(
+      'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [guestClientId, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
+    );
+
+    console.log(`[Appointment] ✅ Solicitud guest creada con ID: ${result.insertId} para cliente temporal ${guestClientId}`);
 
     return res.status(201).json({
       success: true,
       message: 'Solicitud de cita recibida. Te contactaremos pronto para confirmar.',
-      data: { id: result.insertId }
+      data: { id: result.insertId, client_id: guestClientId }
     });
   } catch (err) {
     console.error('[Appointment] ❌ Error creando cita guest:', err);

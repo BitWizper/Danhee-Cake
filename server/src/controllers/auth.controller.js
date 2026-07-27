@@ -101,23 +101,29 @@ exports.register = async (req, res, next) => {
 };
 
 exports.login = async (req, res, next) => {
-  // Aceptar username como alias de email para compatibilidad
+  // Aceptar email o username como identificador de login
   const { email, username, password } = req.body;
-  const loginEmail = email || username;
+  const rawIdentifier = (email || username || '').toString().trim();
 
   try {
     // Validar campos requeridos
-    if (!loginEmail || !password) {
-      return res.status(400).json({ success: false, message: 'Email y contraseña son obligatorios.' });
+    if (!rawIdentifier || !password) {
+      return res.status(400).json({ success: false, message: 'Email/username y contraseña son obligatorios.' });
     }
 
-    // Validar formato de email
-    if (!isValidEmail(loginEmail)) {
+    const isEmailLike = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawIdentifier);
+    if (isEmailLike && !isValidEmail(rawIdentifier)) {
       return res.status(400).json({ success: false, message: 'Formato de correo electrónico inválido.' });
     }
 
-    // Buscar usuario
-    const [users] = await db.execute('SELECT * FROM users WHERE email = ?', [loginEmail.toLowerCase().trim()]);
+    const normalizedIdentifier = rawIdentifier.toLowerCase();
+
+    // Buscar usuario por email o por nombre (compatibilidad con username)
+    const [users] = await db.execute(
+      'SELECT * FROM users WHERE email = ? OR name = ? LIMIT 1',
+      [isEmailLike ? normalizedIdentifier : normalizedIdentifier, normalizedIdentifier]
+    );
+
     if (users.length === 0) {
       return res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
     }

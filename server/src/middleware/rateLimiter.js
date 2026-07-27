@@ -12,35 +12,6 @@ const getClientIP = (req) => {
   return req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
 };
 
-// Middleware para crear rate limiter con logs
-const createLimiter = (options) => {
-  return rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    keyGenerator: (req) => getClientIP(req),
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-      success: false,
-      message: 'Demasiadas solicitudes. Por favor, intenta de nuevo más tarde.'
-    },
-    handler: (req, res, next, options) => {
-      const ip = getClientIP(req);
-      console.log(`[RATE LIMIT] IP: ${ip} - Excedió límite (${options.max}) en ${req.originalUrl}`);
-      // Opcional: bloquear IP por 30 minutos después de 3 violaciones
-      const violations = req.violations || 0;
-      if (violations >= 3) {
-        blockIP(ip, 30);
-      }
-      res.status(options.statusCode || 429).json({
-        success: false,
-        message: options.message.message || 'Demasiadas solicitudes. Por favor, intenta de nuevo más tarde.'
-      });
-    },
-    ...options
-  });
-};
-
 // Función para bloquear IP
 const blockIP = (ip, durationMinutes = 30) => {
   const unblockTime = Date.now() + durationMinutes * 60 * 1000;
@@ -55,7 +26,7 @@ const isIPBlocked = (ip) => {
     return true;
   }
   if (unblockTime) {
-    blockedIPs.delete(ip); // Limpiar expirados
+    blockedIPs.delete(ip);
   }
   return false;
 };
@@ -71,6 +42,41 @@ const ipBlocker = (req, res, next) => {
     });
   }
   next();
+};
+
+// Middleware para crear rate limiter con logs
+const createLimiter = (options = {}) => {
+  const defaultMessage = {
+    success: false,
+    message: 'Demasiadas solicitudes. Por favor, intenta de nuevo más tarde.'
+  };
+
+  return rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    keyGenerator: (req) => getClientIP(req),
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: false,
+    message: defaultMessage,
+    handler: (req, res, next, limiterOptions) => {
+      const ip = getClientIP(req);
+      console.log(`[RATE LIMIT] IP: ${ip} - Excedió límite (${limiterOptions.max}) en ${req.originalUrl}`);
+      const violations = req.violations || 0;
+      if (violations >= 3) {
+        blockIP(ip, 30);
+      }
+      res.status(limiterOptions.statusCode || 429).json({
+        success: false,
+        message: limiterOptions.message?.message || defaultMessage.message
+      });
+    },
+    ...options,
+    message: {
+      ...defaultMessage,
+      ...(options.message || {})
+    }
+  });
 };
 
 // Rate limiters
@@ -104,7 +110,7 @@ exports.chatLimiter = createLimiter({
 
 exports.apiLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 30,
   message: {
     success: false,
     message: 'Demasiadas solicitudes. Por favor, reduce el ritmo.'
@@ -113,7 +119,7 @@ exports.apiLimiter = createLimiter({
 
 exports.methodLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 50,
+  max: 20,
   keyGenerator: (req) => `${getClientIP(req)}_${req.method}`,
   message: {
     success: false,
@@ -123,7 +129,7 @@ exports.methodLimiter = createLimiter({
 
 exports.writeLimiter = createLimiter({
   windowMs: 10 * 60 * 1000,
-  max: 30,
+  max: 10,
   skip: (req) => {
     const writeMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
     return !writeMethods.includes(req.method);
@@ -136,7 +142,7 @@ exports.writeLimiter = createLimiter({
 
 exports.readLimiter = createLimiter({
   windowMs: 1 * 60 * 1000,
-  max: 200,
+  max: 50,
   skip: (req) => {
     const readMethods = ['GET', 'HEAD', 'OPTIONS'];
     return !readMethods.includes(req.method);

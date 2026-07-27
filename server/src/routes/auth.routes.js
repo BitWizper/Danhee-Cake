@@ -3,6 +3,7 @@ const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { body } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
+const { validateAllParameters } = require('../middleware/parameterValidator');
 
 const validateRegister = [
   body('name')
@@ -25,16 +26,29 @@ const validateRegister = [
 
 const validateLogin = [
   body('email')
+    .optional({ values: 'falsy' })
     .trim()
     .isEmail().withMessage('El email debe ser válido')
     .normalizeEmail(),
+  body('username')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ min: 3, max: 100 }).withMessage('El username debe tener entre 3 y 100 caracteres'),
   body('password')
     .notEmpty().withMessage('La contraseña es requerida')
     .isLength({ min: 1 }).withMessage('La contraseña no puede estar vacía'),
+  body().custom((value, { req }) => {
+    const hasEmail = Boolean(req.body.email && String(req.body.email).trim());
+    const hasUsername = Boolean(req.body.username && String(req.body.username).trim());
+    if (!hasEmail && !hasUsername) {
+      throw new Error('Se requiere email o username para iniciar sesión');
+    }
+    return true;
+  })
 ];
 
 // Rate limiters de auth aplicados en app.js antes del body parser
-router.post('/register', validateRegister, handleValidationErrors, authController.register);
-router.post('/login', validateLogin, handleValidationErrors, authController.login);
+router.post('/register', validateAllParameters, validateRegister, handleValidationErrors, authController.register);
+router.post('/login', validateAllParameters, validateLogin, handleValidationErrors, authController.login);
 
 module.exports = router;

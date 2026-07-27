@@ -81,6 +81,9 @@ const sanitizeValue = (value) => {
  * Rechaza requestos con patrones sospechosos
  */
 const validateAllParameters = (req, res, next) => {
+  const mutatingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+  const isMutatingRequest = mutatingMethods.includes(req.method?.toUpperCase());
+
   // Validar parámetros query
   for (const [key, value] of Object.entries(req.query || {})) {
     if (isDangerousValue(value, `query.${key}`)) {
@@ -143,6 +146,19 @@ const validateAllParameters = (req, res, next) => {
         success: false,
         error_code: 'INVALID_PARAMETER',
         message: `Parámetro sospechoso en body: ${result.fieldPath}`
+      });
+    }
+  }
+
+  // Bloqueo adicional para peticiones mutantes: si el payload parece malicioso, no permitir que avance
+  if (isMutatingRequest && req.body && typeof req.body === 'object') {
+    const bodyText = JSON.stringify(req.body);
+    if (isDangerousValue(bodyText, 'body.raw')) {
+      console.log(`[SECURITY] Payload malicioso bloqueado antes de la mutación: ${bodyText}`);
+      return res.status(400).json({
+        success: false,
+        error_code: 'MALICIOUS_PAYLOAD_BLOCKED',
+        message: 'Solicitud bloqueada por contenido sospechoso'
       });
     }
   }

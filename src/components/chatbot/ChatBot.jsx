@@ -269,6 +269,9 @@ function ChatBot() {
 
       if (response.ok) {
         const data = await response.json();
+      if (data?.error) {
+        throw new Error(data.error);
+      }
         if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
           const historyMessages = data.messages.map((msg, index) => {
             // Validación de seguridad en historial

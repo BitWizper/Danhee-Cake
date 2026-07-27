@@ -16,6 +16,8 @@ const { httpSecurity, validateBodySize, preventClickjacking, preventMimeSniffing
 const { ipBlocker, attackDetector, recordFailedAttempt, recordSuccessfulAttempt } = require('./middleware/ipBlocker');
 const methodBlocker = require('./middleware/methodBlocker');
 const sqlInjectionBlocker = require('./middleware/sqlInjectionBlocker');
+const { validateAllParameters } = require('./middleware/parameterValidator');
+const { apiGuard } = require('./middleware/apiGuard');
 
 
 const app = express();
@@ -75,6 +77,16 @@ app.use(disablePoweredBy);
 // Temporalmente desactivado debido a falsos positivos que bloquean peticiones legítimas
 // app.use(advancedSecurity);
 
+// Bloqueo de rutas sensibles y archivos de configuración
+app.use((req, res, next) => {
+  const suspiciousPath = req.originalUrl || req.url || '';
+  const sensitivePatterns = [/\/\.env/i, /\/\.git/i, /\/phpmyadmin/i, /\/wp-admin/i, /\/config\.(php|json|js)/i, /\/backup/i, /\/logs/i, /\\/i];
+  if (sensitivePatterns.some((pattern) => pattern.test(suspiciousPath))) {
+    return res.status(404).json({ success: false, error_code: 'NOT_FOUND', message: 'Recurso no encontrado' });
+  }
+  next();
+});
+
 // CORS restrictivo - solo permitir orígenes específicos
 const allowedOrigins = [
   'http://localhost:5173',
@@ -96,7 +108,7 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Content-Length', 'Content-Type'],
   maxAge: 86400, // 24 horas de caché para preflight requests
@@ -178,7 +190,32 @@ app.use(preventClickjacking);
 app.use(preventMimeSniffing);
 app.use(preventXSS);
 
+app.use('/api', validateAllParameters);
+app.use('/api', apiGuard);
 app.use(sanitizeQueryParams);
+
+// Rechazar temprano cualquier intento de modificar o crear recursos mediante APIs maliciosas
+app.use('/api', (req, res, next) => {
+  const mutatingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+  const suspiciousRedirectParams = ['redirect', 'next', 'url', 'returnUrl', 'return_to'];
+  if (mutatingMethods.includes(req.method?.toUpperCase())) {
+    const suspiciousPatterns = [/(select|insert|update|delete|drop|union|exec|script)/i, /<script|javascript:|on\w+=/i, /\$(where|ne|gt|lt|regex|in|nin|or|and)\b/i];
+    const rawInput = JSON.stringify(req.body || {}) + JSON.stringify(req.query || {}) + JSON.stringify(req.params || {});
+    if (suspiciousPatterns.some((pattern) => pattern.test(rawInput))) {
+      console.log(`[SECURITY] Bloqueo preventivo de mutación maliciosa en ${req.originalUrl}`);
+      return res.status(400).json({ success: false, error_code: 'MALICIOUS_MUTATION_BLOCKED', message: 'Operación bloqueada por seguridad' });
+    }
+  }
+
+  for (const paramName of suspiciousRedirectParams) {
+    const value = req.query?.[paramName] || req.body?.[paramName];
+    if (typeof value === 'string' && /^(https?:)?\/\//i.test(value)) {
+      return res.status(400).json({ success: false, error_code: 'OPEN_REDIRECT_BLOCKED', message: 'Redirección externa bloqueada' });
+    }
+  }
+
+  next();
+});
 
 // ============================================================
 // BLOQUEO DE MÉTODOS HTTP PELIGROSOS Y DETECCIÓN DE SQLi
@@ -216,6 +253,7 @@ app.use('/api/categories', require('./routes/categories.routes'));
 app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
+app.use('/api/payments', require('./routes/payments.routes'));
 // Aplicar guardrail específico para clientes (no afecta a reposteros)
 app.use('/api/chat', clientChatGuard, chatLimiter, chatRoutes);
 app.post('/api/chat/stream', clientChatGuard, streamChatbot);

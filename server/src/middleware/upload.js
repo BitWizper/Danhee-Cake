@@ -30,23 +30,25 @@ const verifyFileSignature = (filePath, mimetype) => {
 // Configuración de almacenamiento
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
+    fs.mkdirSync('uploads', { recursive: true });
     cb(null, 'uploads/');
   },
   filename: (req, file, cb) => {
+    const safeName = path.basename(file.originalname || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    cb(null, uniqueSuffix + '-' + safeName);
   }
 });
 
 // Filtro de archivos (solo imágenes con validación de magic numbers)
 const fileFilter = (req, file, cb) => {
-  if (!file.mimetype.startsWith('image/')) {
+  if (!file.mimetype || !file.mimetype.startsWith('image/')) {
     return cb(new Error('Solo se permiten archivos de imagen.'), false);
   }
   
   // Validar extensión del archivo
   const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-  const ext = path.extname(file.originalname).toLowerCase();
+  const ext = path.extname(file.originalname || '').toLowerCase();
   if (!allowedExtensions.includes(ext)) {
     return cb(new Error('Extensión de archivo no permitida.'), false);
   }
@@ -58,7 +60,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: { 
-    fileSize: 5 * 1024 * 1024, // Límite sanitizado de 5MB
+    fileSize: 2 * 1024 * 1024, // Límite robusto de 2MB
     files: 1 // Solo un archivo a la vez
   }
 });
