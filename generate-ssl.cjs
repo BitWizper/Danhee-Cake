@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const pem = require('pem');
 
 const sslDir = path.join(__dirname, 'ssl');
 
@@ -9,49 +9,19 @@ if (!fs.existsSync(sslDir)) {
   fs.mkdirSync(sslDir, { recursive: true });
 }
 
-// Generar certificados SSL autofirmados usando Node.js
-try {
-  // Usamos el módulo 'selfsigned' si está disponible, o generamos manualmente
-  const privateKey = `-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7vJT5s8R9v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
------END PRIVATE KEY-----`;
-
-  const certificate = `-----BEGIN CERTIFICATE-----
-MIIDXTCCAkWgAwIBAgIJAJC1HiIAZAiIMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
-BAYTAlVTMQswCQYDVQQIDAJTQTEQMA4GA1UEBwwHQ2l0eTEPMA0GA1UECgwGT3Jn
-YW5pemF0aW9uMQ0wCwYDVQQDDARsb2NhbDAeFw0yNDA3MjYwMDAwMDBaFw0yNTA3
-MjYwMDAwMDBaMEUxCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJTQTEQMA4GA1UEBwwH
-Q2l0eTEPMA0GA1UECgwGT3JnYW5pemF0aW9uMQ0wCwYDVQQDDARsb2NhbDBcMA0G
-GCSqGSIb3DQEBAQUAA0sAMEgCQQC7vJT5s8R9v8K3v8K3v8K3v8K3v8K3v8K3v8K3v
-8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-AgMBAAGjUzBRMB0GA1UdDgQWBBQ7vJT5s8R9v8K3v8K3v8K3v8K3v8K3v8K3v8K3v
-8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-DANBgkqhkiG9w0BAQsFAAOBgQBW7vJT5s8R9v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
-3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K3v8K
------END CERTIFICATE-----`;
-
-  fs.writeFileSync(path.join(sslDir, 'key.pem'), privateKey);
-  fs.writeFileSync(path.join(sslDir, 'cert.pem'), certificate);
+// Generar certificados SSL autofirmados válidos
+pem.createCertificate({ days: 365, selfSigned: true }, function(err, keys) {
+  if (err) {
+    console.error('❌ Error generando certificados:', err.message);
+    process.exit(1);
+  }
+  
+  fs.writeFileSync(path.join(sslDir, 'key.pem'), keys.clientKey);
+  fs.writeFileSync(path.join(sslDir, 'cert.pem'), keys.certificate);
   
   console.log('✅ Certificados SSL generados en directorio ssl/');
   console.log('cert.pem: Certificado público');
   console.log('key.pem: Clave privada');
   console.log('⚠️  Estos son certificados autofirmados para desarrollo solamente.');
-} catch (error) {
-  console.error('❌ Error generando certificados:', error.message);
-  process.exit(1);
-}
+  console.log('💡 El navegador mostrará una advertencia de seguridad - esto es normal para certificados autofirmados.');
+});
