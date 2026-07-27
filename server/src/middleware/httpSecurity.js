@@ -28,15 +28,11 @@ const HTTP_SECURITY_CONFIG = {
     /pangolin/i,
     /bbscan/i,
     /nmap scripting engine/i,
-    /python-requests/i,
-    /curl/i,
-    /wget/i,
+    // curl, wget, postman, insomnia removidos - son herramientas legítimas de desarrollo/testing
     /libwww-perl/i,
     /java/i,
     /jakarta/i,
-    /go-http-client/i,
-    /postman/i,
-    /insomnia/i
+    /go-http-client/i
   ],
   blockedPaths: [
     /\.\./, // Path traversal

@@ -164,10 +164,6 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/uploads', express.static('uploads'));
 
-// Middleware de bloqueo por IP (primero, antes de todo)
-app.use(ipBlocker);
-app.use(attackDetector);
-
 // Middleware de seguridad HTTP (antes de sanitización)
 app.use(httpSecurity);
 app.use(validateBodySize);
@@ -191,6 +187,18 @@ app.use('/api/', methodLimiter);
 
 // Rate limiting para operaciones de escritura
 app.use('/api/', writeLimiter);
+
+// Middleware de bloqueo por IP (solo para rutas protegidas)
+app.use('/api/auth', ipBlocker);
+app.use('/api/appointments', ipBlocker);
+app.use('/api/chat', ipBlocker);
+app.use('/api/admin', ipBlocker);
+
+// Middleware de detección de ataques (solo para rutas protegidas)
+app.use('/api/auth', attackDetector);
+app.use('/api/appointments', attackDetector);
+app.use('/api/chat', attackDetector);
+app.use('/api/admin', attackDetector);
 
 // Rate limiting para operaciones de lectura
 app.use('/api/', readLimiter);

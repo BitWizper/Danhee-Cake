@@ -14,7 +14,23 @@ const IP_BLOCKER_CONFIG = {
     '127.0.0.1',
     '::1',
     '::ffff:127.0.0.1',
-    'localhost'
+    'localhost',
+    // IPs de ngrok (para pruebas)
+    '209.178.128.185',
+    // Rango de IPs Docker
+    '172.16.0.0',
+    '172.17.0.0',
+    '172.18.0.0',
+    '172.19.0.0',
+    '172.20.0.0'
+  ],
+  // Rutas públicas que no deben ser bloqueadas por IP
+  publicRoutes: [
+    '/api/categories',
+    '/api/cakes',
+    '/api/bakers',
+    '/',
+    '/index.html'
   ]
 };
 
@@ -193,9 +209,19 @@ const cleanupOldIPs = () => {
 // Limpiar datos antiguos cada hora
 setInterval(cleanupOldIPs, 60 * 60 * 1000);
 
+// Función para verificar si una ruta es pública
+const isPublicRoute = (path) => {
+  return IP_BLOCKER_CONFIG.publicRoutes.some(route => path.startsWith(route));
+};
+
 // Middleware principal de bloqueo por IP
 const ipBlocker = (req, res, next) => {
   const ip = getClientIP(req);
+  
+  // Verificar si es una ruta pública - no aplicar bloqueo por IP
+  if (isPublicRoute(req.path)) {
+    return next();
+  }
   
   // Verificar whitelist
   if (isWhitelisted(ip)) {
@@ -236,6 +262,11 @@ const ipBlocker = (req, res, next) => {
 const attackDetector = (req, res, next) => {
   const ip = getClientIP(req);
   
+  // Verificar si es una ruta pública - no aplicar detección de ataques
+  if (isPublicRoute(req.path)) {
+    return next();
+  }
+  
   if (isWhitelisted(ip)) {
     return next();
   }
@@ -243,6 +274,23 @@ const attackDetector = (req, res, next) => {
   const path = req.path.toLowerCase();
   const method = req.method;
   const userAgent = req.headers['user-agent'] || '';
+  
+  // User-Agents permitidos (herramientas legítimas de desarrollo/testing)
+  const allowedUserAgents = [
+    /curl/i,
+    /wget/i,
+    /postman/i,
+    /insomnia/i,
+    /httpie/i,
+    /mozilla/i,
+    /chrome/i,
+    /safari/i,
+    /edge/i,
+    /firefox/i
+  ];
+  
+  // Verificar si el User-Agent es permitido
+  const isAllowedUA = allowedUserAgents.some(pattern => pattern.test(userAgent));
   
   // Patrones de ataque comunes
   const attackPatterns = [
@@ -273,39 +321,41 @@ const attackDetector = (req, res, next) => {
     /web\.config/i,
   ];
   
-  // Verificar patrones en URL
-  for (const pattern of attackPatterns) {
-    if (pattern.test(path) || pattern.test(req.url)) {
-      recordSuspiciousAction(ip, `ATTACK_PATTERN_DETECTED: ${pattern}`);
-      logSecurityEvent('ATTACK_PATTERN_DETECTED', {
-        ip,
-        pattern: pattern.toString(),
-        path: req.path,
-        method,
-        userAgent
-      });
-      
-      // Bloquear inmediatamente si es un patrón grave
-      if (/<script|union\s+select|drop\s+table|;\s*rm/i.test(pattern.toString())) {
-        const data = ipData.get(ip) || {
-          attempts: 0,
-          failedAttempts: 0,
-          suspiciousActions: 0,
-          blockedUntil: null,
-          permanentlyBlocked: false,
-          lastActivity: Date.now()
-        };
-        data.permanentlyBlocked = true;
-        blockedIPs.add(ip);
-        ipData.set(ip, data);
-        
-        return res.status(403).json({
-          error: 'Access denied',
-          message: 'Tu IP ha sido bloqueada permanentemente por actividad maliciosa.'
+  // Verificar patrones en URL (solo si el User-Agent no es permitido)
+  if (!isAllowedUA) {
+    for (const pattern of attackPatterns) {
+      if (pattern.test(path) || pattern.test(req.url)) {
+        recordSuspiciousAction(ip, `ATTACK_PATTERN_DETECTED: ${pattern}`);
+        logSecurityEvent('ATTACK_PATTERN_DETECTED', {
+          ip,
+          pattern: pattern.toString(),
+          path: req.path,
+          method,
+          userAgent
         });
+        
+        // Bloquear inmediatamente si es un patrón grave
+        if (/<script|union\s+select|drop\s+table|;\s*rm/i.test(pattern.toString())) {
+          const data = ipData.get(ip) || {
+            attempts: 0,
+            failedAttempts: 0,
+            suspiciousActions: 0,
+            blockedUntil: null,
+            permanentlyBlocked: false,
+            lastActivity: Date.now()
+          };
+          data.permanentlyBlocked = true;
+          blockedIPs.add(ip);
+          ipData.set(ip, data);
+          
+          return res.status(403).json({
+            error: 'Access denied',
+            message: 'Tu IP ha sido bloqueada permanentemente por actividad maliciosa.'
+          });
+        }
+        
+        break;
       }
-      
-      break;
     }
   }
   
