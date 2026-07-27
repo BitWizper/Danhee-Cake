@@ -27,7 +27,13 @@ const getRequestOrigin = (req) => {
 
 const browserOriginGuard = (req, res, next) => {
   const requestOrigin = getRequestOrigin(req);
+
   if (!requestOrigin) {
+    // Permitir GET/HEAD directos desde el navegador que no incluyen Origin
+    if (['GET', 'HEAD'].includes(req.method)) {
+      return next();
+    }
+
     logSecurityEvent('MISSING_ORIGIN_HEADER', {
       path: req.originalUrl,
       method: req.method,
