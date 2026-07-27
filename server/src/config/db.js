@@ -92,7 +92,7 @@ const SUSPICIOUS_SQL_PATTERNS = [
 
 // Función para detectar patrones sospechosos en SQL
 const detectSuspiciousSQL = (sql) => {
-  const lowerSQL = sql.toLowerCase();
+  const lowerSQL = (sql || '').toLowerCase();
   for (const pattern of SUSPICIOUS_SQL_PATTERNS) {
     if (pattern.test(lowerSQL)) {
       return {
@@ -102,6 +102,23 @@ const detectSuspiciousSQL = (sql) => {
       };
     }
   }
+
+  if (/\b(show|describe|explain|use|set|flush|grant|revoke|analyze|optimize)\b/i.test(sql)) {
+    return {
+      suspicious: true,
+      pattern: 'administrative_sql',
+      reason: 'Operaciones administrativas de base de datos no permitidas'
+    };
+  }
+
+  if (/\binformation_schema\b|\bmysql\./i.test(sql)) {
+    return {
+      suspicious: true,
+      pattern: 'schema_enumeration',
+      reason: 'Enumeración de metadatos de base de datos no permitida'
+    };
+  }
+
   return { suspicious: false };
 };
 
@@ -124,45 +141,45 @@ const validateColumnName = (columnName) => {
 };
 
 // Wrapper seguro para execute con validación adicional
-const safeExecute = async (sql, params) => {
-  // Validar que SQL sea un string
+const safeExecute = async (sql, params, runner = null) => {
   if (typeof sql !== 'string') {
     throw new Error('SQL query debe ser un string');
   }
 
-  // Validar longitud de SQL
   if (sql.length > 10000) {
     throw new Error('Query SQL demasiado largo');
   }
 
-  // Detectar patrones sospechosos
   const suspiciousCheck = detectSuspiciousSQL(sql);
   if (suspiciousCheck.suspicious) {
     console.error('[DB SECURITY] ⚠️  Patrón sospechoso detectado:', suspiciousCheck);
     throw new Error('Query SQL contiene patrones sospechosos no permitidos');
   }
 
-  // Validar que no haya múltiples sentencias (doble verificación)
   if (sql.includes(';') && !sql.trim().endsWith(';')) {
     throw new Error('Múltiples sentencias SQL no permitidas por seguridad');
   }
 
-  // Validar parámetros
   if (params) {
     if (!Array.isArray(params)) {
       throw new Error('Parámetros deben ser un array');
     }
-    // Limitar cantidad de parámetros
     if (params.length > 100) {
       throw new Error('Demasiados parámetros en la consulta');
     }
-    
-    // Validar que no haya objetos en los parámetros (prevenir NoSQL injection)
+
     for (const param of params) {
-      if (typeof param === 'object' && param !== null && !Array.isArray(param)) {
+      if (param !== null && param !== undefined && typeof param === 'object' && !Array.isArray(param)) {
         throw new Error('Parámetros no pueden ser objetos');
       }
+      if (typeof param === 'string' && param.length > 5000) {
+        throw new Error('Parámetro de consulta demasiado largo');
+      }
     }
+  }
+
+  if (typeof runner === 'function') {
+    return runner(sql, params);
   }
 
   return pool.execute(sql, params);
@@ -171,6 +188,17 @@ const safeExecute = async (sql, params) => {
 // Wrapper seguro para query
 const safeQuery = async (sql, params) => {
   return safeExecute(sql, params);
+};
+
+const originalExecute = pool.execute.bind(pool);
+const originalQuery = pool.query.bind(pool);
+
+pool.execute = async function executeWithSafety(sql, params) {
+  return safeExecute(sql, params, originalExecute);
+};
+
+pool.query = async function queryWithSafety(sql, params) {
+  return safeExecute(sql, params, originalQuery);
 };
 
 // Función para obtener información de la conexión (solo para debugging)

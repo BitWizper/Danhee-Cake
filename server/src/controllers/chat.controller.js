@@ -2,23 +2,40 @@
 const jwt = require('jsonwebtoken');
 const { sanitizeString } = require('../middleware/inputValidator');
 
+const SUSPICIOUS_CHAT_PATTERN = /(<script|<\/script|javascript:|on\w+\s*=|data:text\/html|union\s+select|or\s+1\s*=\s*1|sleep\s*\(|benchmark\s*\(|--|\/\*|\*\/|%3c|%3e|&#x|\\x[0-9a-f]{2}|\.\.)/i;
+
+const validateChatText = (value, maxLength = 5000, fieldName = 'mensaje') => {
+  if (value === null || value === undefined) {
+    return { ok: true, sanitized: '' };
+  }
+
+  if (typeof value !== 'string') {
+    return { ok: false, reason: `${fieldName} debe ser texto` };
+  }
+
+  const sanitized = sanitizeString(value, maxLength);
+  if (!sanitized || sanitized.trim() === '') {
+    return { ok: false, reason: `${fieldName} no puede estar vacío` };
+  }
+
+  if (SUSPICIOUS_CHAT_PATTERN.test(sanitized)) {
+    return { ok: false, reason: `${fieldName} contiene contenido sospechoso` };
+  }
+
+  return { ok: true, sanitized };
+};
+
 const askChatbot = async (req, res) => {
   const { message } = req.body;
+  const validation = validateChatText(message, 5000, 'El mensaje');
 
-  // Sanitizar mensaje para prevenir XSS y otros ataques
-  const sanitizedMessage = sanitizeString(message, 5000);
+  if (!validation.ok) {
+    return res.status(400).json({ error: validation.reason });
+  }
+
+  const sanitizedMessage = validation.sanitized;
 
   console.log(`[Chat DEBUG] Recibida solicitud - message: ${sanitizedMessage}`);
-
-  if (!sanitizedMessage || sanitizedMessage.trim() === "") {
-    console.log(`[Chat DEBUG] Mensaje vacío, retornando error`);
-    return res.status(400).json({ error: "El mensaje no puede estar vacío" });
-  }
-
-  // Validar longitud máxima del mensaje
-  if (sanitizedMessage.length > 5000) {
-    return res.status(400).json({ error: "El mensaje excede el límite de 5000 caracteres" });
-  }
 
   // ── Detectar si el usuario está logueado ──────────────────────────────────
   // Si hay un JWT válido en el header Authorization, extraemos el client_id
@@ -75,9 +92,11 @@ const askChatbot = async (req, res) => {
 const getChatHistory = async (req, res) => {
   const { conversation_id, client_id } = req.query;
 
-  // Sanitizar parámetros
-  const sanitizedConversationId = sanitizeString(conversation_id, 100);
-  const sanitizedClientId = sanitizeString(client_id, 100);
+  const conversationValidation = validateChatText(conversation_id, 100, 'conversation_id');
+  const clientValidation = validateChatText(client_id, 100, 'client_id');
+
+  const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
+  const sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
 
   if (!sanitizedConversationId && !sanitizedClientId) {
     return res.status(400).json({ error: "Se requiere conversation_id o client_id" });
@@ -108,18 +127,15 @@ const getChatHistory = async (req, res) => {
 
 const streamChatbot = async (req, res) => {
   const { message, conversation_id } = req.body;
+  const messageValidation = validateChatText(message, 5000, 'El mensaje');
+  const conversationValidation = validateChatText(conversation_id, 100, 'conversation_id');
 
-  // Sanitizar inputs
-  const sanitizedMessage = sanitizeString(message, 5000);
-  const sanitizedConversationId = sanitizeString(conversation_id, 100);
-
-  if (!sanitizedMessage || sanitizedMessage.trim() === "") {
-    return res.status(400).json({ error: "El mensaje no puede estar vacío" });
+  if (!messageValidation.ok) {
+    return res.status(400).json({ error: messageValidation.reason });
   }
 
-  if (sanitizedMessage.length > 5000) {
-    return res.status(400).json({ error: "El mensaje excede el límite de 5000 caracteres" });
-  }
+  const sanitizedMessage = messageValidation.sanitized;
+  const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
 
   let client_id = null;
   let role = null;
@@ -203,9 +219,11 @@ const streamChatbot = async (req, res) => {
 const deleteChatHistory = async (req, res) => {
   const { conversation_id, client_id } = req.body;
 
-  // Sanitizar inputs
-  const sanitizedConversationId = sanitizeString(conversation_id, 100);
-  const sanitizedClientId = sanitizeString(client_id, 100);
+  const conversationValidation = validateChatText(conversation_id, 100, 'conversation_id');
+  const clientValidation = validateChatText(client_id, 100, 'client_id');
+
+  const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
+  const sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
 
   try {
     const response = await fetch("http://backend:5005/chat/delete", {

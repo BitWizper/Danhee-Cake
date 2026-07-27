@@ -363,7 +363,8 @@ function ChatBot() {
   }, [chat, loadingState, open]);
 
   const _doSend = async (trimmedMessage) => {
-    const userMessage = { id: Date.now().toString(), sender: "user", text: trimmedMessage };
+    const safePreview = sanitizeMessageAdvanced(trimmedMessage);
+    const userMessage = { id: Date.now().toString(), sender: "user", text: safePreview };
     setChat((prev) => [...prev, userMessage]);
     setIsSending(true);
     setLoadingState({ status: "thinking", message: "Conectando con el asistente..." });

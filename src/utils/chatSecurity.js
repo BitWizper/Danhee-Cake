@@ -8,11 +8,11 @@ import {
   getRateLimitStatus,
   syncServerRateLimit,
   formatBlockTime,
-} from './rateLimiter';
+} from './rateLimiter.js';
 
 import {
   validateJSONStructure,
-} from './domSecurity';
+} from './domSecurity.js';
 
 export const CHAT_SECURITY_CONFIG = {
   maxMessageLength: 2000,
@@ -40,6 +40,11 @@ export const CHAT_SECURITY_CONFIG = {
     /<embed/gi,
     /<object/gi,
     /<svg[^>]*on\w+/gi,
+    /<(?:script|img|svg|iframe|object|embed|link|meta)[^>]*(?:src|href|on\w+)\s*=/gi,
+    /(?:alert|confirm|prompt)\s*\(/gi,
+    /document\.(?:write|createElement|cookie)/gi,
+    /window\.(?:open|location)/gi,
+    /(?:&lt;|&gt;|&#x3c;|&#x3e;|%3c|%3e)/gi,
     /document\./gi,
     /window\./gi,
     /localStorage\./gi,
@@ -397,6 +402,10 @@ export const sanitizeMessageAdvanced = (message) => {
 
   // Remover caracteres de control
   sanitized = sanitized.replace(CONTROL_CHARS, '');
+
+  // Quitar payloads obfuscados y scripts
+  sanitized = sanitized.replace(/(?:&lt;|&gt;|&#x3c;|&#x3e;|%3c|%3e)/gi, '');
+  sanitized = sanitized.replace(/(?:javascript:|data:text\/html|vbscript:)/gi, '');
 
   // Remover HTML tags
   sanitized = sanitized.replace(HTML_TAG, '');
