@@ -41,7 +41,7 @@ exports.getAll = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'baker debe ser un número válido.' });
     }
     query += ' AND c.baker_id = ?';
-    params.push(sanitizedBaker);
+    params.push(parseInt(sanitizedBaker, 10));
   }
 
   if (sanitizedFeatured === 'true') {
@@ -83,7 +83,7 @@ exports.getById = async (req, res, next) => {
       JOIN baker_profiles b ON c.baker_id = b.id
       LEFT JOIN categories cat ON c.category_id = cat.id
       WHERE c.id = ?
-    `, [sanitizedId]);
+    `, [parseInt(sanitizedId, 10)]);
 
     if (cakes.length === 0) {
       return res.status(404).json({ success: false, message: 'Pastel no encontrado.' });

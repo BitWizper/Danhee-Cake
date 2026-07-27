@@ -13,6 +13,7 @@ const { auditLogger } = require('./middleware/auditLogger');
 const { advancedSecurity } = require('./middleware/securityAdvanced');
 const { clientChatGuard } = require('./middleware/clientChatGuard');
 const { httpSecurity, validateBodySize, preventClickjacking, preventMimeSniffing, preventXSS } = require('./middleware/httpSecurity');
+const { ipBlocker, attackDetector, recordFailedAttempt, recordSuccessfulAttempt } = require('./middleware/ipBlocker');
 
 
 const app = express();
@@ -162,6 +163,10 @@ const sanitizeQueryParams = (req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/uploads', express.static('uploads'));
+
+// Middleware de bloqueo por IP (primero, antes de todo)
+app.use(ipBlocker);
+app.use(attackDetector);
 
 // Middleware de seguridad HTTP (antes de sanitización)
 app.use(httpSecurity);
