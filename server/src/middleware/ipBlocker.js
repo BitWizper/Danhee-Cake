@@ -2,6 +2,7 @@
 // Middleware de bloqueo por IP para prevenir ataques persistentes
 
 const { logSecurityEvent } = require('./auditLogger');
+const { getClientIP, normalizeIp, isPrivateIp } = require('./clientIp');
 
 // Configuración
 const IP_BLOCKER_CONFIG = {
@@ -33,12 +34,32 @@ const ipData = new Map(); // { ip: { attempts: 0, failedAttempts: 0, suspiciousA
 const blockedIPs = new Set(); // IPs actualmente bloqueadas
 const suspiciousIPs = new Set(); // IPs marcadas como sospechosas
 
-// Función para obtener IP real del cliente
-const { getClientIP } = require('./clientIp');
-
 // Función para verificar si una IP está en whitelist
 const isWhitelisted = (ip) => {
   return IP_BLOCKER_CONFIG.whitelist.includes(ip);
+};
+
+const allowedPrivateIPs = (process.env.ALLOWED_PRIVATE_IPS || '127.0.0.1,::1,::ffff:127.0.0.1')
+  .split(',')
+  .map((ip) => normalizeIp(ip))
+  .filter(Boolean);
+
+const isAllowedPrivateIp = (ip) => {
+  const normalized = normalizeIp(ip);
+  if (!normalized) return false;
+  return allowedPrivateIPs.includes(normalized);
+};
+
+const isPrivatelyRoutedRequest = (req, ip) => {
+  if (!ip || ip === 'unknown') return false;
+  if (!isPrivateIp(ip)) return false;
+  if (isAllowedPrivateIp(ip)) return false;
+
+  const origin = req.headers.origin || req.headers.referer || req.headers.referrer || '';
+  const host = req.headers.host || req.headers['x-forwarded-host'] || req.hostname || '';
+  const normalizedHost = String(host).toLowerCase();
+
+  return !(origin || normalizedHost.includes('localhost') || normalizedHost.includes('127.0.0.1'));
 };
 
 // Función para verificar si una IP está bloqueada
@@ -219,6 +240,20 @@ const ipBlocker = (req, res, next) => {
   if (isWhitelisted(ip)) {
     return next();
   }
+
+  if (isPrivatelyRoutedRequest(req, ip)) {
+    logSecurityEvent('PRIVATE_IP_BLOCKED', {
+      ip,
+      path: req.path,
+      method: req.method,
+      userAgent: req.headers['user-agent']
+    });
+
+    return res.status(403).json({
+      error: 'Access denied',
+      message: 'Las solicitudes desde IP privadas no están permitidas salvo que estén explícitamente autorizadas.'
+    });
+  }
   
   // Verificar si está bloqueada
   if (isIPBlocked(ip)) {
@@ -261,6 +296,13 @@ const attackDetector = (req, res, next) => {
   
   if (isWhitelisted(ip)) {
     return next();
+  }
+
+  if (isPrivatelyRoutedRequest(req, ip)) {
+    return res.status(403).json({
+      error: 'Access denied',
+      message: 'Las solicitudes desde IP privadas no están permitidas salvo que estén explícitamente autorizadas.'
+    });
   }
   
   const path = req.path.toLowerCase();
