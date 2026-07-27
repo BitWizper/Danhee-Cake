@@ -72,6 +72,7 @@ const getSecuritySummary = () => {
 
   return {
     blockedIps: Object.keys(blocks).length,
+    blockedIpList: Object.entries(blocks).map(([ip, details]) => ({ ip, ...details })),
     recentEvents: events,
     eventCount: events.length
   };

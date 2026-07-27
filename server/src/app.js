@@ -21,6 +21,7 @@ const { apiGuard } = require('./middleware/apiGuard');
 const { apiFuzzingGuard } = require('./middleware/apiFuzzingGuard');
 const { logAttack } = require('./middleware/attackLogger');
 const { getSecuritySummary } = require('./middleware/securityDashboard');
+const { validateHostHeader } = require('./middleware/hostValidator');
 
 
 const app = express();
@@ -249,10 +250,14 @@ app.use('/api/', writeLimiter);
 app.use('/api/', readLimiter);
 
 // Middleware de bloqueo por IP para todas las rutas de API públicas
-app.use('/api', ipBlocker);
+app.use('/api', validateHostHeader, ipBlocker);
 
 // Middleware de detección de ataques para todas las rutas de API
 app.use('/api', attackDetector);
+
+// También proteger rutas top-level adicionales si existen
+app.use('/chat', validateHostHeader, ipBlocker, attackDetector);
+app.use('/admin', validateHostHeader, ipBlocker, attackDetector);
 
 // Rutas (rate limiting específico aplicado en archivos de rutas)
 app.use('/api/auth', require('./routes/auth.routes'));
