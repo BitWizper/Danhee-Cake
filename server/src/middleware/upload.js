@@ -2,6 +2,10 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
+
 // Magic numbers para validar tipos de archivo reales
 const FILE_SIGNATURES = {
   'image/jpeg': [0xFF, 0xD8, 0xFF],
@@ -42,17 +46,22 @@ const storage = multer.diskStorage({
 
 // Filtro de archivos (solo imágenes con validación de magic numbers)
 const fileFilter = (req, file, cb) => {
-  if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-    return cb(new Error('Solo se permiten archivos de imagen.'), false);
+  const originalName = (file.originalname || '').toLowerCase();
+  const ext = path.extname(originalName);
+  const safeName = path.basename(originalName, ext).replace(/[^a-z0-9._-]/g, '');
+
+  if (!file.mimetype || !ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    return cb(new Error('Solo se permiten archivos de imagen válidos.'), false);
   }
-  
-  // Validar extensión del archivo
-  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-  const ext = path.extname(file.originalname || '').toLowerCase();
-  if (!allowedExtensions.includes(ext)) {
+
+  if (!ALLOWED_EXTENSIONS.includes(ext) || !safeName) {
     return cb(new Error('Extensión de archivo no permitida.'), false);
   }
-  
+
+  if (file.originalname && file.originalname !== path.basename(file.originalname)) {
+    return cb(new Error('Nombre de archivo inválido.'), false);
+  }
+
   cb(null, true);
 };
 
@@ -60,8 +69,8 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: { 
-    fileSize: 2 * 1024 * 1024, // Límite robusto de 2MB
-    files: 1 // Solo un archivo a la vez
+    fileSize: MAX_FILE_SIZE_BYTES,
+    files: 1
   }
 });
 
@@ -70,14 +79,22 @@ const uploadWithSignatureCheck = (fieldName = 'file') => {
   return (req, res, next) => {
     upload.single(fieldName)(req, res, (err) => {
       if (err) {
-        return res.status(400).json({ error: err.message });
+        return res.status(400).json({
+          success: false,
+          error_code: 'UPLOAD_BLOCKED',
+          message: err.message || 'Carga de archivo bloqueada.'
+        });
       }
       
       if (req.file) {
         const isValid = verifyFileSignature(req.file.path, req.file.mimetype);
         if (!isValid) {
-          fs.unlinkSync(req.file.path); // Eliminar archivo malicioso
-          return res.status(400).json({ error: 'Tipo de archivo inválido.' });
+          fs.unlinkSync(req.file.path);
+          return res.status(400).json({
+            success: false,
+            error_code: 'UPLOAD_BLOCKED',
+            message: 'Tipo de archivo inválido.'
+          });
         }
       }
       

@@ -3,7 +3,7 @@ const router = express.Router();
 const cakesController = require('../controllers/cakes.controller');
 const { query, param } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
-const { validateAllParameters } = require('../middleware/parameterValidator');
+const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
 // VALIDACIÓN DE PARÁMETROS
@@ -15,7 +15,13 @@ const validateCakesQuery = [
     .optional()
     .trim()
     .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s-]+$/).withMessage('category contiene caracteres inválidos')
-    .isLength({ max: 100 }).withMessage('category máximo 100 caracteres'),
+    .isLength({ max: 100 }).withMessage('category máximo 100 caracteres')
+    .custom((value) => {
+      if (typeof value === 'string' && isDangerousValue(value, 'query.category')) {
+        throw new Error('category contiene contenido sospechoso');
+      }
+      return true;
+    }),
   query('baker')
     .optional()
     .isInt({ min: 1 }).withMessage('baker debe ser número entero positivo')

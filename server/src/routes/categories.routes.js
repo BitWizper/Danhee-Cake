@@ -3,7 +3,7 @@ const router = express.Router();
 const categoriesController = require('../controllers/categories.controller');
 const { query } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
-const { validateAllParameters } = require('../middleware/parameterValidator');
+const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
 // VALIDACIÓN DE PARÁMETROS
@@ -13,7 +13,13 @@ const { validateAllParameters } = require('../middleware/parameterValidator');
 const validateQueryParams = [
   query('active')
     .optional()
-    .isIn(['true', 'false', '0', '1']).withMessage('active debe ser true o false'),
+    .isIn(['true', 'false', '0', '1']).withMessage('active debe ser true o false')
+    .custom((value) => {
+      if (typeof value === 'string' && isDangerousValue(value, 'query.active')) {
+        throw new Error('active contiene contenido sospechoso');
+      }
+      return true;
+    }),
   query('limit')
     .optional()
     .isInt({ min: 1, max: 500 }).withMessage('limit entre 1-500')

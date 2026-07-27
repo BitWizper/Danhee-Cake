@@ -63,6 +63,7 @@ const errorHandler = (err, req, res, next) => {
 
   res.status(statusCode).json({
     success: false,
+    error_code: statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_FAILED',
     message: err.message || 'Error interno del servidor.',
     // Solo en desarrollo exponer información adicional
     ...(isDevelopment && {

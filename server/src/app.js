@@ -18,6 +18,8 @@ const methodBlocker = require('./middleware/methodBlocker');
 const sqlInjectionBlocker = require('./middleware/sqlInjectionBlocker');
 const { validateAllParameters } = require('./middleware/parameterValidator');
 const { apiGuard } = require('./middleware/apiGuard');
+const { apiFuzzingGuard } = require('./middleware/apiFuzzingGuard');
+const { logAttack } = require('./middleware/attackLogger');
 
 
 const app = express();
@@ -192,6 +194,16 @@ app.use(preventXSS);
 
 app.use('/api', validateAllParameters);
 app.use('/api', apiGuard);
+app.use('/api', apiFuzzingGuard);
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    const status = res.statusCode || 500;
+    if (status >= 400) {
+      logAttack(req, 'request_failed', { status });
+    }
+  });
+  next();
+});
 app.use(sanitizeQueryParams);
 
 // Rechazar temprano cualquier intento de modificar o crear recursos mediante APIs maliciosas

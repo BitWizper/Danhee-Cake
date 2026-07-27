@@ -3,7 +3,8 @@ const { askChatbot, getChatHistory, deleteChatHistory } = require('../controller
 const { body, query } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
 const { authMiddleware } = require('../middleware/auth');
-const { validateAllParameters } = require('../middleware/parameterValidator');
+const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
+const { chatAbuseGuard } = require('../middleware/chatAbuseGuard');
 
 const router = express.Router();
 
@@ -17,7 +18,13 @@ const validateChatMessage = [
     .trim()
     .notEmpty().withMessage('El mensaje es requerido')
     .isLength({ min: 1, max: 2000 }).withMessage('El mensaje debe tener entre 1 y 2000 caracteres')
-    .matches(/^[\x20-\x7EáéíóúÁÉÍÓÚñÑ¿¡.,!?;:'"()\s\-]+$/).withMessage('El mensaje contiene caracteres inválidos'),
+    .matches(/^[\x20-\x7EáéíóúÁÉÍÓÚñÑ¿¡.,!?;:'"()\s\-]+$/).withMessage('El mensaje contiene caracteres inválidos')
+    .custom((value) => {
+      if (typeof value === 'string' && isDangerousValue(value, 'body.message')) {
+        throw new Error('El mensaje contiene contenido sospechoso');
+      }
+      return true;
+    }),
 ];
 
 // Validación para parámetros de historial
@@ -38,6 +45,7 @@ const validateHistoryParams = [
 
 router.post("/",
   authMiddleware,
+  chatAbuseGuard,
   validateAllParameters,
   validateChatMessage,
   handleValidationErrors,

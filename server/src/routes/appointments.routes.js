@@ -5,7 +5,7 @@ const appointmentsController = require('../controllers/appointments.controller')
 const { authMiddleware } = require('../middleware/auth');
 const { body, param, query } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
-const { validateAllParameters } = require('../middleware/parameterValidator');
+const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
 // VALIDACIÓN DE PARÁMETROS
@@ -35,7 +35,13 @@ const validateAppointmentBody = [
   body('notes')
     .optional()
     .trim()
-    .isLength({ max: 500 }).withMessage('notes máximo 500 caracteres'),
+    .isLength({ max: 500 }).withMessage('notes máximo 500 caracteres')
+    .custom((value) => {
+      if (typeof value === 'string' && isDangerousValue(value, 'body.notes')) {
+        throw new Error('notes contiene contenido sospechoso');
+      }
+      return true;
+    }),
 ];
 
 const validateQueryParams = [
