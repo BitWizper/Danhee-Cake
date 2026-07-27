@@ -15,6 +15,83 @@ const BAKER_WELCOME_MESSAGE = {
   text: "Hola, soy el asistente de repostería de Danhee Cake. Te puedo ayudar a listar, agregar, modificar o eliminar pasteles en tu catálogo.",
 };
 
+// Configuración de seguridad para el chatbot
+const CHAT_SECURITY_CONFIG = {
+  maxMessageLength: 2000,
+  maxWords: 300,
+  minMessageLength: 1,
+  cooldownPeriod: 2000, // 2 segundos entre mensajes
+  blockedPatterns: [
+    /<script[^>]*>.*?<\/script>/gi,
+    /javascript:/gi,
+    /on\w+\s*=/gi, // Event handlers como onclick, onerror, etc.
+    /eval\s*\(/gi,
+    /exec\s*\(/gi,
+    /system\s*\(/gi,
+    /require\s*\(/gi,
+    /import\s*\(/gi,
+    /\$\{.*\}/gi, // Template injection
+    /__proto__/gi, // Prototype pollution
+    /constructor/gi, // Constructor pollution
+    /prototype/gi, // Prototype pollution
+    /this\[.*\]/gi, // Property access
+    /\.\.\/\.\//gi, // Path traversal
+    /<iframe/gi,
+    /<embed/gi,
+    /<object/gi,
+    /document\./gi,
+    /window\./gi,
+    /localStorage\./gi,
+    /sessionStorage\./gi,
+    /cookie/gi,
+  ]
+};
+
+// Función para validar el mensaje del usuario
+const validateMessage = (message) => {
+  if (!message || typeof message !== 'string') {
+    return { valid: false, error: 'El mensaje es requerido' };
+  }
+
+  const trimmed = message.trim();
+
+  if (trimmed.length < CHAT_SECURITY_CONFIG.minMessageLength) {
+    return { valid: false, error: 'El mensaje debe tener al menos 1 carácter' };
+  }
+
+  if (trimmed.length > CHAT_SECURITY_CONFIG.maxMessageLength) {
+    return { valid: false, error: `El mensaje no puede exceder ${CHAT_SECURITY_CONFIG.maxMessageLength} caracteres` };
+  }
+
+  const wordCount = trimmed.split(/\s+/).length;
+  if (wordCount > CHAT_SECURITY_CONFIG.maxWords) {
+    return { valid: false, error: `El mensaje no puede exceder ${CHAT_SECURITY_CONFIG.maxWords} palabras` };
+  }
+
+  // Verificar patrones bloqueados
+  for (const pattern of CHAT_SECURITY_CONFIG.blockedPatterns) {
+    if (pattern.test(trimmed)) {
+      return { valid: false, error: 'El mensaje contiene patrones no permitidos por seguridad' };
+    }
+  }
+
+  // Verificar caracteres peligrosos
+  const dangerousChars = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
+  if (dangerousChars.test(trimmed)) {
+    return { valid: false, error: 'El mensaje contiene caracteres inválidos' };
+  }
+
+  return { valid: true };
+};
+
+// Función para sanitizar el mensaje (remover caracteres peligrosos)
+const sanitizeMessage = (message) => {
+  if (!message) return '';
+  return message
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Caracteres de control
+    .trim();
+};
+
 function ChatBot() {
   const { user } = useAuth();
 
@@ -25,6 +102,8 @@ function ChatBot() {
   const [loadingState, setLoadingState] = useState({ status: "", message: "" });
   const [isListening, setIsListening] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [lastMessageTime, setLastMessageTime] = useState(0);
+  const [validationError, setValidationError] = useState("");
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -441,18 +520,64 @@ function ChatBot() {
   const sendMessage = (event) => {
     event.preventDefault();
     const trimmedMessage = message.trim();
+    
+    // Verificar cooldown
+    const now = Date.now();
+    if (now - lastMessageTime < CHAT_SECURITY_CONFIG.cooldownPeriod) {
+      const remainingTime = Math.ceil((CHAT_SECURITY_CONFIG.cooldownPeriod - (now - lastMessageTime)) / 1000);
+      setValidationError(`Por favor, espera ${remainingTime} segundos antes de enviar otro mensaje`);
+      setTimeout(() => setValidationError(""), 3000);
+      return;
+    }
+    
+    // Validar mensaje
+    const validation = validateMessage(trimmedMessage);
+    if (!validation.valid) {
+      setValidationError(validation.error);
+      setTimeout(() => setValidationError(""), 3000);
+      return;
+    }
+    
     if (!trimmedMessage || isSending) return;
+    
+    // Sanitizar mensaje
+    const sanitized = sanitizeMessage(trimmedMessage);
     setMessage("");
-    _doSend(trimmedMessage);
+    setLastMessageTime(now);
+    setValidationError("");
+    _doSend(sanitized);
   };
 
   // Versión usada por el auto-envío de voz (recibe texto directamente)
   const sendMessageText = (text, event) => {
     if (event) event.preventDefault();
     const trimmedMessage = (text || "").trim();
+    
+    // Verificar cooldown
+    const now = Date.now();
+    if (now - lastMessageTime < CHAT_SECURITY_CONFIG.cooldownPeriod) {
+      const remainingTime = Math.ceil((CHAT_SECURITY_CONFIG.cooldownPeriod - (now - lastMessageTime)) / 1000);
+      setValidationError(`Por favor, espera ${remainingTime} segundos antes de enviar otro mensaje`);
+      setTimeout(() => setValidationError(""), 3000);
+      return;
+    }
+    
+    // Validar mensaje
+    const validation = validateMessage(trimmedMessage);
+    if (!validation.valid) {
+      setValidationError(validation.error);
+      setTimeout(() => setValidationError(""), 3000);
+      return;
+    }
+    
     if (!trimmedMessage || isSending) return;
+    
+    // Sanitizar mensaje
+    const sanitized = sanitizeMessage(trimmedMessage);
     setMessage("");
-    _doSend(trimmedMessage);
+    setLastMessageTime(now);
+    setValidationError("");
+    _doSend(sanitized);
   };
 
   const renderFormattedText = (text) => {
@@ -589,6 +714,7 @@ function ChatBot() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               disabled={isSending}
+              maxLength={CHAT_SECURITY_CONFIG.maxMessageLength}
             />
 
             <button type="submit" disabled={isSending || !message.trim()}>
@@ -597,6 +723,23 @@ function ChatBot() {
             </button>
 
           </form>
+
+          {validationError && (
+            <div className="chat-validation-error" style={{
+              position: 'absolute',
+              bottom: '70px',
+              left: '10px',
+              right: '10px',
+              backgroundColor: '#ff4444',
+              color: 'white',
+              padding: '8px 12px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              zIndex: 1000
+            }}>
+              {validationError}
+            </div>
+          )}
 
         </div>
       )}
