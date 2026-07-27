@@ -23,6 +23,8 @@
   top: calc(var(--navbar-height) + var(--space-6));
   cursor: grab;
   overflow: hidden;
+  background: linear-gradient(135deg, rgba(201,169,110,0.05) 0%, rgba(60,30,15,0.05) 100%);
+  min-height: 500px;
 }
 
 .designer-3d-container:active { cursor: grabbing; }
@@ -37,6 +39,16 @@
   text-transform: uppercase;
   letter-spacing: 0.1em;
   pointer-events: none;
+}
+
+/* Animación de spinning para el loader */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .designer-opt-full {

@@ -14,6 +14,11 @@ import {
   checkAndRecordChatRateLimit,
   syncChatServerRateLimit,
   formatBlockTime,
+  detectDOMXSS,
+  detectAdvancedSQLi,
+  detectNoSQLi,
+  hasEncodedPayload,
+  sanitizeMessageAdvanced,
 } from "../../utils/chatSecurity";
 import "./ChatBot.css";
 
@@ -264,13 +269,21 @@ function ChatBot() {
 
       if (response.ok) {
         const data = await response.json();
-        if (data.messages && data.messages.length > 0) {
-          const historyMessages = data.messages.map((msg, index) => ({
-            id: `hist-${index}`,
-            sender: msg.role === "user" ? "user" : "bot",
-            text: sanitizeDisplayText(typeof msg.content === "string" ? msg.content : ""),
-          }));
-          setChat(historyMessages);
+        if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
+          const historyMessages = data.messages.map((msg, index) => {
+            // Validación de seguridad en historial
+            if (typeof msg.role !== 'string' || typeof msg.content !== 'string') {
+              console.warn("[Security] Mensaje del historial con formato inválido");
+              return null;
+            }
+            return {
+              id: `hist-${index}`,
+              sender: msg.role === "user" ? "user" : "bot",
+              text: sanitizeMessageAdvanced(msg.content),
+            };
+          }).filter(Boolean);
+          
+          setChat(historyMessages.length > 0 ? historyMessages : [welcomeMsg]);
         } else {
           setChat([welcomeMsg]);
         }
@@ -286,23 +299,31 @@ function ChatBot() {
   };
 
   useEffect(() => {
-    const welcomeMsg = getWelcomeMessage();
-    if (user) {
-      localStorage.removeItem("conversation_id");
-      loadConversationHistory();
-    } else {
-      setChat([welcomeMsg]);
-      localStorage.removeItem("conversation_id");
-    }
-    setMessage("");
-    setIsSending(false);
-    setOpen(false);
-    setMenuOpen(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    const initChat = async () => {
+      const welcomeMsg = getWelcomeMessage();
+      if (user) {
+        localStorage.removeItem("conversation_id");
+        await loadConversationHistory();
+      } else {
+        setChat([welcomeMsg]);
+        localStorage.removeItem("conversation_id");
+      }
+      setMessage("");
+      setIsSending(false);
+      setOpen(false);
+      setMenuOpen(false);
+    };
+    
+    initChat();
   }, [user]);
 
   useEffect(() => {
-    if (open) refreshRateLimitStatus();
+    if (open) {
+      const timer = setTimeout(() => {
+        refreshRateLimitStatus();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
   }, [open, refreshRateLimitStatus]);
 
   useEffect(() => {
@@ -336,7 +357,7 @@ function ChatBot() {
 
   useEffect(() => {
     if (open) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chat, loadingState]);
+  }, [chat, loadingState, open]);
 
   const _doSend = async (trimmedMessage) => {
     const userMessage = { id: Date.now().toString(), sender: "user", text: trimmedMessage };
@@ -437,6 +458,15 @@ function ChatBot() {
               continue;
             }
 
+            // Validación adicional de contenido en SSE
+            if (data.type === "token" && data.content) {
+              // Detectar XSS en respuesta del servidor
+              if (detectDOMXSS(data.content)) {
+                console.error("[Security] XSS detectado en respuesta del servidor");
+                continue;
+              }
+            }
+
             if (data.type === "conversation_id") {
               if (isValidConversationId(data.conversation_id)) {
                 localStorage.setItem("conversation_id", data.conversation_id);
@@ -444,7 +474,7 @@ function ChatBot() {
             } else if (data.type === "state") {
               setLoadingState({
                 status: data.status,
-                message: sanitizeDisplayText(data.message),
+                message: sanitizeMessageAdvanced(data.message),
               });
             } else if (data.type === "token") {
               setLoadingState({ status: "", message: "" });
@@ -455,7 +485,7 @@ function ChatBot() {
                 if (index !== -1) {
                   updated[index] = {
                     ...updated[index],
-                    text: sanitizeDisplayText(fullBotResponse),
+                    text: sanitizeMessageAdvanced(fullBotResponse),
                   };
                 }
                 return updated;
@@ -469,7 +499,7 @@ function ChatBot() {
                 if (index !== -1) {
                   updated[index] = {
                     ...updated[index],
-                    text: sanitizeDisplayText(fullBotResponse),
+                    text: sanitizeMessageAdvanced(fullBotResponse),
                   };
                 }
                 return updated;
@@ -503,6 +533,22 @@ function ChatBot() {
 
   const _handleSend = (rawText) => {
     const trimmedMessage = (rawText || "").trim();
+
+    // Validaciones de seguridad previas
+    if (detectAdvancedSQLi(trimmedMessage)) {
+      showValidationError("⚠️ Patrón sospechoso detectado (SQLi)");
+      return;
+    }
+
+    if (detectNoSQLi(trimmedMessage)) {
+      showValidationError("⚠️ Patrón sospechoso detectado (NoSQL)");
+      return;
+    }
+
+    if (hasEncodedPayload(trimmedMessage)) {
+      showValidationError("⚠️ Contenido codificado sospechoso detectado");
+      return;
+    }
 
     const rlStatus = getChatRateLimitStatus();
     if (rlStatus.blocked) {
@@ -578,7 +624,7 @@ function ChatBot() {
         /^\.\s+\*\*/.test(cleanLine) ||
         /^[*\-•]\s+\*\*/.test(cleanLine);
       if (isBullet) {
-        cleanLine = cleanLine.replace(/^[*\-•\.]\s+/, "").replace(/^\.\s+/, "");
+        cleanLine = cleanLine.replace(/^[*\-•.]\s+/, "").replace(/^\.\s+/, "");
       }
 
       const parts = cleanLine.split(/(\*\*.*?\*\*)/g);

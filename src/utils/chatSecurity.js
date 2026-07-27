@@ -10,6 +10,10 @@ import {
   formatBlockTime,
 } from './rateLimiter';
 
+import {
+  validateJSONStructure,
+} from './domSecurity';
+
 export const CHAT_SECURITY_CONFIG = {
   maxMessageLength: 2000,
   maxWords: 300,
@@ -108,6 +112,7 @@ export const CHAT_SECURITY_CONFIG = {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_SSE_TYPES = new Set(['conversation_id', 'state', 'token', 'error']);
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
 const HTML_TAG = /<[^>]*>/g;
 
@@ -124,6 +129,13 @@ export const isValidConversationId = (id) => {
 export const isValidSSEEvent = (data) => {
   if (!data || typeof data !== 'object') return false;
   if (!VALID_SSE_TYPES.has(data.type)) return false;
+  
+  // Validar estructura contra prototype pollution
+  if (!validateJSONStructure(data)) {
+    console.warn('[Security] SSE event failed structure validation');
+    return false;
+  }
+  
   if (data.type === 'conversation_id' && typeof data.conversation_id !== 'string') return false;
   if (data.type === 'token' && typeof data.content !== 'string') return false;
   if (data.type === 'error' && typeof data.content !== 'string') return false;
@@ -169,14 +181,70 @@ export const validateMessage = (message) => {
     return { valid: false, error: 'El mensaje contiene caracteres inválidos' };
   }
 
+  // Normalizar Unicode para detectar caracteres disfrazados
+  const normalized = trimmed.normalize('NFKC');
+  
   for (const pattern of blockedPatterns) {
     pattern.lastIndex = 0;
-    if (pattern.test(trimmed)) {
+    if (pattern.test(normalized)) {
       return { valid: false, error: 'El mensaje contiene contenido no permitido por seguridad' };
     }
   }
 
+  // Detectar intentos de encoded payloads
+  if (hasEncodedPayload(normalized)) {
+    return { valid: false, error: 'El mensaje contiene contenido codificado sospechoso' };
+  }
+
+  // Validar proporción de caracteres especiales
+  if (hasExcessiveSpecialChars(normalized)) {
+    return { valid: false, error: 'El mensaje contiene demasiados caracteres especiales' };
+  }
+
   return { valid: true };
+};
+
+/**
+ * Detecta payloads codificados comunes (hex, base64, etc)
+ */
+export const hasEncodedPayload = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  
+  // Detección de patrones hex codificados
+  const hexPattern = /\\x[0-9a-f]{2}|%[0-9a-f]{2}/gi;
+  if (hexPattern.test(text) && text.match(hexPattern).length > 5) return true;
+  
+  // Detección de Unicode escapes
+  const unicodePattern = /\\u[0-9a-f]{4}|&#\d+;|&#x[0-9a-f]+;/gi;
+  if (unicodePattern.test(text) && text.match(unicodePattern).length > 3) return true;
+  
+  // Detección de base64 que contiene scripts
+  const base64Pattern = /^[A-Za-z0-9+/]{50,}={0,2}$/;
+  if (base64Pattern.test(text)) {
+    try {
+      const decoded = atob(text);
+      if (/script|exec|eval|onclick|<script|on\w+=/i.test(decoded)) {
+        return true;
+      }
+    } catch {
+      // No es base64 válido, ignorar
+    }
+  }
+  
+  return false;
+};
+
+/**
+ * Detecta proporción anormal de caracteres especiales
+ */
+export const hasExcessiveSpecialChars = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  
+  const specialChars = text.match(/[^a-zA-Z0-9\s.,?!:;\-()\u00E1\u00E9\u00ED\u00F3\u00FA\u00F1\u00FC\u00E0\u00E8\u00EC\u00F2\u00F9]/g) || [];
+  const specialRatio = specialChars.length / text.length;
+  
+  // Si más del 30% son caracteres especiales, es sospechoso
+  return specialRatio > 0.3;
 };
 
 export const isSpamMessage = (newText, chat) => {
@@ -203,5 +271,160 @@ export const checkAndRecordChatRateLimit = () =>
 
 export const syncChatServerRateLimit = (retryAfterSec) =>
   syncServerRateLimit(CHAT_SECURITY_CONFIG.rateLimit, retryAfterSec);
+
+/**
+ * Valida entrada con filtrado sensible al contexto
+ * @param {string} input - Input a validar
+ * @param {string} context - Contexto de validación: 'chat', 'form', 'url'
+ */
+export const validateInputByContext = (input, context = 'chat') => {
+  if (!input || typeof input !== 'string') return false;
+
+  const trimmed = input.trim();
+
+  switch (context) {
+    case 'email':
+      // RFC 5322 simplified
+      return /^[a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed);
+    
+    case 'url':
+      try {
+        const url = new URL(trimmed);
+        // Solo permitir protocolos seguros
+        return /^https?:$/.test(url.protocol);
+      } catch {
+        return false;
+      }
+    
+    case 'uuid':
+      return isValidUUID(trimmed);
+    
+    case 'chat':
+    default:
+      return validateMessage(trimmed).valid;
+  }
+};
+
+/**
+ * Detecta intentos de ataque XSS a nivel de DOM
+ */
+export const detectDOMXSS = (html) => {
+  if (!html || typeof html !== 'string') return false;
+
+  const suspiciousPatterns = [
+    // Event handlers
+    /on(?:load|error|click|mouse|key|focus|blur|change|submit)\s*=/gi,
+    // Script tags
+    /<script[^>]*>[\s\S]*?<\/script>/gi,
+    // Data URIs con javascript
+    /data:text\/html|data:application\/javascript/gi,
+    // SVG con event handlers
+    /<svg[^>]*on\w+/gi,
+    // iframe con javascript:
+    /<iframe[^>]*src\s*=\s*['"]*javascript:/gi,
+    // Meta refresh con javascript
+    /<meta[^>]*http-equiv\s*=\s*['"]?refresh/gi,
+  ];
+
+  return suspiciousPatterns.some(pattern => {
+    pattern.lastIndex = 0;
+    return pattern.test(html);
+  });
+};
+
+/**
+ * Detecta intentos de SQL Injection más avanzados
+ */
+export const detectAdvancedSQLi = (input) => {
+  if (!input || typeof input !== 'string') return false;
+
+  const advancedPatterns = [
+    // Time-based blind SQLi
+    /(\bwaitfor\b.*\bdelay\b|\bsleep\s*\(|\bbenchmark\s*\()/gi,
+    // Boolean-based blind SQLi
+    /\band\s+(?:\d+\s*=\s*\d+|'[^']*'\s*=\s*'[^']*'|\btrue\b|\bfalse\b)/gi,
+    // Comment-based SQLi
+    /--\s*$|--\s+|#\s|\/\*.*?\*\//gi,
+    // Union-based SQLi
+    /\bunion\s+(?:all\s+)?select\b/gi,
+    // Stacked queries
+    /;\s*(?:select|insert|update|delete|drop|create|alter)\b/gi,
+    // Time functions
+    /(?:now\(\)|current_timestamp|getdate\(\)|systimestamp)/gi,
+  ];
+
+  return advancedPatterns.some(pattern => {
+    pattern.lastIndex = 0;
+    return pattern.test(input);
+  });
+};
+
+/**
+ * Detecta intentos de NoSQL Injection
+ */
+export const detectNoSQLi = (input) => {
+  if (!input || typeof input !== 'string') return false;
+
+  // Detectar operadores MongoDB/NoSQL
+  const nosqlPatterns = [
+    /\$where/gi,
+    /\$ne\b|\$gt\b|\$lt\b|\$regex\b/gi,
+    /\{.*"\$\w+".*:\s*\{/gi,
+    /\.\.\./g, // Path traversal en NoSQL
+  ];
+
+  return nosqlPatterns.some(pattern => {
+    pattern.lastIndex = 0;
+    return pattern.test(input);
+  });
+};
+
+/**
+ * Sanitización mejorada con decodificación de entidades HTML
+ */
+export const sanitizeMessageAdvanced = (message) => {
+  if (!message || typeof message !== 'string') return '';
+
+  let sanitized = message;
+
+  // Decodificar entidades HTML múltiples veces para evitar double-encoding bypass
+  for (let i = 0; i < 3; i++) {
+    sanitized = decodeHTMLEntities(sanitized);
+  }
+
+  // Normalizar whitespace
+  sanitized = sanitized.replace(/\s+/g, ' ');
+
+  // Remover caracteres de control
+  sanitized = sanitized.replace(CONTROL_CHARS, '');
+
+  // Remover HTML tags
+  sanitized = sanitized.replace(HTML_TAG, '');
+
+  return sanitized.trim();
+};
+
+/**
+ * Decodifica entidades HTML
+ */
+export const decodeHTMLEntities = (text) => {
+  if (!text || typeof text !== 'string') return '';
+  
+  const map = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&#x27;': "'",
+  };
+
+  let result = text;
+  Object.keys(map).forEach(entity => {
+    result = result.split(entity).join(map[entity]);
+  });
+
+  return result;
+};
 
 export { formatBlockTime };

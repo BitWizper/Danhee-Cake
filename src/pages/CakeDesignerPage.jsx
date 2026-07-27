@@ -1,31 +1,111 @@
 import { useState, Suspense } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stage, ContactShadows } from '@react-three/drei';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import './CakeDesignerPage.css';
 
-// Componente para el modelo 3D del pastel
+// Componente de carga para el Canvas 3D
+const Canvas3DLoader = () => (
+  <div style={{
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'linear-gradient(135deg, rgba(201,169,110,0.1) 0%, rgba(60,30,15,0.1) 100%)',
+    fontSize: '0.9rem',
+    color: 'var(--color-muted)',
+    flexDirection: 'column',
+    gap: '1rem',
+  }}>
+    <div style={{
+      width: '40px',
+      height: '40px',
+      border: '3px solid var(--color-gold-dim)',
+      borderTop: '3px solid var(--color-gold)',
+      borderRadius: '50%',
+      animation: 'spin 1s linear infinite',
+    }} />
+    <span>Cargando modelo 3D...</span>
+  </div>
+);
+
+// Error Boundary para Canvas 3D
+class Canvas3DErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Error en Canvas 3D:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--color-surface)',
+          fontSize: '0.9rem',
+          color: '#ff6666',
+          flexDirection: 'column',
+          gap: '1rem',
+          padding: '2rem',
+          textAlign: 'center',
+        }}>
+          <span>⚠️ Error al cargar el modelo 3D</span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--color-muted)' }}>
+            Por favor, recarga la página o usa un navegador más moderno
+          </span>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Componente para el modelo 3D del pastel - MEJORADO
 const CakeModel = ({ spongeColor, decoration }) => {
+  // Validar colores hexadecimales
+  const isValidColor = (color) => {
+    if (!color || typeof color !== 'string') return false;
+    return /^#[0-9A-F]{6}$/i.test(color);
+  };
+
+  const validSpongeColor = isValidColor(spongeColor) ? spongeColor : '#F5F0E8';
+  const decorationColor = decoration === 'flores' ? '#ff69b4' : '#ffd700';
+
   return (
     <group>
       {/* Piso 1 */}
-      <mesh position={[0, 0.5, 0]}>
+      <mesh position={[0, 0.5, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[1, 1, 1, 32]} />
-        <meshStandardMaterial color={spongeColor} roughness={0.3} />
+        <meshStandardMaterial color={validSpongeColor} roughness={0.3} metalness={0.1} />
       </mesh>
       
       {/* Piso 2 (opcional) */}
-      <mesh position={[0, 1.5, 0]}>
+      <mesh position={[0, 1.5, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.7, 0.7, 1, 32]} />
-        <meshStandardMaterial color={spongeColor} roughness={0.3} />
+        <meshStandardMaterial color={validSpongeColor} roughness={0.3} metalness={0.1} />
       </mesh>
 
       {/* Decoración superior */}
-      <mesh position={[0, 2.1, 0]}>
+      <mesh position={[0, 2.1, 0]} castShadow>
         <sphereGeometry args={[0.2, 16, 16]} />
-        <meshStandardMaterial color={decoration === 'flores' ? '#ff69b4' : '#ffd700'} />
+        <meshStandardMaterial color={decorationColor} roughness={0.2} metalness={0.3} />
       </mesh>
     </group>
   );
@@ -56,7 +136,6 @@ const options = {
 
 const CakeDesignerPage = () => {
   const { isAuthenticated, login } = useAuth();
-  const navigate = useNavigate();
   const [design, setDesign] = useState({ sponge: 'vainilla', filling: 'crema', decoration: 'flores', size: 'mediano', tiers: 2 });
   
   // Modal de inicio de sesión para usuarios no registrados
@@ -103,7 +182,7 @@ const CakeDesignerPage = () => {
       } else {
         setLoginError(result.message || 'Credenciales incorrectas. Intenta de nuevo.');
       }
-    } catch (err) {
+    } catch {
       setLoginError('Error de conexión con el servidor.');
     } finally {
       setLoginLoading(false);
@@ -125,15 +204,21 @@ const CakeDesignerPage = () => {
       <div className="container designer-page__content">
         {/* Visualización 3D */}
         <div className="designer-3d-container glass" id="cake-3d-view">
-          <Canvas shadows camera={{ position: [4, 4, 4], fov: 50 }}>
-            <Suspense fallback={null}>
-              <Stage environment="city" intensity={0.5} contactShadow={false}>
-                <CakeModel spongeColor={currentSponge.color} decoration={design.decoration} />
-              </Stage>
-              <ContactShadows position={[0, -0.01, 0]} opacity={0.4} scale={10} blur={2} far={4.5} />
+          <Canvas3DErrorBoundary>
+            <Suspense fallback={<Canvas3DLoader />}>
+              <Canvas 
+                shadows 
+                camera={{ position: [4, 4, 4], fov: 50 }}
+                style={{ background: 'linear-gradient(135deg, rgba(201,169,110,0.05) 0%, rgba(60,30,15,0.05) 100%)' }}
+              >
+                <Stage environment="city" intensity={0.5} contactShadow={false}>
+                  <CakeModel spongeColor={currentSponge.color} decoration={design.decoration} />
+                </Stage>
+                <ContactShadows position={[0, -0.01, 0]} opacity={0.4} scale={10} blur={2} far={4.5} />
+                <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 1.75} />
+              </Canvas>
             </Suspense>
-            <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 1.75} />
-          </Canvas>
+          </Canvas3DErrorBoundary>
           <div className="designer-3d-hint">Usa el mouse para rotar y hacer zoom</div>
         </div>
 
