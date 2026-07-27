@@ -132,6 +132,24 @@
   border-radius: var(--radius-md);
 }
 
+.auth-form__error--blocked {
+  background: rgba(201, 169, 110, 0.1);
+  border-color: rgba(201, 169, 110, 0.35);
+  color: var(--color-gold-light);
+}
+
+.auth-form__countdown {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.auth-form__rate-hint {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+
 /* Switch link */
 .auth-page__switch {
   font-size: var(--text-sm);

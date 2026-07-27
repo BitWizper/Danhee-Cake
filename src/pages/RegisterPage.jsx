@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuthRateLimit } from '../hooks/useAuthRateLimit';
 import Button from '../components/ui/Button';
 import './LoginPage.css';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
+  const { blocked, countdown, remaining, total, checkBeforeSubmit, recordAttempt, handleServer429 } = useAuthRateLimit('register');
   const [userType, setUserType] = useState('cliente');
   const [form, setForm] = useState({ 
     name: '', 
@@ -28,6 +30,13 @@ const RegisterPage = () => {
       return;
     }
 
+    const rlCheck = checkBeforeSubmit();
+    if (!rlCheck.allowed) {
+      setError(rlCheck.error);
+      return;
+    }
+
+    recordAttempt();
     setLoading(true);
     setError('');
 
@@ -38,16 +47,19 @@ const RegisterPage = () => {
         body: JSON.stringify({ ...form, role: userType })
       });
 
+      if (response.status === 429) {
+        setError(handleServer429(response));
+        return;
+      }
+
       const result = await response.json();
 
       if (response.ok && result.success) {
         navigate('/login');
       } else {
-        // Errores de validación (409 Duplicate, 422 Invalid, etc)
         setError(result.message || 'Error al crear la cuenta. Revisa los datos ingresados.');
       }
     } catch (err) {
-      // Error de red
       console.error('Register error:', err);
       setError('Error de conexión: No se pudo contactar con el servidor. Reintenta en unos momentos.');
     } finally {
@@ -137,10 +149,21 @@ const RegisterPage = () => {
             </>
           )}
 
-          {error && <p className="auth-form__error">{error}</p>}
+          {error && (
+            <p className={`auth-form__error ${blocked ? 'auth-form__error--blocked' : ''}`}>
+              {error}
+              {blocked && countdown && <span className="auth-form__countdown"> ({countdown})</span>}
+            </p>
+          )}
 
-          <Button type="submit" fullWidth id="register-submit" disabled={loading}>
-            {loading ? 'Creando cuenta...' : 'Crear cuenta'}
+          {!blocked && remaining < total && (
+            <p className="auth-form__rate-hint">
+              Intentos restantes: {remaining}/{total}
+            </p>
+          )}
+
+          <Button type="submit" fullWidth id="register-submit" disabled={loading || blocked}>
+            {loading ? 'Creando cuenta...' : blocked ? `Bloqueado (${countdown})` : 'Crear cuenta'}
           </Button>
         </form>
 

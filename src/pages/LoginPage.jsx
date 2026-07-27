@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useAuthRateLimit } from '../hooks/useAuthRateLimit';
 import Button from '../components/ui/Button';
 import './LoginPage.css';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { blocked, countdown, remaining, total, checkBeforeSubmit, recordAttempt, handleServer429 } = useAuthRateLimit('login');
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +21,14 @@ const LoginPage = () => {
       setError('Por favor completa todos los campos.');
       return;
     }
-    
+
+    const rlCheck = checkBeforeSubmit();
+    if (!rlCheck.allowed) {
+      setError(rlCheck.error);
+      return;
+    }
+
+    recordAttempt();
     setLoading(true);
     setError('');
 
@@ -30,23 +39,25 @@ const LoginPage = () => {
         body: JSON.stringify(form)
       });
 
+      if (response.status === 429) {
+        setError(handleServer429(response));
+        return;
+      }
+
       const result = await response.json();
 
       if (response.ok && result.success) {
         login(result.user, result.token);
-        
-        // Redirección basada en rol
+
         if (result.user.role === 'repostero') {
           navigate('/dashboard');
         } else {
           navigate('/');
         }
       } else {
-        // Manejo de errores de validación del servidor (400, 401, 409, etc)
         setError(result.message || 'Credenciales incorrectas. Por favor intenta de nuevo.');
       }
     } catch (err) {
-      // Error de red (TypeError: Failed to fetch)
       console.error('Login error:', err);
       setError('Error de conexión: No se pudo establecer contacto con el servidor. Verifica que el backend esté corriendo.');
     } finally {
@@ -103,10 +114,21 @@ const LoginPage = () => {
             />
           </div>
 
-          {error && <p className="auth-form__error">{error}</p>}
+          {error && (
+            <p className={`auth-form__error ${blocked ? 'auth-form__error--blocked' : ''}`}>
+              {error}
+              {blocked && countdown && <span className="auth-form__countdown"> ({countdown})</span>}
+            </p>
+          )}
 
-          <Button type="submit" fullWidth id="login-submit" disabled={loading}>
-            {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+          {!blocked && remaining < total && (
+            <p className="auth-form__rate-hint">
+              Intentos restantes: {remaining}/{total}
+            </p>
+          )}
+
+          <Button type="submit" fullWidth id="login-submit" disabled={loading || blocked}>
+            {loading ? 'Iniciando sesión...' : blocked ? `Bloqueado (${countdown})` : 'Iniciar sesión'}
           </Button>
         </form>
 
