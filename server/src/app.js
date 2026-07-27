@@ -90,6 +90,11 @@ app.use(cors({
 const validateRequestBody = (req, res, next) => {
   const body = req.body;
 
+  // Si no hay body (como en solicitudes GET), continuar
+  if (!body || typeof body !== 'object') {
+    return next();
+  }
+
   // Función para validar que un valor sea string y no objeto/array
   const validateString = (value, fieldName) => {
     if (value !== null && value !== undefined) {
