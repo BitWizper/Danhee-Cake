@@ -3,7 +3,7 @@
  * Captura cualquier error lanzado con next(err) en los controladores.
  */
 const errorHandler = (err, req, res, next) => {
-  // Log detallado en desarrollo
+  // Log detallado en desarrollo (sin exponer al cliente)
   if (process.env.NODE_ENV === 'development') {
     console.error(`[ERROR] ${req.method} ${req.path}:`, err.stack);
   } else {
@@ -16,6 +16,14 @@ const errorHandler = (err, req, res, next) => {
       success: false,
       message: 'Datos inválidos',
       errors: err.errors,
+    });
+  }
+
+  // Errores de sintaxis JSON (body-parser)
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({
+      success: false,
+      message: 'JSON inválido. Verifica el formato de tu solicitud.',
     });
   }
 
@@ -49,12 +57,18 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
-  // Error genérico
+  // Error genérico - nunca exponer stack traces en producción
   const statusCode = err.statusCode || err.status || 500;
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
   res.status(statusCode).json({
     success: false,
     message: err.message || 'Error interno del servidor.',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    // Solo en desarrollo exponer información adicional
+    ...(isDevelopment && {
+      stack: err.stack,
+      details: err.details
+    }),
   });
 };
 
