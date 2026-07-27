@@ -14,6 +14,8 @@ const { advancedSecurity } = require('./middleware/securityAdvanced');
 const { clientChatGuard } = require('./middleware/clientChatGuard');
 const { httpSecurity, validateBodySize, preventClickjacking, preventMimeSniffing, preventXSS } = require('./middleware/httpSecurity');
 const { ipBlocker, attackDetector, recordFailedAttempt, recordSuccessfulAttempt } = require('./middleware/ipBlocker');
+const methodBlocker = require('./middleware/methodBlocker');
+const sqlInjectionBlocker = require('./middleware/sqlInjectionBlocker');
 
 
 const app = express();
@@ -177,6 +179,12 @@ app.use(preventMimeSniffing);
 app.use(preventXSS);
 
 app.use(sanitizeQueryParams);
+
+// ============================================================
+// BLOQUEO DE MÉTODOS HTTP PELIGROSOS Y DETECCIÓN DE SQLi
+// ============================================================
+app.use(methodBlocker);
+app.use(sqlInjectionBlocker);
 
 // Sanitización global de inputs para prevenir SQLi y XSS
 app.use(sanitizeMiddleware);
