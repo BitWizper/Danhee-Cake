@@ -160,6 +160,10 @@ const sanitizeQueryParams = (req, res, next) => {
   next();
 };
 
+// Rate limiting de auth ANTES del body parser para contar incluso si el JSON es inválido
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', registerLimiter);
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 

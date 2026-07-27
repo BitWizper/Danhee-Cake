@@ -3,7 +3,6 @@ const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { body } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
-const { authLimiter, registerLimiter } = require('../middleware/rateLimiter'); // Importar los limiters
 
 const validateRegister = [
   body('name')
@@ -34,8 +33,8 @@ const validateLogin = [
     .isLength({ min: 1 }).withMessage('La contraseña no puede estar vacía'),
 ];
 
-// Aplicar rate limiters directamente en las rutas
-router.post('/register', registerLimiter, validateRegister, handleValidationErrors, authController.register);
-router.post('/login', authLimiter, validateLogin, handleValidationErrors, authController.login);
+// Rate limiters de auth aplicados en app.js antes del body parser
+router.post('/register', validateRegister, handleValidationErrors, authController.register);
+router.post('/login', validateLogin, handleValidationErrors, authController.login);
 
 module.exports = router;
