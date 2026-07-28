@@ -6,7 +6,6 @@ const { authMiddleware } = require('../middleware/auth');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 const { chatAbuseGuard } = require('../middleware/chatAbuseGuard');
 const { chatLimiter } = require('../middleware/rateLimiter');
-const { chatLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
