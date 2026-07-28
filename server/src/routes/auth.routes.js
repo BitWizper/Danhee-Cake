@@ -4,7 +4,7 @@ const authController = require('../controllers/auth.controller');
 const { body } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
-const { authLimiter, registerLimiter } = require('../middleware/rateLimiter');
+const { authLimiter, registerLimiter, publicLimiter, ipBlocker } = require('../middleware/rateLimiter');
 
 const validateRegister = [
   body('name')
@@ -73,7 +73,7 @@ const validateLogin = [
 ];
 
 // Rate limiters de auth aplicados en app.js antes del body parser
-router.post('/register', registerLimiter, validateAllParameters, validateRegister, handleValidationErrors, authController.register);
-router.post('/login', authLimiter, validateAllParameters, validateLogin, handleValidationErrors, authController.login);
+router.post('/register', ipBlocker, publicLimiter, registerLimiter, validateAllParameters, validateRegister, handleValidationErrors, authController.register);
+router.post('/login', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateLogin, handleValidationErrors, authController.login);
 
 module.exports = router;
