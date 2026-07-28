@@ -32,3 +32,10 @@ __pycache__/
 # ChromaDB (Base de datos de vectores local)
 server/rag/chroma/chroma.sqlite3
 server/rag/chroma/
+
+# Local environment files
+server/.env
+.env
+.env.*
+!.env.example
+

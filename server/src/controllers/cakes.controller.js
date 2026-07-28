@@ -11,11 +11,47 @@ const normalizeImageUrl = (imageUrl) => {
   return imageUrl;
 };
 
+const buildCakeForClient = (cake) => ({
+  id: cake.id,
+  name: cake.name,
+  category_name: cake.category_name,
+  image_url: normalizeImageUrl(cake.image_url),
+  is_featured: cake.is_featured,
+  baker_id: cake.baker_id,
+  baker_business_name: cake.business_name
+});
+
+const buildCakeForPrivilegedUser = (cake) => ({
+  ...cake,
+  image_url: normalizeImageUrl(cake.image_url)
+});
+
+const buildCakeResponse = (cake, role) => {
+  const privilegedRoles = ['repostero', 'admin'];
+  if (privilegedRoles.includes(role)) {
+    return buildCakeForPrivilegedUser(cake);
+  }
+  return buildCakeForClient(cake);
+};
+
 /**
  * Obtener todos los pasteles, opcionalmente filtrados por categoría o repostero.
  */
 exports.getAll = async (req, res, next) => {
   const { category, baker, featured } = req.query;
+  let { limit, offset } = req.query;
+  limit = parseInt(limit, 10);
+  offset = parseInt(offset, 10);
+  // Soporte `page` además de `offset`
+  const pageParam = parseInt(req.query.page, 10);
+  if (pageParam && pageParam > 0) {
+    if (!limit || limit <= 0) limit = 20;
+    offset = (pageParam - 1) * limit;
+  }
+
+  if (!limit || limit <= 0) limit = 20;
+  if (limit > 100) limit = 100;
+  if (!offset || offset < 0) offset = 0;
   
   // Validar y sanitizar inputs
   const sanitizedCategory = sanitizeString(category, 100);
@@ -49,17 +85,18 @@ exports.getAll = async (req, res, next) => {
   }
 
   try {
+    query += ' LIMIT ? OFFSET ?';
+    params.push(limit, offset);
     const [cakes] = await db.execute(query, params);
-      const normalizedCakes = cakes.map((cake) => ({
-        ...cake,
-        image_url: normalizeImageUrl(cake.image_url),
-      }));
+    const normalizedCakes = cakes.map((cake) => buildCakeResponse(cake, req.user?.role));
     res.json({
       success: true,
-        data: normalizedCakes
+      data: normalizedCakes
     });
   } catch (err) {
-    next(err);
+    console.error('[Cakes] Error en getAll:', err && err.message ? err.message : err);
+    // Responder amigablemente para evitar que el frontend reciba un 500 HTML
+    return res.status(503).json({ success: false, message: 'No se pudieron obtener los pasteles. Intenta de nuevo más tarde.' });
   }
 };
 
@@ -91,12 +128,10 @@ exports.getById = async (req, res, next) => {
 
     res.json({
       success: true,
-        data: {
-          ...cakes[0],
-          image_url: normalizeImageUrl(cakes[0].image_url),
-        }
+      data: buildCakeResponse(cakes[0], req.user?.role)
     });
   } catch (err) {
-    next(err);
+    console.error('[Cakes] Error en getById:', err && err.message ? err.message : err);
+    return res.status(503).json({ success: false, message: 'No se pudo obtener el pastel. Intenta de nuevo más tarde.' });
   }
 };

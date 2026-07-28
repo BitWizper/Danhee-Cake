@@ -3,6 +3,8 @@ const router = express.Router();
 const cakesController = require('../controllers/cakes.controller');
 const { query, param } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
+const { readLimiter, ipBlocker } = require('../middleware/rateLimiter');
+const { authMiddleware } = require('../middleware/auth');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
@@ -50,7 +52,11 @@ const validateCakeId = [
 // RUTAS
 // ============================================================
 
-router.get('/', validateAllParameters, validateCakesQuery, handleValidationErrors, cakesController.getAll);
-router.get('/:id', validateAllParameters, validateCakeId, handleValidationErrors, cakesController.getById);
+router.get('/', authMiddleware, ipBlocker, readLimiter, validateAllParameters, validateCakesQuery, handleValidationErrors, cakesController.getAll);
+
+router.get('/:id', authMiddleware, ipBlocker, readLimiter, validateAllParameters, validateCakeId, handleValidationErrors, cakesController.getById);
+
+// Protected routes for cakes are enforced above.
+router.use(authMiddleware);
 
 module.exports = router;

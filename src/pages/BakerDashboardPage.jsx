@@ -36,6 +36,37 @@ const BakerDashboardPage = () => {
   const [portfolioSearch, setPortfolioSearch] = useState('');
   const [updatingApptId, setUpdatingApptId] = useState(null);
 
+  // Helpers de enmascaramiento (PII)
+  const maskEmail = (email) => {
+    if (!email || typeof email !== 'string') return null;
+    try {
+      const parts = email.split('@');
+      const name = parts[0] || '';
+      const domain = parts[1] || '***';
+      const visible = name.length > 2 ? 2 : 1;
+      return `${name.substring(0, visible)}***@${domain}`;
+    } catch (e) {
+      return '***@***';
+    }
+  };
+
+  const maskPhone = (phone) => {
+    if (!phone || typeof phone !== 'string') return null;
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length <= 3) return '***';
+    return `***-***-${digits.slice(-3)}`;
+  };
+
+  const maskName = (name) => {
+    if (!name || typeof name !== 'string') return null;
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) {
+      const n = parts[0];
+      return n.length <= 2 ? n[0] + '*' : n[0] + '*'.repeat(Math.min(3, n.length - 1));
+    }
+    return `${parts[0]} ${parts[parts.length - 1][0] || ''}.`;
+  };
+
   // Reset pagination when switching tabs or searching
   useEffect(() => {
     setCurrentPage(1);
@@ -61,7 +92,16 @@ const BakerDashboardPage = () => {
       const cakesData = await cakesRes.json();
 
       if (statsData.success) setStats(statsData.data);
-      if (appData.success) setAppointments(appData.data);
+      if (appData.success) {
+        // Enmascarar PII en appointments cuando el backend no lo haga
+        const masked = appData.data.map(a => ({
+          ...a,
+          client_name: a.client_name ? maskName(a.client_name) : null,
+          client_email: a.client_email ? maskEmail(a.client_email) : null,
+          client_phone: a.client_phone ? maskPhone(a.client_phone) : null
+        }));
+        setAppointments(masked);
+      }
       if (catData.success) setCategories(catData.data);
       if (cakesData.success) setMyCakes(cakesData.data);
       

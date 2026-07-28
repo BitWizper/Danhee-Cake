@@ -129,15 +129,19 @@ function ChatBot() {
     const conversation_id = localStorage.getItem("conversation_id");
     const storedUser = JSON.parse(localStorage.getItem("user") || "null");
     const clientId = storedUser?.id != null ? storedUser.id : null;
+    const token = localStorage.getItem("token");
 
     if (conversation_id && !isValidConversationId(conversation_id)) {
       localStorage.removeItem("conversation_id");
     }
 
     try {
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       await fetch("/api/chat/history", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           conversation_id: isValidConversationId(conversation_id) ? conversation_id : null,
           client_id: clientId,
@@ -261,8 +265,13 @@ function ChatBot() {
       const storedUser = JSON.parse(localStorage.getItem("user") || "null");
       if (!storedUser?.id) return;
 
+      const token = localStorage.getItem("token");
+      const headers = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const response = await fetch(
-        `/api/chat/history?client_id=${encodeURIComponent(storedUser.id)}`
+        `/api/chat/history?client_id=${encodeURIComponent(storedUser.id)}`,
+        { headers }
       );
       const welcomeMsg = storedUser?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
 

@@ -12,18 +12,37 @@ const errorHandler = (err, req, res, next) => {
 
   // Errores de validación (express-validator)
   if (err.type === 'validation') {
+    // En producción devolver un mensaje genérico para no filtrar detalles de validación
+    if (process.env.NODE_ENV === 'development') {
+      return res.status(422).json({
+        success: false,
+        message: 'Datos inválidos',
+        errors: err.errors,
+      });
+    }
+
     return res.status(422).json({
       success: false,
-      message: 'Datos inválidos',
-      errors: err.errors,
+      error_code: 'INVALID_PARAMETERS',
+      message: 'Solicitud inválida',
     });
   }
 
-  // Errores de sintaxis JSON (body-parser)
+  // Errores de CORS explícitos
+  if (err && typeof err.message === 'string' && err.message.includes('CORS no permitido')) {
+    return res.status(403).json({
+      success: false,
+      error_code: 'FORBIDDEN',
+      message: 'Origen no permitido'
+    });
+  }
+
+  // Errores de sintaxis JSON (body-parser) - devolver mensajes genéricos en prod
   if (err instanceof SyntaxError && err.status === 400) {
     return res.status(400).json({
       success: false,
-      message: 'JSON inválido. Verifica el formato de tu solicitud.',
+      error_code: 'INVALID_JSON',
+      message: process.env.NODE_ENV === 'development' ? 'JSON inválido. Verifica el formato de tu solicitud.' : 'Solicitud inválida',
     });
   }
 
@@ -61,16 +80,19 @@ const errorHandler = (err, req, res, next) => {
   const statusCode = err.statusCode || err.status || 500;
   const isDevelopment = process.env.NODE_ENV === 'development';
 
-  res.status(statusCode).json({
+  const payload = {
     success: false,
     error_code: statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_FAILED',
-    message: err.message || 'Error interno del servidor.',
-    // Solo en desarrollo exponer información adicional
-    ...(isDevelopment && {
-      stack: err.stack,
-      details: err.details
-    }),
-  });
+    message: isDevelopment ? (err.message || 'Error interno del servidor.') : (statusCode >= 500 ? 'Error interno del servidor.' : 'Solicitud inválida'),
+  };
+
+  // Solo en desarrollo exponer información adicional
+  if (isDevelopment) {
+    payload.stack = err.stack;
+    if (err.details) payload.details = err.details;
+  }
+
+  res.status(statusCode).json(payload);
 };
 
 module.exports = errorHandler;

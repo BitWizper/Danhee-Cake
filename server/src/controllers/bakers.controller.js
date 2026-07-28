@@ -11,6 +11,8 @@ const normalizeImageUrl = (imageUrl) => {
   return imageUrl;
 };
 
+const isPrivilegedRole = (role) => ['repostero', 'admin'].includes(role);
+
 const buildPublicBaker = (baker) => ({
   id: baker.id,
   business_name: baker.business_name,
@@ -25,14 +27,56 @@ const buildPublicBaker = (baker) => ({
   avatar_url: normalizeImageUrl(baker.avatar_url)
 });
 
+const buildBakerForPrivilegedUser = (baker) => ({
+  ...buildPublicBaker(baker),
+  email: baker.email || null,
+  phone: baker.phone || null,
+  is_active: Boolean(baker.is_active),
+  user_id: baker.user_id || null
+});
+
+const buildBakerResponse = (baker, role) => {
+  if (isPrivilegedRole(role)) {
+    return buildBakerForPrivilegedUser(baker);
+  }
+  return buildPublicBaker(baker);
+};
+
 /**
  * Obtener todos los reposteros (PÚBLICO - sin autenticación)
  * GET /api/bakers
  */
 exports.getAllPublic = async (req, res, next) => {
   try {
+    let limit = parseInt(req.query.limit, 10);
+    let offset = parseInt(req.query.offset, 10);
+    // Soportar parámetro `page` usado por el frontend (page=1 => offset=0)
+    const pageParam = parseInt(req.query.page, 10);
+    if (pageParam && pageParam > 0) {
+      if (!limit || limit <= 0) limit = 20;
+      offset = (pageParam - 1) * limit;
+    }
+
+    if (!limit || limit <= 0) limit = 20;
+    if (limit > 100) limit = 100;
+    if (!offset || offset < 0) offset = 0;
+
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM baker_profiles bp
+      JOIN users u ON bp.user_id = u.id
+      WHERE u.is_active = 1
+    `;
+    const [countRows] = await db.execute(countQuery);
+    const total = countRows[0]?.total || 0;
+
+    const extraFields = isPrivilegedRole(req.user?.role)
+      ? 'u.email, u.phone, u.is_active, bp.user_id,'
+      : '';
+
     const [bakers] = await db.execute(`
       SELECT 
+        ${extraFields}
         bp.id,
         bp.business_name,
         bp.location,
@@ -48,17 +92,18 @@ exports.getAllPublic = async (req, res, next) => {
       JOIN users u ON bp.user_id = u.id
       WHERE u.is_active = 1
       ORDER BY bp.rating_avg DESC, bp.is_verified DESC
-    `);
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
 
-    const publicBakers = bakers.map(buildPublicBaker);
+    const responseBakers = bakers.map((baker) => buildBakerResponse(baker, req.user?.role));
     res.json({
       success: true,
-      data: publicBakers,
-      total: publicBakers.length
+      data: responseBakers,
+      total
     });
   } catch (err) {
-    console.error('[Bakers] Error en getAllPublic:', err);
-    next(err);
+    console.error('[Bakers] Error en getAllPublic:', err && err.message ? err.message : err);
+    return res.status(503).json({ success: false, message: 'No se pudieron obtener los reposteros. Intenta de nuevo más tarde.' });
   }
 };
 
@@ -106,9 +151,20 @@ exports.getAppointments = async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
-    if (profiles.length === 0) return res.status(404).json({ success: false, message: 'Perfil no encontrado.' });
-    const bakerId = profiles[0].id;
+    // Admins pueden solicitar appointments de cualquier baker mediante ?baker_id=ID
+    // Si se proporciona baker_id y el usuario es admin, se usa ese bakerId
+    let bakerId = null;
+    const full = req.query.full === 'true';
+    const requestedBakerId = req.query.baker_id;
+
+    if (requestedBakerId && req.user.role === 'admin') {
+      if (!validateNumber(requestedBakerId)) return res.status(400).json({ success: false, message: 'baker_id inválido.' });
+      bakerId = Number(requestedBakerId);
+    } else {
+      const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
+      if (profiles.length === 0) return res.status(404).json({ success: false, message: 'Perfil no encontrado.' });
+      bakerId = profiles[0].id;
+    }
 
     const [appointments] = await db.execute(`
       SELECT a.*, u.name as client_name, u.email as client_email, u.phone as client_phone
@@ -118,10 +174,31 @@ exports.getAppointments = async (req, res, next) => {
       ORDER BY a.date DESC, a.time_slot ASC
     `, [bakerId]);
 
-    res.json({
-      success: true,
-      data: appointments
-    });
+    // Si se solicitó full y el usuario es admin o es el repostero dueño, devolver datos completos
+    // Determinar si el usuario que realiza la petición es realmente el dueño del perfil
+    let myBakerId = null;
+    try {
+      const [myProfiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
+      myBakerId = myProfiles.length ? myProfiles[0].id : null;
+    } catch (e) {
+      // ignore - no es crítico para el enmascaramiento
+      myBakerId = null;
+    }
+
+    const isOwner = req.user.role === 'admin' || (req.user.role === 'repostero' && myBakerId && myBakerId === bakerId);
+    if (full && isOwner) {
+      return res.json({ success: true, data: appointments });
+    }
+
+    // Enmascarar datos sensibles (PII) antes de devolver
+    const masked = appointments.map((a) => ({
+      ...a,
+      client_name: maskName(a.client_name),
+      client_email: maskEmail(a.client_email),
+      client_phone: maskPhone(a.client_phone)
+    }));
+
+    res.json({ success: true, data: masked });
   } catch (err) {
     next(err);
   }
@@ -338,8 +415,13 @@ exports.getProfile = async (req, res, next) => {
   }
 
   try {
+    const extraFields = isPrivilegedRole(req.user?.role)
+      ? 'u.email, u.phone, u.is_active, bp.user_id,'
+      : '';
+
     const [profiles] = await db.execute(`
       SELECT 
+        ${extraFields}
         bp.id,
         bp.business_name,
         bp.location,
@@ -362,7 +444,7 @@ exports.getProfile = async (req, res, next) => {
 
     res.json({
       success: true,
-      data: buildPublicBaker(profiles[0])
+      data: buildBakerResponse(profiles[0], req.user?.role)
     });
   } catch (err) {
     next(err);
@@ -421,4 +503,37 @@ exports.getMyProfile = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+// Helpers de enmascaramiento de PII
+const maskEmail = (email) => {
+  if (!email || typeof email !== 'string') return null;
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***@***';
+  const name = parts[0];
+  const domain = parts[1];
+  const visible = name.length > 2 ? 2 : 1;
+  return `${name.substring(0, visible)}***@${domain}`;
+};
+
+const maskPhone = (phone) => {
+  if (!phone || typeof phone !== 'string') return null;
+  // Keep last 2-3 digits visible
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length <= 3) return '***';
+  const visible = digits.slice(-3);
+  return `***-***-${visible}`;
+};
+
+const maskName = (name) => {
+  if (!name || typeof name !== 'string') return null;
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) {
+    const n = parts[0];
+    return n.length <= 2 ? n[0] + '*' : n[0] + '*'.repeat(Math.min(3, n.length - 1));
+  }
+  // Show first name and initial of last name
+  const first = parts[0];
+  const lastInitial = parts[parts.length - 1][0] || '';
+  return `${first} ${lastInitial}.`;
 };

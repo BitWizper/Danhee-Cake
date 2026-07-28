@@ -2,16 +2,19 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 import './UI_checkout_process.css';
 
 const UICheckout = () => {
   const { cartItems, getTotalPrice, clearCart } = useCart();
+  const { token, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
 
   const [shipping, setShipping] = useState({ fullName: '', address: '', city: '', postal: '', phone: '' });
-  const [paymentMethod, setPaymentMethod] = useState('card');
+  // Default to OXXO to avoid the currently-simulated card flow
+  const [paymentMethod, setPaymentMethod] = useState('oxxo');
   const [card, setCard] = useState({ number: '', name: '', exp: '', cvv: '' });
   const [processing, setProcessing] = useState(false);
   const [oxxoTicket, setOxxoTicket] = useState(null);
@@ -32,10 +35,18 @@ const UICheckout = () => {
       }
       // Si es OXXO, generar comprobante mock desde el servidor antes de avanzar
       if (paymentMethod === 'oxxo' && !oxxoTicket) {
+        if (!isAuthenticated || !token) {
+          alert('Debes iniciar sesión para generar el comprobante OXXO.');
+          return;
+        }
+
         try {
           const resp = await fetch('/api/payments/oxxo-ticket', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
             body: JSON.stringify({ orderId: `TEMP-${Date.now()}`, amount: total })
           });
           const json = await resp.json();
@@ -58,16 +69,19 @@ const UICheckout = () => {
   const handleBack = () => setStep(prev => Math.max(1, prev - 1));
 
   const handleConfirm = () => {
-    const ok = window.confirm('¿Estás seguro de que deseas realizar el pago ahora?');
+    if (paymentMethod === 'card') {
+      alert('Pago con tarjeta no disponible en este entorno. Utiliza OXXO o PayPal.');
+      return;
+    }
+
+    const ok = window.confirm('¿Estás seguro de que deseas continuar con este pago?');
     if (!ok) return;
     setProcessing(true);
-    // Simular procesamiento de pago
+
     setTimeout(() => {
       setProcessing(false);
-      clearCart();
-      alert('Pago realizado con éxito. ¡Gracias por tu compra!');
-      navigate('/');
-    }, 1800);
+      alert('El pago fue iniciado, pero la confirmación debe verificarse con el repostero. No se confirma automáticamente en esta versión.');
+    }, 1200);
   };
 
   const total = getTotalPrice();
@@ -106,8 +120,8 @@ const UICheckout = () => {
                 <h2 className="section-title">Método de Pago</h2>
                 <div className="payment-options">
                   <label className={`payment-option ${paymentMethod === 'card' ? 'selected' : ''}`}>
-                    <input type="radio" name="pm" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} />
-                    Tarjeta de Crédito / Débito
+                    <input type="radio" name="pm" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} disabled />
+                    Tarjeta de Crédito / Débito (no disponible)
                   </label>
                   <label className={`payment-option ${paymentMethod === 'oxxo' ? 'selected' : ''}`}>
                     <input type="radio" name="pm" checked={paymentMethod === 'oxxo'} onChange={() => setPaymentMethod('oxxo')} />

@@ -68,7 +68,10 @@ exports.register = async (req, res, next) => {
     // Verificar si el usuario ya existe
     const [existingUser] = await db.execute('SELECT id FROM users WHERE email = ?', [sanitizedEmail]);
     if (existingUser.length > 0) {
-      return res.status(409).json({ success: false, message: 'El correo electrónico ya está registrado.' });
+      return res.status(400).json({
+        success: false,
+        message: 'No se pudo completar el registro. Verifica tus datos e intenta de nuevo.'
+      });
     }
 
     // Hashear la contraseña
@@ -125,7 +128,7 @@ exports.login = async (req, res, next) => {
     );
 
     if (users.length === 0) {
-      return res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
+      return res.status(401).json({ success: false, message: 'Credenciales inválidas. Verifica tus datos e intenta de nuevo.' });
     }
 
     const user = users[0];
@@ -133,14 +136,14 @@ exports.login = async (req, res, next) => {
     // Verificar contraseña
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
+      return res.status(401).json({ success: false, message: 'Credenciales inválidas. Verifica tus datos e intenta de nuevo.' });
     }
 
     // Generar JWT
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
     );
 
     res.json({

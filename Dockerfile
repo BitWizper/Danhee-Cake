@@ -13,8 +13,13 @@ RUN npm run build
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx config to support SPA routing if needed
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Install envsubst (gettext) to allow runtime templating of nginx config
+RUN apk add --no-cache gettext
+
+# Copy template and entrypoint
+COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

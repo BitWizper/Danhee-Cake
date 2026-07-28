@@ -3,7 +3,30 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { spawn } = require('child_process');
 const path = require('path');
-require('dotenv').config();
+const fs = require('fs');
+let rootPackage = {};
+try {
+  rootPackage = require(path.join(__dirname, '..', 'package.json'));
+} catch (e) {
+  console.warn('No se encontró package.json en la ruta esperada:', e.message);
+}
+require('dotenv').config({
+  path: process.env.DOTENV_PATH || path.resolve(__dirname, '..', '..', '.env')
+});
+
+const requireEnv = (name, fallback = undefined) => {
+  const value = process.env[name] || fallback;
+  if (!value) {
+    console.warn(`[ENV] Missing ${name}; using fallback`);
+  }
+  return value;
+};
+
+const JWT_SECRET = requireEnv('JWT_SECRET', 'change-me-in-production');
+if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'change-me-in-production') {
+  console.warn('[ENV] JWT_SECRET is using a placeholder value. Set a strong secret in your deployment environment.');
+}
+process.env.JWT_SECRET = JWT_SECRET;
 const errorHandler = require('./middleware/errorHandler');
 const { askChatbot, streamChatbot } = require('./controllers/chat.controller');
 const chatRoutes = require('./routes/chat.routes');
@@ -23,13 +46,20 @@ const { logAttack } = require('./middleware/attackLogger');
 const { getSecuritySummary } = require('./middleware/securityDashboard');
 const { validateHostHeader } = require('./middleware/hostValidator');
 const browserOriginGuard = require('./middleware/browserOriginGuard');
+const requestGuard = require('./middleware/requestGuard');
 
 
 const app = express();
 
-// Configurar confianza en proxies para que Express use X-Forwarded-* correctamente
-// Esto permite detectar la IP real del cliente incluso detrás de ngrok y otros proxies.
-app.set('trust proxy', true);
+// Desactivar header X-Powered-By a nivel de Express
+app.disable('x-powered-by');
+
+// Configurar confianza en proxies de forma estricta para evitar spoofing de IP.
+// Solo aceptamos X-Forwarded-* cuando provienen de proxies de confianza explícitos.
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+
+// Bloquear accesos sensibles y manejar OPTIONS de forma temprana
+app.use(requestGuard);
 
 // Security headers con Helmet
 app.use(helmet({
@@ -72,7 +102,7 @@ app.use(helmet({
 }));
 
 // Desactivar header X-Powered-By
-disablePoweredBy = (req, res, next) => {
+const disablePoweredBy = (req, res, next) => {
   res.removeHeader('X-Powered-By');
   next();
 };
@@ -99,18 +129,18 @@ const allowedOrigins = [
   'https://retying-subsidize-subatomic.ngrok-free.dev'
 ];
 
-app.use(cors({
+const corsOptions = {
   origin: function(origin, callback) {
     // Permitir solicitudes sin origin (como mobile apps, curl, postman)
     if (!origin) return callback(null, true);
     
     // Verificar si el origen está en la lista permitida
     if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.error(`[CORS] Origen no permitido: ${origin}`);
-      callback(new Error('CORS no permitido para este origen'));
+      return callback(null, true);
     }
+
+    console.error(`[CORS] Origen no permitido: ${origin}`);
+    return callback(new Error('CORS no permitido para este origen'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS', 'HEAD'],
@@ -118,7 +148,10 @@ app.use(cors({
   exposedHeaders: ['Content-Length', 'Content-Type'],
   maxAge: 86400, // 24 horas de caché para preflight requests
   optionsSuccessStatus: 204 // Responder con 204 para OPTIONS exitosos
-}));
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 // Validación de tipos de datos en request body para prevenir NoSQL injection
 const validateRequestBody = (req, res, next) => {
@@ -188,6 +221,38 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 app.use('/uploads', express.static('uploads'));
 
+// Ruta para servir medios protegidos (p.ej. videos) desde `public` o `dist`.
+// Requiere `X-MEDIA-KEY` header o query `?key=` con valor en env `MEDIA_KEY`,
+// o bien un `Authorization: Bearer <token>` para peticiones autenticadas.
+app.get('/protected-media/:folder/:filename', (req, res) => {
+  const { folder, filename } = req.params;
+  // Solo permitir carpetas específicas
+  const allowed = ['public', 'dist', 'uploads'];
+  if (!allowed.includes(folder)) return res.status(404).json({ success: false, message: 'Recurso no encontrado' });
+
+  const key = req.get('X-MEDIA-KEY') || req.query.key;
+  const auth = req.get('Authorization');
+
+  // Validación mínima: MEDIA_KEY o Authorization presente
+  if (!(key && process.env.MEDIA_KEY && key === process.env.MEDIA_KEY) && !(auth && auth.startsWith('Bearer '))) {
+    return res.status(403).json({ success: false, message: 'Acceso denegado' });
+  }
+
+  const baseDir = path.join(__dirname, '..', '..', folder);
+  const safePath = path.normalize(path.join(baseDir, filename));
+  if (!safePath.startsWith(baseDir)) return res.status(400).json({ success: false, message: 'Ruta inválida' });
+
+  fs.stat(safePath, (err, stat) => {
+    if (err || !stat.isFile()) return res.status(404).json({ success: false, message: 'Recurso no encontrado' });
+
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Accept-Ranges', 'bytes');
+    const stream = fs.createReadStream(safePath);
+    stream.on('error', () => res.status(500).end());
+    stream.pipe(res);
+  });
+});
+
 // Middleware de seguridad HTTP
 app.use(httpSecurity);
 app.use(validateBodySize);
@@ -218,14 +283,14 @@ app.use('/api', (req, res, next) => {
     const rawInput = JSON.stringify(req.body || {}) + JSON.stringify(req.query || {}) + JSON.stringify(req.params || {});
     if (suspiciousPatterns.some((pattern) => pattern.test(rawInput))) {
       console.log(`[SECURITY] Bloqueo preventivo de mutación maliciosa en ${req.originalUrl}`);
-      return res.status(400).json({ success: false, error_code: 'MALICIOUS_MUTATION_BLOCKED', message: 'Operación bloqueada por seguridad' });
+      return res.status(400).json({ success: false, error_code: 'INVALID_REQUEST', message: 'Solicitud inválida.' });
     }
   }
 
   for (const paramName of suspiciousRedirectParams) {
     const value = req.query?.[paramName] || req.body?.[paramName];
     if (typeof value === 'string' && /^(https?:)?\/\//i.test(value)) {
-      return res.status(400).json({ success: false, error_code: 'OPEN_REDIRECT_BLOCKED', message: 'Redirección externa bloqueada' });
+      return res.status(400).json({ success: false, error_code: 'INVALID_REQUEST', message: 'Solicitud inválida.' });
     }
   }
 
@@ -274,6 +339,36 @@ app.post('/api/chat/stream', clientChatGuard, streamChatbot);
 // Ruta base
 app.get('/', (req, res) => {
   res.json({ message: 'Bienvenido a la API de Danhee' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: rootPackage?.version || 'unknown',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send([
+    'User-agent: *',
+    'Disallow: /api/',
+    'Disallow: /server/',
+    'Allow: /',
+    '',
+    'Sitemap: https://snitch-wing-riddance.ngrok-free.dev/sitemap.xml'
+  ].join('\n'));
+});
+
+app.get('/.well-known/security.txt', (req, res) => {
+  res.type('text/plain').send([
+    'Contact: mailto:security@danhee.com',
+    'Preferred-Languages: es, en',
+    'Canonical: https://snitch-wing-riddance.ngrok-free.dev/.well-known/security.txt',
+    'Policy: https://snitch-wing-riddance.ngrok-free.dev/security-policy.html'
+  ].join('\n'));
 });
 
 app.get('/api/security/alerts', (req, res) => {
