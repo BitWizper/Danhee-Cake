@@ -2,6 +2,10 @@ const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET;
+const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
+const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m';
+
 // Validación de email (RFC 5322)
 const isValidEmail = (email) => {
   const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
@@ -96,7 +100,7 @@ exports.register = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'Usuario registrado exitosamente.'
+      message: 'Usuario registrado exitosamente. Verifica tu correo si es necesario antes de continuar.'
     });
   } catch (err) {
     next(err);
@@ -139,16 +143,31 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Credenciales inválidas. Verifica tus datos e intenta de nuevo.' });
     }
 
-    // Generar JWT
+    // Generar tokens
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+      { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
+    );
+
+    const refreshToken = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      REFRESH_TOKEN_SECRET,
+      { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
+    );
+
+    const refreshTokenExpiryMs = parseRefreshExpiry(REFRESH_TOKEN_EXPIRES_IN);
+    const expiresAt = new Date(Date.now() + refreshTokenExpiryMs).toISOString().slice(0, 19).replace('T', ' ');
+
+    await db.execute(
+      'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
+      [user.id, refreshToken, expiresAt]
     );
 
     res.json({
       success: true,
       token,
+      refresh_token: refreshToken,
       user: {
         id: user.id,
         name: user.name,
@@ -156,6 +175,88 @@ exports.login = async (req, res, next) => {
         role: user.role
       }
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+function parseRefreshExpiry(expiry) {
+  if (!expiry || typeof expiry !== 'string') {
+    return 7 * 24 * 60 * 60 * 1000;
+  }
+
+  const match = expiry.match(/^(\d+)([smhd])$/i);
+  if (!match) {
+    return 7 * 24 * 60 * 60 * 1000;
+  }
+
+  const value = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  const multipliers = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000
+  };
+
+  return value * (multipliers[unit] || multipliers.d);
+}
+
+exports.refreshToken = async (req, res, next) => {
+  const { refresh_token: refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json({ success: false, message: 'refresh_token es requerido.' });
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET);
+    const [rows] = await db.execute(
+      'SELECT id, revoked, expires_at FROM refresh_tokens WHERE token = ? LIMIT 1',
+      [refreshToken]
+    );
+
+    if (!rows.length || rows[0].revoked || new Date(rows[0].expires_at) <= new Date()) {
+      return res.status(401).json({ success: false, message: 'Token de refresco inválido o expirado.' });
+    }
+
+    const userPayload = { id: decoded.id, email: decoded.email, role: decoded.role };
+    const token = jwt.sign(userPayload, process.env.JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
+    const newRefreshToken = jwt.sign(userPayload, REFRESH_TOKEN_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES_IN });
+
+    const refreshTokenExpiryMs = parseRefreshExpiry(REFRESH_TOKEN_EXPIRES_IN);
+    const newExpiresAt = new Date(Date.now() + refreshTokenExpiryMs).toISOString().slice(0, 19).replace('T', ' ');
+
+    await db.execute('UPDATE refresh_tokens SET revoked = 1 WHERE id = ?', [rows[0].id]);
+    await db.execute(
+      'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
+      [decoded.id, newRefreshToken, newExpiresAt]
+    );
+
+    res.json({
+      success: true,
+      token,
+      refresh_token: newRefreshToken
+    });
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ success: false, message: 'Token de refresco expirado. Inicia sesión nuevamente.' });
+    }
+
+    return res.status(401).json({ success: false, message: 'Token de refresco inválido. Inicia sesión nuevamente.' });
+  }
+};
+
+exports.logout = async (req, res, next) => {
+  const { refresh_token: refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json({ success: false, message: 'refresh_token es requerido.' });
+  }
+
+  try {
+    await db.execute('UPDATE refresh_tokens SET revoked = 1 WHERE token = ?', [refreshToken]);
+    res.json({ success: true, message: 'Sesión cerrada correctamente.' });
   } catch (err) {
     next(err);
   }

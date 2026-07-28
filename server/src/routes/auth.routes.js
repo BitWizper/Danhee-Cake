@@ -72,8 +72,17 @@ const validateLogin = [
   })
 ];
 
+const validateRefreshToken = [
+  body('refresh_token')
+    .trim()
+    .notEmpty().withMessage('refresh_token es requerido')
+    .isLength({ min: 32 }).withMessage('refresh_token inválido')
+];
+
 // Rate limiters de auth aplicados en app.js antes del body parser
 router.post('/register', ipBlocker, publicLimiter, registerLimiter, validateAllParameters, validateRegister, handleValidationErrors, authController.register);
 router.post('/login', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateLogin, handleValidationErrors, authController.login);
+router.post('/refresh', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateRefreshToken, handleValidationErrors, authController.refreshToken);
+router.post('/logout', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateRefreshToken, handleValidationErrors, authController.logout);
 
 module.exports = router;

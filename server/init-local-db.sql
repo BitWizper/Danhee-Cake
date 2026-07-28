@@ -37,6 +37,17 @@ CREATE TABLE IF NOT EXISTS baker_profiles (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- ── Tokens de refresco ───────────────────────────────────────
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT NOT NULL,
+  token       VARCHAR(500) NOT NULL,
+  expires_at  DATETIME NOT NULL,
+  revoked     TINYINT(1) DEFAULT 0,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- ── Categorías ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS categories (
   id          INT AUTO_INCREMENT PRIMARY KEY,

@@ -11,7 +11,7 @@ try {
   console.warn('No se encontró package.json en la ruta esperada:', e.message);
 }
 require('dotenv').config({
-  path: process.env.DOTENV_PATH || path.resolve(__dirname, '..', '..', '.env')
+  path: process.env.DOTENV_PATH || path.resolve(__dirname, '..', '.env')
 });
 
 const requireEnv = (name, fallback = undefined) => {
@@ -23,10 +23,15 @@ const requireEnv = (name, fallback = undefined) => {
 };
 
 const JWT_SECRET = requireEnv('JWT_SECRET', 'change-me-in-production');
+const REFRESH_TOKEN_SECRET = requireEnv('REFRESH_TOKEN_SECRET', '');
 if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'change-me-in-production') {
   console.warn('[ENV] JWT_SECRET is using a placeholder value. Set a strong secret in your deployment environment.');
 }
+if (process.env.NODE_ENV === 'production' && !REFRESH_TOKEN_SECRET) {
+  console.warn('[ENV] REFRESH_TOKEN_SECRET is missing. Set a strong refresh token secret in production or configure a secret manager.');
+}
 process.env.JWT_SECRET = JWT_SECRET;
+process.env.REFRESH_TOKEN_SECRET = REFRESH_TOKEN_SECRET || JWT_SECRET;
 const errorHandler = require('./middleware/errorHandler');
 const { askChatbot, streamChatbot } = require('./controllers/chat.controller');
 const chatRoutes = require('./routes/chat.routes');
@@ -47,6 +52,7 @@ const { getSecuritySummary } = require('./middleware/securityDashboard');
 const { validateHostHeader } = require('./middleware/hostValidator');
 const browserOriginGuard = require('./middleware/browserOriginGuard');
 const requestGuard = require('./middleware/requestGuard');
+const { authMiddleware, authorize } = require('./middleware/auth');
 
 
 const app = express();
@@ -371,7 +377,17 @@ app.get('/.well-known/security.txt', (req, res) => {
   ].join('\n'));
 });
 
-app.get('/api/security/alerts', (req, res) => {
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: rootPackage?.version || 'unknown',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/security/alerts', authMiddleware, authorize('admin'), (req, res) => {
   res.json({
     success: true,
     data: getSecuritySummary()
