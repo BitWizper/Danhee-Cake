@@ -1,6 +1,9 @@
 const fs = require('fs');
+const path = require('path');
 const mysql2 = require('mysql2/promise');
-require('dotenv').config();
+require('dotenv').config({
+  path: process.env.DOTENV_PATH || path.resolve(__dirname, '..', '..', '.env')
+});
 
 // Configuración para Clever Cloud (prioridad cuando hay credenciales)
 const cleverCloudConfig = {

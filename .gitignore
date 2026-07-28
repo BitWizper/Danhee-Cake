@@ -35,3 +35,7 @@ server/rag/chroma/
 
 # Local environment files
 server/.env
+.env
+.env.*
+!.env.example
+

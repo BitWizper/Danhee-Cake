@@ -234,11 +234,6 @@ const clientChatGuard = (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       role = decoded.role || null;
       userId = decoded.id || null;
-      
-      // Si es repostero, permitir sin restricciones
-      if (role === 'repostero') {
-        return next();
-      }
     } catch (error) {
       // Token inválido, continuar como cliente (aplicar restricciones)
       role = null;

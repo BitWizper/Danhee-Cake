@@ -18,18 +18,19 @@ services:
       - PORT=5000
       - NODE_ENV=production
       - START_RAG=true
+      - JWT_SECRET=${JWT_SECRET:-}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       # Si se quiere forzar la base local en Docker, establecer DB_USE_LOCAL_DB=true.
-      - LOCAL_DB_NAME=danhee_db
-      - LOCAL_DB_USER=usuario
-      - LOCAL_DB_PASSWORD=password
+      - LOCAL_DB_NAME=${LOCAL_DB_NAME:-danhee_db}
+      - LOCAL_DB_USER=${LOCAL_DB_USER:-usuario}
+      - LOCAL_DB_PASSWORD=${LOCAL_DB_PASSWORD:-password}
       # Si te conectas a Ollama localmente, usa esta variable:
-      - OLLAMA_HOST=host.docker.internal
-      # Configuración de base de datos Clever Cloud (desde .env)
-      - DB_HOST=bvtdjsmypbwpngczasgf-mysql.services.clever-cloud.com
-      - DB_PORT=3306
-      - DB_NAME=bvtdjsmypbwpngczasgf
-      - DB_USER=ueixm6eypteu4pjt
-      - DB_PASSWORD=2BIOKddsIrsSJGKlxClR
+      - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-}
+      - DB_USER=${DB_USER:-}
+      - DB_PASSWORD=${DB_PASSWORD:-}
     volumes:
       - ./server:/app
       - /app/node_modules
@@ -71,7 +72,7 @@ services:
       - "frontend:80"
       - "--url=https://snitch-wing-riddance.ngrok-free.dev"
     environment:
-      NGROK_AUTHTOKEN: "3Gp7G23SVbepk3TmIGTHv9Lb5Fc_2xY2d3HmK9vBE6746ZKhj"
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
     depends_on:
       - frontend
     networks:

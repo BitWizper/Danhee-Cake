@@ -16,7 +16,7 @@ exports.getAll = async (req, res, next) => {
     if (limit > 200) limit = 200;
     if (!offset || offset < 0) offset = 0;
 
-    const [categories] = await db.execute(`SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order ASC LIMIT ${limit} OFFSET ${offset}`);
+    const [categories] = await db.execute(`SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order ASC LIMIT ? OFFSET ?`, [limit, offset]);
     
     // Sanitizar datos de respuesta
     const sanitizedCategories = categories.map(cat => ({

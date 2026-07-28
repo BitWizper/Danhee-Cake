@@ -284,7 +284,6 @@ const validateBodySize = (req, res, next) => {
 // Middleware para prevenir clickjacking adicional
 const preventClickjacking = (req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
   next();
 };
 
@@ -296,7 +295,7 @@ const preventMimeSniffing = (req, res, next) => {
 
 // Middleware para prevenir cross-site scripting
 const preventXSS = (req, res, next) => {
-  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
 };
 

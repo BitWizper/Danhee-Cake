@@ -28,6 +28,15 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // Errores de CORS explícitos
+  if (err && typeof err.message === 'string' && err.message.includes('CORS no permitido')) {
+    return res.status(403).json({
+      success: false,
+      error_code: 'FORBIDDEN',
+      message: 'Origen no permitido'
+    });
+  }
+
   // Errores de sintaxis JSON (body-parser) - devolver mensajes genéricos en prod
   if (err instanceof SyntaxError && err.status === 400) {
     return res.status(400).json({

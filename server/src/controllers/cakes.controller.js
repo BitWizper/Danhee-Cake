@@ -85,7 +85,8 @@ exports.getAll = async (req, res, next) => {
   }
 
   try {
-    query += ` LIMIT ${limit} OFFSET ${offset}`;
+    query += ' LIMIT ? OFFSET ?';
+    params.push(limit, offset);
     const [cakes] = await db.execute(query, params);
     const normalizedCakes = cakes.map((cake) => buildCakeResponse(cake, req.user?.role));
     res.json({

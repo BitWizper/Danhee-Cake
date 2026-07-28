@@ -92,8 +92,8 @@ exports.getAllPublic = async (req, res, next) => {
       JOIN users u ON bp.user_id = u.id
       WHERE u.is_active = 1
       ORDER BY bp.rating_avg DESC, bp.is_verified DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `);
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
 
     const responseBakers = bakers.map((baker) => buildBakerResponse(baker, req.user?.role));
     res.json({

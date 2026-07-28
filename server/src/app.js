@@ -10,7 +10,23 @@ try {
 } catch (e) {
   console.warn('No se encontró package.json en la ruta esperada:', e.message);
 }
-require('dotenv').config();
+require('dotenv').config({
+  path: process.env.DOTENV_PATH || path.resolve(__dirname, '..', '..', '.env')
+});
+
+const requireEnv = (name, fallback = undefined) => {
+  const value = process.env[name] || fallback;
+  if (!value) {
+    console.warn(`[ENV] Missing ${name}; using fallback`);
+  }
+  return value;
+};
+
+const JWT_SECRET = requireEnv('JWT_SECRET', 'change-me-in-production');
+if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'change-me-in-production') {
+  console.warn('[ENV] JWT_SECRET is using a placeholder value. Set a strong secret in your deployment environment.');
+}
+process.env.JWT_SECRET = JWT_SECRET;
 const errorHandler = require('./middleware/errorHandler');
 const { askChatbot, streamChatbot } = require('./controllers/chat.controller');
 const chatRoutes = require('./routes/chat.routes');
@@ -30,6 +46,7 @@ const { logAttack } = require('./middleware/attackLogger');
 const { getSecuritySummary } = require('./middleware/securityDashboard');
 const { validateHostHeader } = require('./middleware/hostValidator');
 const browserOriginGuard = require('./middleware/browserOriginGuard');
+const requestGuard = require('./middleware/requestGuard');
 
 
 const app = express();
@@ -37,9 +54,12 @@ const app = express();
 // Desactivar header X-Powered-By a nivel de Express
 app.disable('x-powered-by');
 
-// Configurar confianza en proxies para que Express use X-Forwarded-* correctamente
-// Esto permite detectar la IP real del cliente incluso detrás de ngrok y otros proxies.
-app.set('trust proxy', true);
+// Configurar confianza en proxies de forma estricta para evitar spoofing de IP.
+// Solo aceptamos X-Forwarded-* cuando provienen de proxies de confianza explícitos.
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+
+// Bloquear accesos sensibles y manejar OPTIONS de forma temprana
+app.use(requestGuard);
 
 // Security headers con Helmet
 app.use(helmet({
@@ -82,7 +102,7 @@ app.use(helmet({
 }));
 
 // Desactivar header X-Powered-By
-disablePoweredBy = (req, res, next) => {
+const disablePoweredBy = (req, res, next) => {
   res.removeHeader('X-Powered-By');
   next();
 };
@@ -109,18 +129,18 @@ const allowedOrigins = [
   'https://snitch-wing-riddance.ngrok-free.dev'
 ];
 
-app.use(cors({
+const corsOptions = {
   origin: function(origin, callback) {
     // Permitir solicitudes sin origin (como mobile apps, curl, postman)
     if (!origin) return callback(null, true);
     
     // Verificar si el origen está en la lista permitida
     if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.error(`[CORS] Origen no permitido: ${origin}`);
-      callback(new Error('CORS no permitido para este origen'));
+      return callback(null, true);
     }
+
+    console.error(`[CORS] Origen no permitido: ${origin}`);
+    return callback(new Error('CORS no permitido para este origen'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS', 'HEAD'],
@@ -128,7 +148,10 @@ app.use(cors({
   exposedHeaders: ['Content-Length', 'Content-Type'],
   maxAge: 86400, // 24 horas de caché para preflight requests
   optionsSuccessStatus: 204 // Responder con 204 para OPTIONS exitosos
-}));
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 // Validación de tipos de datos en request body para prevenir NoSQL injection
 const validateRequestBody = (req, res, next) => {
