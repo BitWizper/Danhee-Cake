@@ -24,6 +24,37 @@ const formatTime = (timeStr) => {
   return `${hour > 12 ? hour - 12 : hour}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
 };
 
+// Helpers de enmascaramiento de PII (cliente)
+const maskEmail = (email) => {
+  if (!email || typeof email !== 'string') return null;
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***@***';
+  const name = parts[0];
+  const domain = parts[1];
+  const visible = name.length > 2 ? 2 : 1;
+  return `${name.substring(0, visible)}***@${domain}`;
+};
+
+const maskPhone = (phone) => {
+  if (!phone || typeof phone !== 'string') return null;
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length <= 3) return '***';
+  const visible = digits.slice(-3);
+  return `***-***-${visible}`;
+};
+
+const maskName = (name) => {
+  if (!name || typeof name !== 'string') return null;
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) {
+    const n = parts[0];
+    return n.length <= 2 ? n[0] + '*' : n[0] + '*'.repeat(Math.min(3, n.length - 1));
+  }
+  const first = parts[0];
+  const lastInitial = parts[parts.length - 1][0] || '';
+  return `${first} ${lastInitial}.`;
+};
+
 /* ── Modal de Confirmación ── */
 const CancelModal = ({ appointment, onConfirm, onClose, loading }) => (
   <div className="modal-overlay animate-fadeIn" onClick={onClose}>
@@ -140,9 +171,9 @@ const BakerAppointmentCard = ({ appt, onUpdateStatus, index }) => {
           <div className="appt-baker-info">
             <div className="appt-baker-avatar">👤</div>
             <div>
-              <h3 className="appt-baker-name font-serif">{appt.client_name || 'Solicitud de Cliente'}</h3>
+              <h3 className="appt-baker-name font-serif">{appt.client_name ? maskName(appt.client_name) : 'Solicitud de Cliente'}</h3>
               <p className="appt-baker-specialty">
-                ✉️ {appt.client_email || 'Sin correo registrado'} {appt.client_phone ? `• 📞 ${appt.client_phone}` : ''}
+                ✉️ {appt.client_email ? maskEmail(appt.client_email) : 'Sin correo registrado'} {appt.client_phone ? `• 📞 ${maskPhone(appt.client_phone)}` : ''}
               </p>
             </div>
           </div>

@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const bakersController = require('../controllers/bakers.controller');
-const { authMiddleware, authorize } = require('../middleware/auth');
-const { bakersLimiter, readLimiter, writeLimiter } = require('../middleware/rateLimiter');
+const { authMiddleware, authorize, optionalAuth } = require('../middleware/auth');
+const { bakersLimiter, readLimiter, writeLimiter, publicLimiter } = require('../middleware/rateLimiter');
 const upload = require('../middleware/upload');
 const { uploadWithSignatureCheck } = require('../middleware/upload');
 const { body, param, query } = require('express-validator');
@@ -104,6 +104,8 @@ const validateQueryParams = [
 // ============================================================
 
 router.get('/',
+  optionalAuth,
+  (req, res, next) => { if (!req.user) return publicLimiter(req, res, next); return next(); },
   bakersLimiter,
   validateAllParameters,
   validateQueryParams,

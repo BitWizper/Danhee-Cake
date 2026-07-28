@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 import './UI_checkout_process.css';
 
 const UICheckout = () => {
   const { cartItems, getTotalPrice, clearCart } = useCart();
+  const { token, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
@@ -33,10 +35,18 @@ const UICheckout = () => {
       }
       // Si es OXXO, generar comprobante mock desde el servidor antes de avanzar
       if (paymentMethod === 'oxxo' && !oxxoTicket) {
+        if (!isAuthenticated || !token) {
+          alert('Debes iniciar sesión para generar el comprobante OXXO.');
+          return;
+        }
+
         try {
           const resp = await fetch('/api/payments/oxxo-ticket', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
             body: JSON.stringify({ orderId: `TEMP-${Date.now()}`, amount: total })
           });
           const json = await resp.json();
@@ -64,16 +74,14 @@ const UICheckout = () => {
       return;
     }
 
-    const ok = window.confirm('¿Estás seguro de que deseas realizar el pago ahora?');
+    const ok = window.confirm('¿Estás seguro de que deseas continuar con este pago?');
     if (!ok) return;
     setProcessing(true);
-    // Simular procesamiento de pago (solo para OXXO/PayPal mock)
+
     setTimeout(() => {
       setProcessing(false);
-      clearCart();
-      alert('Pago realizado con éxito. ¡Gracias por tu compra!');
-      navigate('/');
-    }, 1800);
+      alert('El pago fue iniciado, pero la confirmación debe verificarse con el repostero. No se confirma automáticamente en esta versión.');
+    }, 1200);
   };
 
   const total = getTotalPrice();

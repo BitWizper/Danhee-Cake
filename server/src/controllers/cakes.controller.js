@@ -19,6 +19,12 @@ exports.getAll = async (req, res, next) => {
   let { limit, offset } = req.query;
   limit = parseInt(limit, 10);
   offset = parseInt(offset, 10);
+  // Soporte `page` además de `offset`
+  const pageParam = parseInt(req.query.page, 10);
+  if (pageParam && pageParam > 0) {
+    if (!limit || limit <= 0) limit = 20;
+    offset = (pageParam - 1) * limit;
+  }
 
   if (!limit || limit <= 0) limit = 20;
   if (limit > 100) limit = 100;

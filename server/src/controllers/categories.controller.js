@@ -6,6 +6,12 @@ exports.getAll = async (req, res, next) => {
     // Soporte de paginación público
     let limit = parseInt(req.query.limit, 10);
     let offset = parseInt(req.query.offset, 10);
+    // Soportar parámetro page
+    const pageParam = parseInt(req.query.page, 10);
+    if (pageParam && pageParam > 0) {
+      if (!limit || limit <= 0) limit = 50;
+      offset = (pageParam - 1) * limit;
+    }
     if (!limit || limit <= 0) limit = 50;
     if (limit > 200) limit = 200;
     if (!offset || offset < 0) offset = 0;

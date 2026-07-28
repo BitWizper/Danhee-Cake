@@ -157,6 +157,16 @@ exports.bakersLimiter = createLimiter({
   }
 });
 
+// Limitador específico para endpoints públicos (anónimos)
+exports.publicLimiter = createLimiter({
+  windowMs: 1 * 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    message: 'Demasiadas solicitudes públicas. Por favor, espera un momento.'
+  }
+});
+
 exports.bruteForceLimiter = createLimiter({
   windowMs: 30 * 60 * 1000,
   max: 10,

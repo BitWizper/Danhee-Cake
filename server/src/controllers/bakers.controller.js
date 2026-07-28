@@ -31,6 +31,28 @@ const buildPublicBaker = (baker) => ({
  */
 exports.getAllPublic = async (req, res, next) => {
   try {
+    let limit = parseInt(req.query.limit, 10);
+    let offset = parseInt(req.query.offset, 10);
+    // Soportar parámetro `page` usado por el frontend (page=1 => offset=0)
+    const pageParam = parseInt(req.query.page, 10);
+    if (pageParam && pageParam > 0) {
+      if (!limit || limit <= 0) limit = 20;
+      offset = (pageParam - 1) * limit;
+    }
+
+    if (!limit || limit <= 0) limit = 20;
+    if (limit > 100) limit = 100;
+    if (!offset || offset < 0) offset = 0;
+
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM baker_profiles bp
+      JOIN users u ON bp.user_id = u.id
+      WHERE u.is_active = 1
+    `;
+    const [countRows] = await db.execute(countQuery);
+    const total = countRows[0]?.total || 0;
+
     const [bakers] = await db.execute(`
       SELECT 
         bp.id,
@@ -48,13 +70,14 @@ exports.getAllPublic = async (req, res, next) => {
       JOIN users u ON bp.user_id = u.id
       WHERE u.is_active = 1
       ORDER BY bp.rating_avg DESC, bp.is_verified DESC
-    `);
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
 
     const publicBakers = bakers.map(buildPublicBaker);
     res.json({
       success: true,
       data: publicBakers,
-      total: publicBakers.length
+      total
     });
   } catch (err) {
     console.error('[Bakers] Error en getAllPublic:', err);
@@ -130,7 +153,17 @@ exports.getAppointments = async (req, res, next) => {
     `, [bakerId]);
 
     // Si se solicitó full y el usuario es admin o es el repostero dueño, devolver datos completos
-    const isOwner = req.user.role === 'repostero' || req.user.role === 'admin';
+    // Determinar si el usuario que realiza la petición es realmente el dueño del perfil
+    let myBakerId = null;
+    try {
+      const [myProfiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
+      myBakerId = myProfiles.length ? myProfiles[0].id : null;
+    } catch (e) {
+      // ignore - no es crítico para el enmascaramiento
+      myBakerId = null;
+    }
+
+    const isOwner = req.user.role === 'admin' || (req.user.role === 'repostero' && myBakerId && myBakerId === bakerId);
     if (full && isOwner) {
       return res.json({ success: true, data: appointments });
     }
