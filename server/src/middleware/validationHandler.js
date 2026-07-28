@@ -18,7 +18,7 @@ const handleValidationErrors = (req, res, next) => {
     
     return res.status(400).json({
       success: false,
-      error_code: 'REQUEST_BLOCKED',
+      error_code: 'INVALID_REQUEST',
       message: 'Solicitud inválida.'
     });
   }

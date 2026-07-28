@@ -254,14 +254,14 @@ app.use('/api', (req, res, next) => {
     const rawInput = JSON.stringify(req.body || {}) + JSON.stringify(req.query || {}) + JSON.stringify(req.params || {});
     if (suspiciousPatterns.some((pattern) => pattern.test(rawInput))) {
       console.log(`[SECURITY] Bloqueo preventivo de mutación maliciosa en ${req.originalUrl}`);
-      return res.status(400).json({ success: false, error_code: 'REQUEST_BLOCKED', message: 'Solicitud inválida.' });
+      return res.status(400).json({ success: false, error_code: 'INVALID_REQUEST', message: 'Solicitud inválida.' });
     }
   }
 
   for (const paramName of suspiciousRedirectParams) {
     const value = req.query?.[paramName] || req.body?.[paramName];
     if (typeof value === 'string' && /^(https?:)?\/\//i.test(value)) {
-      return res.status(400).json({ success: false, error_code: 'REQUEST_BLOCKED', message: 'Solicitud inválida.' });
+      return res.status(400).json({ success: false, error_code: 'INVALID_REQUEST', message: 'Solicitud inválida.' });
     }
   }
 

@@ -4,7 +4,7 @@ const cakesController = require('../controllers/cakes.controller');
 const { query, param } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
 const { readLimiter, publicLimiter, ipBlocker } = require('../middleware/rateLimiter');
-const { optionalAuth } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
@@ -63,5 +63,8 @@ const publicRateIfAnonymous = (req, res, next) => {
 router.get('/', optionalAuth, ipBlocker, publicRateIfAnonymous, readLimiter, validateAllParameters, validateCakesQuery, handleValidationErrors, cakesController.getAll);
 
 router.get('/:id', optionalAuth, ipBlocker, publicRateIfAnonymous, readLimiter, validateAllParameters, validateCakeId, handleValidationErrors, cakesController.getById);
+
+// Protected routes for cakes should be added below. The public explorer endpoints above remain anonymous-accessible.
+router.use(authMiddleware);
 
 module.exports = router;

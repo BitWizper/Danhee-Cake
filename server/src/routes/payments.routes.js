@@ -30,6 +30,8 @@ const validateOxxoTicket = [
     })
 ];
 
-router.post('/oxxo-ticket', authMiddleware, writeLimiter, paymentGuard, validateAllParameters, validateOxxoTicket, handleValidationErrors, generateOxxoTicket);
+router.use(authMiddleware);
+
+router.post('/oxxo-ticket', writeLimiter, paymentGuard, validateAllParameters, validateOxxoTicket, handleValidationErrors, generateOxxoTicket);
 
 module.exports = router;

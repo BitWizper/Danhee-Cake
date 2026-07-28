@@ -54,23 +54,23 @@ const apiGuard = (req, res, next) => {
   if (MUTATING_METHODS.includes(method)) {
     const bodyResult = inspectValue(req.body, 'body');
     if (bodyResult.blocked) {
-      return res.status(400).json({ success: false, error_code: 'REQUEST_BLOCKED', message: 'Solicitud inválida.' });
+      return res.status(400).json({ success: false, error_code: 'INVALID_REQUEST', message: 'Solicitud inválida.' });
     }
 
     if (SUSPICIOUS_PATTERNS.some((pattern) => pattern.test(rawInput))) {
-      return res.status(400).json({ success: false, error_code: 'REQUEST_BLOCKED', message: 'Solicitud inválida.' });
+      return res.status(400).json({ success: false, error_code: 'INVALID_REQUEST', message: 'Solicitud inválida.' });
     }
   }
 
   for (const paramName of BLOCKED_REDIRECT_PARAMS) {
     const value = req.query?.[paramName] || req.body?.[paramName];
     if (typeof value === 'string' && /^(https?:)?\/\//i.test(value)) {
-      return res.status(400).json({ success: false, error_code: 'REQUEST_BLOCKED', message: 'Solicitud inválida.' });
+      return res.status(400).json({ success: false, error_code: 'INVALID_REQUEST', message: 'Solicitud inválida.' });
     }
   }
 
   if (req.headers && typeof req.headers['content-type'] === 'string' && req.headers['content-type'].includes('javascript')) {
-    return res.status(400).json({ success: false, error_code: 'REQUEST_BLOCKED', message: 'Solicitud inválida.' });
+    return res.status(400).json({ success: false, error_code: 'INVALID_REQUEST', message: 'Solicitud inválida.' });
   }
 
   next();

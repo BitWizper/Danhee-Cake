@@ -6,6 +6,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { body, param, query } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
+const { readLimiter, writeLimiter, publicLimiter, ipBlocker } = require('../middleware/rateLimiter');
 
 // ============================================================
 // VALIDACIÓN DE PARÁMETROS
@@ -70,6 +71,9 @@ router.post('/internal',
 
 // Ruta para solicitudes de invitados (no autenticados)
 router.post('/guest',
+  ipBlocker,
+  publicLimiter,
+  writeLimiter,
   validateAllParameters,
   validateAppointmentBody,
   handleValidationErrors,
@@ -77,8 +81,9 @@ router.post('/guest',
 );
 
 // Ruta pública para verificar disponibilidad de un repostero
-const { readLimiter } = require('../middleware/rateLimiter');
 router.get('/baker/:baker_id/date/:date',
+  ipBlocker,
+  publicLimiter,
   readLimiter,
   validateAllParameters,
   validateBakerId,
