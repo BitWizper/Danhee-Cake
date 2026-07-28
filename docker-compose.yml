@@ -69,10 +69,11 @@ services:
     restart: always
     command:
       - "http"
+      - "--url=retying-subsidize-subatomic.ngrok-free.dev"
       - "frontend:80"
-      - "--url=https://snitch-wing-riddance.ngrok-free.dev"
+      - "--log=stdout"
     environment:
-      NGROK_AUTHTOKEN: "3Gp7G23SVbepk3TmIGTHv9Lb5Fc_2xY2d3HmK9vBE6746ZKhj"
+      NGROK_AUTHTOKEN: "3H9MftP2KTQ4kFS6LEOtw9cEXTl_3HqDAiMuFe6jTWSsRB3aJ"
     depends_on:
       - frontend
     networks:

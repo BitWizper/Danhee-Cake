@@ -1,6 +1,6 @@
 const { logSecurityEvent } = require('./auditLogger');
 
-const validOrigins = (process.env.ALLOWED_ORIGINS || 'https://snitch-wing-riddance.ngrok-free.dev,http://localhost:5173,http://localhost:3000')
+const validOrigins = (process.env.ALLOWED_ORIGINS || 'https://retying-subsidize-subatomic.ngrok-free.dev,http://localhost:5173,http://localhost:3000')
   .split(',')
   .map((origin) => origin.trim().toLowerCase())
   .filter(Boolean);

@@ -9,7 +9,7 @@ echo "╚═══════════════════════�
 echo ""
 
 API="http://localhost:4000"
-DOMAIN="https://unspoken-resurrect-bountiful.ngrok-free.dev"
+DOMAIN="https://retying-subsidize-subatomic.ngrok-free.dev"
 
 # =====================================================================
 # 1. PRUEBAS DE MÉTODOS HTTP PELIGROSOS (Mejorado)

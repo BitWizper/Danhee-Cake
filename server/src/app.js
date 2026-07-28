@@ -48,7 +48,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       scriptSrcAttr: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://snitch-wing-riddance.ngrok-free.dev"],
+      connectSrc: ["'self'", "https://retying-subsidize-subatomic.ngrok-free.dev"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -96,7 +96,7 @@ app.use((req, res, next) => {
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://snitch-wing-riddance.ngrok-free.dev'
+  'https://retying-subsidize-subatomic.ngrok-free.dev'
 ];
 
 app.use(cors({
