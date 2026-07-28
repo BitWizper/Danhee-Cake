@@ -1,7 +1,7 @@
 const { logSecurityEvent } = require('./auditLogger');
 const { getClientIP } = require('./clientIp');
 
-const allowedHosts = (process.env.PUBLIC_HOST || 'unspoken-resurrect-bountiful.ngrok-free.dev,localhost,127.0.0.1')
+const allowedHosts = (process.env.PUBLIC_HOST || 'snitch-wing-riddance.ngrok-free.dev,localhost,127.0.0.1')
   .split(',')
   .map((host) => host.trim().toLowerCase())
   .filter(Boolean);
