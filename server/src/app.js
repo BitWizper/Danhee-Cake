@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 const errorHandler = require('./middleware/errorHandler');
 const { askChatbot, streamChatbot } = require('./controllers/chat.controller');
@@ -26,6 +27,9 @@ const browserOriginGuard = require('./middleware/browserOriginGuard');
 
 
 const app = express();
+
+// Desactivar header X-Powered-By a nivel de Express
+app.disable('x-powered-by');
 
 // Configurar confianza en proxies para que Express use X-Forwarded-* correctamente
 // Esto permite detectar la IP real del cliente incluso detrás de ngrok y otros proxies.
@@ -187,6 +191,38 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 app.use('/uploads', express.static('uploads'));
+
+// Ruta para servir medios protegidos (p.ej. videos) desde `public` o `dist`.
+// Requiere `X-MEDIA-KEY` header o query `?key=` con valor en env `MEDIA_KEY`,
+// o bien un `Authorization: Bearer <token>` para peticiones autenticadas.
+app.get('/protected-media/:folder/:filename', (req, res) => {
+  const { folder, filename } = req.params;
+  // Solo permitir carpetas específicas
+  const allowed = ['public', 'dist', 'uploads'];
+  if (!allowed.includes(folder)) return res.status(404).json({ success: false, message: 'Recurso no encontrado' });
+
+  const key = req.get('X-MEDIA-KEY') || req.query.key;
+  const auth = req.get('Authorization');
+
+  // Validación mínima: MEDIA_KEY o Authorization presente
+  if (!(key && process.env.MEDIA_KEY && key === process.env.MEDIA_KEY) && !(auth && auth.startsWith('Bearer '))) {
+    return res.status(403).json({ success: false, message: 'Acceso denegado' });
+  }
+
+  const baseDir = path.join(__dirname, '..', '..', folder);
+  const safePath = path.normalize(path.join(baseDir, filename));
+  if (!safePath.startsWith(baseDir)) return res.status(400).json({ success: false, message: 'Ruta inválida' });
+
+  fs.stat(safePath, (err, stat) => {
+    if (err || !stat.isFile()) return res.status(404).json({ success: false, message: 'Recurso no encontrado' });
+
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Accept-Ranges', 'bytes');
+    const stream = fs.createReadStream(safePath);
+    stream.on('error', () => res.status(500).end());
+    stream.pipe(res);
+  });
+});
 
 // Middleware de seguridad HTTP
 app.use(httpSecurity);
