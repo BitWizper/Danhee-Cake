@@ -3,7 +3,7 @@ const router = express.Router();
 const cakesController = require('../controllers/cakes.controller');
 const { query, param } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
-const { readLimiter, publicLimiter } = require('../middleware/rateLimiter');
+const { readLimiter, publicLimiter, ipBlocker } = require('../middleware/rateLimiter');
 const { optionalAuth } = require('../middleware/auth');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
@@ -53,14 +53,15 @@ const validateCakeId = [
 // ============================================================
 
 // Apply optionalAuth so token is accepted but not required. Apply publicLimiter only for anonymous users.
-router.get('/', optionalAuth, (req, res, next) => {
-  if (!req.user) return publicLimiter(req, res, next);
-  return next();
-}, readLimiter, validateAllParameters, validateCakesQuery, handleValidationErrors, cakesController.getAll);
+// Allow optional authentication: show public view to anonymous users, full view to authenticated users
 
-router.get('/:id', optionalAuth, (req, res, next) => {
+const publicRateIfAnonymous = (req, res, next) => {
   if (!req.user) return publicLimiter(req, res, next);
   return next();
-}, readLimiter, validateAllParameters, validateCakeId, handleValidationErrors, cakesController.getById);
+};
+
+router.get('/', optionalAuth, ipBlocker, publicRateIfAnonymous, readLimiter, validateAllParameters, validateCakesQuery, handleValidationErrors, cakesController.getAll);
+
+router.get('/:id', optionalAuth, ipBlocker, publicRateIfAnonymous, readLimiter, validateAllParameters, validateCakeId, handleValidationErrors, cakesController.getById);
 
 module.exports = router;

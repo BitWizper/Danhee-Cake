@@ -62,19 +62,20 @@ exports.getAll = async (req, res, next) => {
   }
 
   try {
-    query += ' LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    query += ` LIMIT ${limit} OFFSET ${offset}`;
     const [cakes] = await db.execute(query, params);
-      const normalizedCakes = cakes.map((cake) => ({
-        ...cake,
-        image_url: normalizeImageUrl(cake.image_url),
-      }));
+    const normalizedCakes = cakes.map((cake) => ({
+      ...cake,
+      image_url: normalizeImageUrl(cake.image_url),
+    }));
     res.json({
       success: true,
         data: normalizedCakes
     });
   } catch (err) {
-    next(err);
+    console.error('[Cakes] Error en getAll:', err && err.message ? err.message : err);
+    // Responder amigablemente para evitar que el frontend reciba un 500 HTML
+    return res.status(503).json({ success: false, message: 'No se pudieron obtener los pasteles. Intenta de nuevo más tarde.' });
   }
 };
 
@@ -112,6 +113,7 @@ exports.getById = async (req, res, next) => {
         }
     });
   } catch (err) {
-    next(err);
+    console.error('[Cakes] Error en getById:', err && err.message ? err.message : err);
+    return res.status(503).json({ success: false, message: 'No se pudo obtener el pastel. Intenta de nuevo más tarde.' });
   }
 };

@@ -70,8 +70,8 @@ exports.getAllPublic = async (req, res, next) => {
       JOIN users u ON bp.user_id = u.id
       WHERE u.is_active = 1
       ORDER BY bp.rating_avg DESC, bp.is_verified DESC
-      LIMIT ? OFFSET ?
-    `, [limit, offset]);
+      LIMIT ${limit} OFFSET ${offset}
+    `);
 
     const publicBakers = bakers.map(buildPublicBaker);
     res.json({
@@ -80,8 +80,8 @@ exports.getAllPublic = async (req, res, next) => {
       total
     });
   } catch (err) {
-    console.error('[Bakers] Error en getAllPublic:', err);
-    next(err);
+    console.error('[Bakers] Error en getAllPublic:', err && err.message ? err.message : err);
+    return res.status(503).json({ success: false, message: 'No se pudieron obtener los reposteros. Intenta de nuevo más tarde.' });
   }
 };
 
