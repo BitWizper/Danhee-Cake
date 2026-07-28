@@ -11,6 +11,20 @@ const normalizeImageUrl = (imageUrl) => {
   return imageUrl;
 };
 
+const buildPublicBaker = (baker) => ({
+  id: baker.id,
+  business_name: baker.business_name,
+  location: baker.location,
+  specialty: baker.specialty,
+  bio: baker.bio,
+  portfolio_url: normalizeImageUrl(baker.portfolio_url),
+  business_hours: baker.business_hours,
+  is_verified: Boolean(baker.is_verified),
+  rating_avg: baker.rating_avg,
+  total_reviews: baker.total_reviews,
+  avatar_url: normalizeImageUrl(baker.avatar_url)
+});
+
 /**
  * Obtener todos los reposteros (PÚBLICO - sin autenticación)
  * GET /api/bakers
@@ -29,20 +43,18 @@ exports.getAllPublic = async (req, res, next) => {
         bp.is_verified,
         bp.rating_avg,
         bp.total_reviews,
-        u.name as owner_name,
-        u.avatar_url,
-        u.phone,
-        u.email
+        u.avatar_url
       FROM baker_profiles bp
       JOIN users u ON bp.user_id = u.id
       WHERE u.is_active = 1
       ORDER BY bp.rating_avg DESC, bp.is_verified DESC
     `);
 
+    const publicBakers = bakers.map(buildPublicBaker);
     res.json({
       success: true,
-      data: bakers,
-      total: bakers.length
+      data: publicBakers,
+      total: publicBakers.length
     });
   } catch (err) {
     console.error('[Bakers] Error en getAllPublic:', err);
@@ -327,10 +339,21 @@ exports.getProfile = async (req, res, next) => {
 
   try {
     const [profiles] = await db.execute(`
-      SELECT b.*, u.name, u.avatar_url, u.email
-      FROM baker_profiles b
-      JOIN users u ON b.user_id = u.id
-      WHERE b.id = ?
+      SELECT 
+        bp.id,
+        bp.business_name,
+        bp.location,
+        bp.specialty,
+        bp.bio,
+        bp.portfolio_url,
+        bp.business_hours,
+        bp.is_verified,
+        bp.rating_avg,
+        bp.total_reviews,
+        u.avatar_url
+      FROM baker_profiles bp
+      JOIN users u ON bp.user_id = u.id
+      WHERE bp.id = ?
     `, [sanitizedId]);
 
     if (profiles.length === 0) {
@@ -339,7 +362,7 @@ exports.getProfile = async (req, res, next) => {
 
     res.json({
       success: true,
-      data: profiles[0]
+      data: buildPublicBaker(profiles[0])
     });
   } catch (err) {
     next(err);

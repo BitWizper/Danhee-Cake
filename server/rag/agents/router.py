@@ -28,17 +28,30 @@ class TaskRouter:
 
     def route_and_process(self, question: str, client_id: int = None, conversation_id: str = None, explicit_role: str = None) -> str:
         # Determine effective user role
-        role = 'cliente'
-        if explicit_role:
-            role = explicit_role.lower().strip()
-        elif client_id:
+        role = None
+
+        if isinstance(explicit_role, str):
+            explicit_role = explicit_role.lower().strip()
+            if explicit_role in ('cliente', 'repostero'):
+                role = explicit_role
+            else:
+                explicit_role = None
+
+        if client_id:
             user = get_user_by_id(client_id)
             if user:
-                role = user.get('role', 'cliente')
+                db_role = user.get('role', 'cliente')
+                if role and role != db_role:
+                    print(f"[TaskRouter] ⚠️ Role explícito '{role}' no coincide con la base de datos '{db_role}' para client_id={client_id}. Usando rol de BD.", file=sys.stderr)
+                role = db_role
+            elif not role:
+                role = 'cliente'
+
+        if not role:
+            role = 'cliente'
 
         print(f"[TaskRouter] 🔀 Derivando solicitud al subagente especialista: '{role}'", file=sys.stderr)
 
         if role == 'repostero':
             return self.baker_agent.process_request(question, client_id, conversation_id)
-        else:
-            return self.customer_agent.process_request(question, client_id, conversation_id)
+        return self.customer_agent.process_request(question, client_id, conversation_id)

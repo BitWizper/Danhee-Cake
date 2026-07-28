@@ -148,6 +148,15 @@ exports.readLimiter = createLimiter({
   }
 });
 
+exports.bakersLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: {
+    success: false,
+    message: 'Demasiadas consultas al directorio de reposteros. Por favor, intenta de nuevo más tarde.'
+  }
+});
+
 exports.bruteForceLimiter = createLimiter({
   windowMs: 30 * 60 * 1000,
   max: 10,

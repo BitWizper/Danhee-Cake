@@ -8,7 +8,6 @@ import {
   sanitizeDisplayText,
   isSpamMessage,
   isValidConversationId,
-  isValidUUID,
   isValidSSEEvent,
   getChatRateLimitStatus,
   checkAndRecordChatRateLimit,
@@ -129,7 +128,7 @@ function ChatBot() {
 
     const conversation_id = localStorage.getItem("conversation_id");
     const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-    const clientId = storedUser?.id && isValidUUID(storedUser.id) ? storedUser.id : null;
+    const clientId = storedUser?.id != null ? storedUser.id : null;
 
     if (conversation_id && !isValidConversationId(conversation_id)) {
       localStorage.removeItem("conversation_id");
@@ -260,7 +259,7 @@ function ChatBot() {
   const loadConversationHistory = async () => {
     try {
       const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-      if (!storedUser?.id || !isValidUUID(storedUser.id)) return;
+      if (!storedUser?.id) return;
 
       const response = await fetch(
         `/api/chat/history?client_id=${encodeURIComponent(storedUser.id)}`
@@ -380,7 +379,7 @@ function ChatBot() {
       }
 
       const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-      const clientId = storedUser?.id && isValidUUID(storedUser.id) ? storedUser.id : null;
+      const clientId = storedUser?.id != null ? storedUser.id : null;
 
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;

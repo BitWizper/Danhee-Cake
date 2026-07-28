@@ -18,8 +18,8 @@ const handleValidationErrors = (req, res, next) => {
     
     return res.status(400).json({
       success: false,
-      message: 'Error de validación en los datos enviados',
-      errors: formattedErrors
+      error_code: 'INVALID_REQUEST',
+      message: 'Solicitud inválida.'
     });
   }
   

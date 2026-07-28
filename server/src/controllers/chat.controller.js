@@ -50,6 +50,12 @@ const askChatbot = async (req, res) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       client_id = decoded.id || decoded.userId || null;
       role = decoded.role || null;
+      if (typeof role === 'string') {
+        role = role.toLowerCase().trim();
+        if (!['cliente', 'repostero'].includes(role)) {
+          role = null;
+        }
+      }
       console.log(`[Chat] Usuario autenticado: ID=${client_id}, Email=${decoded.email}, Rol=${role}`);
     } catch (error) {
       // Token ausente, expirado o inválido → usuario no autenticado
@@ -147,6 +153,12 @@ const streamChatbot = async (req, res) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       client_id = decoded.id || decoded.userId || null;
       role = decoded.role || null;
+      if (typeof role === 'string') {
+        role = role.toLowerCase().trim();
+        if (!['cliente', 'repostero'].includes(role)) {
+          role = null;
+        }
+      }
     } catch (error) {
       console.log(`[Chat Stream] Token inválido o expirado, continuando como invitado`);
       client_id = null;

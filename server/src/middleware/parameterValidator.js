@@ -91,7 +91,7 @@ const validateAllParameters = (req, res, next) => {
       return res.status(400).json({
         success: false,
         error_code: 'INVALID_PARAMETER',
-        message: `Parámetro sospechoso detectado: ${key}`
+        message: 'Solicitud inválida.'
       });
     }
   }
@@ -103,7 +103,7 @@ const validateAllParameters = (req, res, next) => {
       return res.status(400).json({
         success: false,
         error_code: 'INVALID_PARAMETER',
-        message: `Parámetro sospechoso en ruta: ${key}`
+        message: 'Solicitud inválida.'
       });
     }
   }
@@ -145,7 +145,7 @@ const validateAllParameters = (req, res, next) => {
       return res.status(400).json({
         success: false,
         error_code: 'INVALID_PARAMETER',
-        message: `Parámetro sospechoso en body: ${result.fieldPath}`
+        message: 'Solicitud inválida.'
       });
     }
   }
@@ -158,7 +158,7 @@ const validateAllParameters = (req, res, next) => {
       return res.status(400).json({
         success: false,
         error_code: 'MALICIOUS_PAYLOAD_BLOCKED',
-        message: 'Solicitud bloqueada por contenido sospechoso'
+        message: 'Solicitud inválida.'
       });
     }
   }

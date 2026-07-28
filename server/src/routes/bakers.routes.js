@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bakersController = require('../controllers/bakers.controller');
 const { authMiddleware, authorize } = require('../middleware/auth');
+const { bakersLimiter } = require('../middleware/rateLimiter');
 const upload = require('../middleware/upload');
 const { uploadWithSignatureCheck } = require('../middleware/upload');
 const { body, param, query } = require('express-validator');
@@ -102,7 +103,13 @@ const validateQueryParams = [
 // RUTAS PÚBLICAS (NO requieren autenticación)
 // ============================================================
 
-router.get('/', validateAllParameters, validateQueryParams, handleValidationErrors, bakersController.getAllPublic);
+router.get('/',
+  bakersLimiter,
+  validateAllParameters,
+  validateQueryParams,
+  handleValidationErrors,
+  bakersController.getAllPublic
+);
 
 // ============================================================
 // RUTAS PROTEGIDAS (Requieren ser repostero autenticado)
@@ -191,6 +198,7 @@ router.put('/profile',
 
 // Esta ruta se mantiene al final para evitar conflictos con rutas estáticas como /cakes o /stats
 router.get('/:id',
+  bakersLimiter,
   validateAllParameters,
   validateBakerId,
   handleValidationErrors,

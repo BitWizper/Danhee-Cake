@@ -191,6 +191,11 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 role = req_data.get('role')
                 client_datetime = req_data.get('client_datetime')
                 
+                if isinstance(role, str):
+                    role = role.lower().strip()
+                    if role not in ('cliente', 'repostero'):
+                        role = None
+
                 print(f"[DEBUG] Datos recibidos - question: {question[:30]}..., client_id: {client_id}, role: {role}", file=sys.stderr)
                 
                 _set_current_client_id(client_id)
@@ -207,46 +212,47 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 # Debug: imprimir valores recibidos
                 print(f"[DEBUG] client_id: {client_id}, role: {role}, question: {question[:50]}...", file=sys.stderr)
                 
-                # Verificación de autenticación para reposteros (antes de determinar role final)
-                # Verificamos tanto si role viene explícitamente como 'repostero' como si se determinará después
-                is_repostero_request = (role == 'repostero' or 
-                                       (not role and not client_id and 'repostero' in question.lower()) or
-                                       (not role and not client_id and ('catálogo' in question.lower() or 'pasteles' in question.lower() or 'citas' in question.lower())))
-                
-                print(f"[DEBUG] is_repostero_request: {is_repostero_request}, not client_id: {not client_id}", file=sys.stderr)
-                
-                if is_repostero_request and not client_id:
+                if role and isinstance(role, str):
+                    role = role.lower().strip()
+                    if role not in ('cliente', 'repostero'):
+                        role = None
+
+                if client_id:
+                    user = get_user_by_id(client_id)
+                    if user:
+                        db_role = user.get('role')
+                        if db_role and db_role != role:
+                            print(f"[DEBUG] Rol de base de datos ({db_role}) sustituye role enviado ({role}) para client_id={client_id}", file=sys.stderr)
+                        role = db_role or role
+
+                if not role:
+                    role = 'cliente'
+
+                if role == 'repostero' and not client_id:
                     from tools.common_tools import detectar_formalidad
                     formalidad = detectar_formalidad(question)
-                    
+
                     print(f"[DEBUG] Repostero sin autenticación detectado. Formalidad: {formalidad}", file=sys.stderr)
-                    
+
                     if formalidad == "formal":
                         auth_msg = "Para acceder a las funciones de repostero es necesario iniciar sesión en su cuenta. 🍰\n\n¿Ya tiene cuenta? Por favor inicie sesión para gestionar su catálogo y agenda.\n¿Aún no se ha registrado? Le invito a unirse a Danhee Cake y comenzar a mostrar sus creaciones al mundo."
                     elif formalidad == "casual":
                         auth_msg = "¡Oye! Para usar las funciones de repostero necesitas iniciar sesión. 🍰\n\n¿Ya tienes cuenta? Entra para gestionar tu vitrina digital.\n¿Aún no te has registrado? ¡Únete a Danhee Cake y comienza a mostrar tus creaciones!"
                     else:
                         auth_msg = "Para acceder a las funciones de repostero necesitas iniciar sesión. 🍰\n\n¿Ya tienes cuenta? Inicia sesión para gestionar tu catálogo y agenda.\n¿Aún no te has registrado? ¡Únete a Danhee Cake y comienza a mostrar tus creaciones!"
-                    
+
                     self.send_response(200)
                     self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
                     self.send_header('Cache-Control', 'no-cache, no-transform')
                     self.send_header('Connection', 'close')
                     self.send_header('Access-Control-Allow-Origin', '*')
                     self.end_headers()
-                    
+
                     send_event("state", {"status": "ready", "message": "Respuesta lista"})
                     for word in re.findall(r'\S+\s*', auth_msg):
                         send_event("token", {"content": word})
                     send_event("done", {})
                     return
-                
-                if not role and client_id:
-                    user = get_user_by_id(client_id)
-                    if user:
-                        role = user.get('role')
-                if not role:
-                    role = 'cliente'
                     
                 import ollama as ollama_sdk
                 from agents.customer_agent import SYSTEM_PROMPT
