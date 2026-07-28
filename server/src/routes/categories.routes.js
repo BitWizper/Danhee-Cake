@@ -3,8 +3,8 @@ const router = express.Router();
 const categoriesController = require('../controllers/categories.controller');
 const { query } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
-const { readLimiter, publicLimiter, ipBlocker } = require('../middleware/rateLimiter');
-const { authMiddleware, optionalAuth } = require('../middleware/auth');
+const { readLimiter, ipBlocker } = require('../middleware/rateLimiter');
+const { authMiddleware } = require('../middleware/auth');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
@@ -36,15 +36,9 @@ const validateQueryParams = [
 // RUTAS
 // ============================================================
 
-// Allow optional authentication: anonymous users can read categories
-const publicRateIfAnonymous = (req, res, next) => {
-  if (!req.user) return publicLimiter(req, res, next);
-  return next();
-};
+router.get('/', authMiddleware, ipBlocker, readLimiter, validateAllParameters, validateQueryParams, handleValidationErrors, categoriesController.getAll);
 
-router.get('/', optionalAuth, ipBlocker, publicRateIfAnonymous, readLimiter, validateAllParameters, validateQueryParams, handleValidationErrors, categoriesController.getAll);
-
-// Protected category routes can be added below; current explorer list remains public.
+// Protected category routes can be added below.
 router.use(authMiddleware);
 
 module.exports = router;

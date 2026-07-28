@@ -11,6 +11,29 @@ const normalizeImageUrl = (imageUrl) => {
   return imageUrl;
 };
 
+const buildCakeForClient = (cake) => ({
+  id: cake.id,
+  name: cake.name,
+  category_name: cake.category_name,
+  image_url: normalizeImageUrl(cake.image_url),
+  is_featured: cake.is_featured,
+  baker_id: cake.baker_id,
+  baker_business_name: cake.business_name
+});
+
+const buildCakeForPrivilegedUser = (cake) => ({
+  ...cake,
+  image_url: normalizeImageUrl(cake.image_url)
+});
+
+const buildCakeResponse = (cake, role) => {
+  const privilegedRoles = ['repostero', 'admin'];
+  if (privilegedRoles.includes(role)) {
+    return buildCakeForPrivilegedUser(cake);
+  }
+  return buildCakeForClient(cake);
+};
+
 /**
  * Obtener todos los pasteles, opcionalmente filtrados por categoría o repostero.
  */
@@ -64,13 +87,10 @@ exports.getAll = async (req, res, next) => {
   try {
     query += ` LIMIT ${limit} OFFSET ${offset}`;
     const [cakes] = await db.execute(query, params);
-    const normalizedCakes = cakes.map((cake) => ({
-      ...cake,
-      image_url: normalizeImageUrl(cake.image_url),
-    }));
+    const normalizedCakes = cakes.map((cake) => buildCakeResponse(cake, req.user?.role));
     res.json({
       success: true,
-        data: normalizedCakes
+      data: normalizedCakes
     });
   } catch (err) {
     console.error('[Cakes] Error en getAll:', err && err.message ? err.message : err);
@@ -107,10 +127,7 @@ exports.getById = async (req, res, next) => {
 
     res.json({
       success: true,
-        data: {
-          ...cakes[0],
-          image_url: normalizeImageUrl(cakes[0].image_url),
-        }
+      data: buildCakeResponse(cakes[0], req.user?.role)
     });
   } catch (err) {
     console.error('[Cakes] Error en getById:', err && err.message ? err.message : err);

@@ -4,6 +4,12 @@ const helmet = require('helmet');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+let rootPackage = {};
+try {
+  rootPackage = require(path.join(__dirname, '..', 'package.json'));
+} catch (e) {
+  console.warn('No se encontró package.json en la ruta esperada:', e.message);
+}
 require('dotenv').config();
 const errorHandler = require('./middleware/errorHandler');
 const { askChatbot, streamChatbot } = require('./controllers/chat.controller');
@@ -310,6 +316,36 @@ app.post('/api/chat/stream', clientChatGuard, streamChatbot);
 // Ruta base
 app.get('/', (req, res) => {
   res.json({ message: 'Bienvenido a la API de Danhee' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: rootPackage?.version || 'unknown',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send([
+    'User-agent: *',
+    'Disallow: /api/',
+    'Disallow: /server/',
+    'Allow: /',
+    '',
+    'Sitemap: https://snitch-wing-riddance.ngrok-free.dev/sitemap.xml'
+  ].join('\n'));
+});
+
+app.get('/.well-known/security.txt', (req, res) => {
+  res.type('text/plain').send([
+    'Contact: mailto:security@danhee.com',
+    'Preferred-Languages: es, en',
+    'Canonical: https://snitch-wing-riddance.ngrok-free.dev/.well-known/security.txt',
+    'Policy: https://snitch-wing-riddance.ngrok-free.dev/security-policy.html'
+  ].join('\n'));
 });
 
 app.get('/api/security/alerts', (req, res) => {

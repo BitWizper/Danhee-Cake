@@ -11,6 +11,8 @@ const normalizeImageUrl = (imageUrl) => {
   return imageUrl;
 };
 
+const isPrivilegedRole = (role) => ['repostero', 'admin'].includes(role);
+
 const buildPublicBaker = (baker) => ({
   id: baker.id,
   business_name: baker.business_name,
@@ -24,6 +26,21 @@ const buildPublicBaker = (baker) => ({
   total_reviews: baker.total_reviews,
   avatar_url: normalizeImageUrl(baker.avatar_url)
 });
+
+const buildBakerForPrivilegedUser = (baker) => ({
+  ...buildPublicBaker(baker),
+  email: baker.email || null,
+  phone: baker.phone || null,
+  is_active: Boolean(baker.is_active),
+  user_id: baker.user_id || null
+});
+
+const buildBakerResponse = (baker, role) => {
+  if (isPrivilegedRole(role)) {
+    return buildBakerForPrivilegedUser(baker);
+  }
+  return buildPublicBaker(baker);
+};
 
 /**
  * Obtener todos los reposteros (PÚBLICO - sin autenticación)
@@ -53,8 +70,13 @@ exports.getAllPublic = async (req, res, next) => {
     const [countRows] = await db.execute(countQuery);
     const total = countRows[0]?.total || 0;
 
+    const extraFields = isPrivilegedRole(req.user?.role)
+      ? 'u.email, u.phone, u.is_active, bp.user_id,'
+      : '';
+
     const [bakers] = await db.execute(`
       SELECT 
+        ${extraFields}
         bp.id,
         bp.business_name,
         bp.location,
@@ -73,10 +95,10 @@ exports.getAllPublic = async (req, res, next) => {
       LIMIT ${limit} OFFSET ${offset}
     `);
 
-    const publicBakers = bakers.map(buildPublicBaker);
+    const responseBakers = bakers.map((baker) => buildBakerResponse(baker, req.user?.role));
     res.json({
       success: true,
-      data: publicBakers,
+      data: responseBakers,
       total
     });
   } catch (err) {
@@ -393,8 +415,13 @@ exports.getProfile = async (req, res, next) => {
   }
 
   try {
+    const extraFields = isPrivilegedRole(req.user?.role)
+      ? 'u.email, u.phone, u.is_active, bp.user_id,'
+      : '';
+
     const [profiles] = await db.execute(`
       SELECT 
+        ${extraFields}
         bp.id,
         bp.business_name,
         bp.location,
@@ -417,7 +444,7 @@ exports.getProfile = async (req, res, next) => {
 
     res.json({
       success: true,
-      data: buildPublicBaker(profiles[0])
+      data: buildBakerResponse(profiles[0], req.user?.role)
     });
   } catch (err) {
     next(err);

@@ -77,20 +77,20 @@ const createLimiter = (options = {}) => {
 // Rate limiters
 exports.authLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 10,
   skipSuccessfulRequests: false,
   message: {
     success: false,
-    message: 'Demasiados intentos de inicio de sesión. Por favor, intenta de nuevo en 15 minutos.'
+    message: 'Demasiados intentos de inicio de sesión. Por favor, espera 15 minutos antes de intentar de nuevo.'
   }
 });
 
 exports.registerLimiter = createLimiter({
-  windowMs: 60 * 60 * 1000,
-  max: 3,
+  windowMs: 30 * 60 * 1000,
+  max: 8,
   message: {
     success: false,
-    message: 'Demasiados intentos de registro. Por favor, intenta de nuevo en 1 hora.'
+    message: 'Demasiados intentos de registro. Por favor, espera 30 minutos antes de intentar de nuevo.'
   }
 });
 

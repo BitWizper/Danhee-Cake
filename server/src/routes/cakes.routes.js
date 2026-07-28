@@ -3,8 +3,8 @@ const router = express.Router();
 const cakesController = require('../controllers/cakes.controller');
 const { query, param } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
-const { readLimiter, publicLimiter, ipBlocker } = require('../middleware/rateLimiter');
-const { authMiddleware, optionalAuth } = require('../middleware/auth');
+const { readLimiter, ipBlocker } = require('../middleware/rateLimiter');
+const { authMiddleware } = require('../middleware/auth');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
@@ -52,19 +52,11 @@ const validateCakeId = [
 // RUTAS
 // ============================================================
 
-// Apply optionalAuth so token is accepted but not required. Apply publicLimiter only for anonymous users.
-// Allow optional authentication: show public view to anonymous users, full view to authenticated users
+router.get('/', authMiddleware, ipBlocker, readLimiter, validateAllParameters, validateCakesQuery, handleValidationErrors, cakesController.getAll);
 
-const publicRateIfAnonymous = (req, res, next) => {
-  if (!req.user) return publicLimiter(req, res, next);
-  return next();
-};
+router.get('/:id', authMiddleware, ipBlocker, readLimiter, validateAllParameters, validateCakeId, handleValidationErrors, cakesController.getById);
 
-router.get('/', optionalAuth, ipBlocker, publicRateIfAnonymous, readLimiter, validateAllParameters, validateCakesQuery, handleValidationErrors, cakesController.getAll);
-
-router.get('/:id', optionalAuth, ipBlocker, publicRateIfAnonymous, readLimiter, validateAllParameters, validateCakeId, handleValidationErrors, cakesController.getById);
-
-// Protected routes for cakes should be added below. The public explorer endpoints above remain anonymous-accessible.
+// Protected routes for cakes are enforced above.
 router.use(authMiddleware);
 
 module.exports = router;
