@@ -125,7 +125,7 @@ router.get('/stats',
 
 router.get('/appointments',
   authMiddleware,
-  authorize('repostero'),
+  authorize('repostero', 'admin'),
   validateAllParameters,
   validateQueryParams,
   handleValidationErrors,

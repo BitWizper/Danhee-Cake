@@ -3,6 +3,7 @@ const router = express.Router();
 const categoriesController = require('../controllers/categories.controller');
 const { query } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
+const { readLimiter } = require('../middleware/rateLimiter');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
@@ -34,6 +35,6 @@ const validateQueryParams = [
 // RUTAS
 // ============================================================
 
-router.get('/', validateAllParameters, validateQueryParams, handleValidationErrors, categoriesController.getAll);
+router.get('/', readLimiter, validateAllParameters, validateQueryParams, handleValidationErrors, categoriesController.getAll);
 
 module.exports = router;

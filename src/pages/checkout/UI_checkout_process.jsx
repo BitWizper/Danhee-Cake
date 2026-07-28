@@ -11,7 +11,8 @@ const UICheckout = () => {
   const [step, setStep] = useState(1);
 
   const [shipping, setShipping] = useState({ fullName: '', address: '', city: '', postal: '', phone: '' });
-  const [paymentMethod, setPaymentMethod] = useState('card');
+  // Default to OXXO to avoid the currently-simulated card flow
+  const [paymentMethod, setPaymentMethod] = useState('oxxo');
   const [card, setCard] = useState({ number: '', name: '', exp: '', cvv: '' });
   const [processing, setProcessing] = useState(false);
   const [oxxoTicket, setOxxoTicket] = useState(null);
@@ -58,10 +59,15 @@ const UICheckout = () => {
   const handleBack = () => setStep(prev => Math.max(1, prev - 1));
 
   const handleConfirm = () => {
+    if (paymentMethod === 'card') {
+      alert('Pago con tarjeta no disponible en este entorno. Utiliza OXXO o PayPal.');
+      return;
+    }
+
     const ok = window.confirm('¿Estás seguro de que deseas realizar el pago ahora?');
     if (!ok) return;
     setProcessing(true);
-    // Simular procesamiento de pago
+    // Simular procesamiento de pago (solo para OXXO/PayPal mock)
     setTimeout(() => {
       setProcessing(false);
       clearCart();
@@ -106,8 +112,8 @@ const UICheckout = () => {
                 <h2 className="section-title">Método de Pago</h2>
                 <div className="payment-options">
                   <label className={`payment-option ${paymentMethod === 'card' ? 'selected' : ''}`}>
-                    <input type="radio" name="pm" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} />
-                    Tarjeta de Crédito / Débito
+                    <input type="radio" name="pm" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} disabled />
+                    Tarjeta de Crédito / Débito (no disponible)
                   </label>
                   <label className={`payment-option ${paymentMethod === 'oxxo' ? 'selected' : ''}`}>
                     <input type="radio" name="pm" checked={paymentMethod === 'oxxo'} onChange={() => setPaymentMethod('oxxo')} />

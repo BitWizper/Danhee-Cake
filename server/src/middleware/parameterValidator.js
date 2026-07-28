@@ -90,7 +90,7 @@ const validateAllParameters = (req, res, next) => {
       console.log(`[SECURITY] Parámetro peligroso detectado en query: ${key}=${value}`);
       return res.status(400).json({
         success: false,
-        error_code: 'INVALID_PARAMETER',
+        error_code: 'REQUEST_BLOCKED',
         message: 'Solicitud inválida.'
       });
     }
@@ -102,7 +102,7 @@ const validateAllParameters = (req, res, next) => {
       console.log(`[SECURITY] Parámetro peligroso detectado en path: ${key}=${value}`);
       return res.status(400).json({
         success: false,
-        error_code: 'INVALID_PARAMETER',
+        error_code: 'REQUEST_BLOCKED',
         message: 'Solicitud inválida.'
       });
     }
@@ -144,7 +144,7 @@ const validateAllParameters = (req, res, next) => {
     if (result.error) {
       return res.status(400).json({
         success: false,
-        error_code: 'INVALID_PARAMETER',
+        error_code: 'REQUEST_BLOCKED',
         message: 'Solicitud inválida.'
       });
     }
@@ -157,7 +157,7 @@ const validateAllParameters = (req, res, next) => {
       console.log(`[SECURITY] Payload malicioso bloqueado antes de la mutación: ${bodyText}`);
       return res.status(400).json({
         success: false,
-        error_code: 'MALICIOUS_PAYLOAD_BLOCKED',
+        error_code: 'REQUEST_BLOCKED',
         message: 'Solicitud inválida.'
       });
     }

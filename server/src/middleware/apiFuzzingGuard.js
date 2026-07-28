@@ -75,8 +75,8 @@ const apiFuzzingGuard = (req, res, next) => {
     console.warn(`[SECURITY] Fuzzing de parámetros bloqueado en ${req.originalUrl}`);
     return res.status(400).json({
       success: false,
-      error_code: 'PARAMETER_FUZZING_BLOCKED',
-      message: 'Solicitud bloqueada por parámetros excesivos o sospechosos.'
+      error_code: 'REQUEST_BLOCKED',
+      message: 'Solicitud inválida.'
     });
   }
 
@@ -84,24 +84,24 @@ const apiFuzzingGuard = (req, res, next) => {
   if (paramSources.some((source) => hasSuspiciousParameterNames(source))) {
     return res.status(400).json({
       success: false,
-      error_code: 'PARAMETER_FUZZING_BLOCKED',
-      message: 'Solicitud bloqueada por nombres de parámetros sospechosos.'
+      error_code: 'REQUEST_BLOCKED',
+      message: 'Solicitud inválida.'
     });
   }
 
   if (paramSources.some((source) => hasSuspiciousValues(source))) {
     return res.status(400).json({
       success: false,
-      error_code: 'PARAMETER_FUZZING_BLOCKED',
-      message: 'Solicitud bloqueada por valores de parámetros sospechosos.'
+      error_code: 'REQUEST_BLOCKED',
+      message: 'Solicitud inválida.'
     });
   }
 
-  if (paramSources.some((source) => countParams(source) > MAX_TOTAL_PARAMETERS)) {
+    if (paramSources.some((source) => countParams(source) > MAX_TOTAL_PARAMETERS)) {
     return res.status(400).json({
       success: false,
-      error_code: 'PARAMETER_FUZZING_BLOCKED',
-      message: 'Solicitud bloqueada por estructura de parámetros excesiva.'
+      error_code: 'REQUEST_BLOCKED',
+      message: 'Solicitud inválida.'
     });
   }
 

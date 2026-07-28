@@ -3,6 +3,7 @@ const router = express.Router();
 const cakesController = require('../controllers/cakes.controller');
 const { query, param } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
+const { readLimiter } = require('../middleware/rateLimiter');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
@@ -50,7 +51,7 @@ const validateCakeId = [
 // RUTAS
 // ============================================================
 
-router.get('/', validateAllParameters, validateCakesQuery, handleValidationErrors, cakesController.getAll);
+router.get('/', readLimiter, validateAllParameters, validateCakesQuery, handleValidationErrors, cakesController.getAll);
 router.get('/:id', validateAllParameters, validateCakeId, handleValidationErrors, cakesController.getById);
 
 module.exports = router;

@@ -106,9 +106,20 @@ exports.getAppointments = async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
-    if (profiles.length === 0) return res.status(404).json({ success: false, message: 'Perfil no encontrado.' });
-    const bakerId = profiles[0].id;
+    // Admins pueden solicitar appointments de cualquier baker mediante ?baker_id=ID
+    // Si se proporciona baker_id y el usuario es admin, se usa ese bakerId
+    let bakerId = null;
+    const full = req.query.full === 'true';
+    const requestedBakerId = req.query.baker_id;
+
+    if (requestedBakerId && req.user.role === 'admin') {
+      if (!validateNumber(requestedBakerId)) return res.status(400).json({ success: false, message: 'baker_id inválido.' });
+      bakerId = Number(requestedBakerId);
+    } else {
+      const [profiles] = await db.execute('SELECT id FROM baker_profiles WHERE user_id = ?', [userId]);
+      if (profiles.length === 0) return res.status(404).json({ success: false, message: 'Perfil no encontrado.' });
+      bakerId = profiles[0].id;
+    }
 
     const [appointments] = await db.execute(`
       SELECT a.*, u.name as client_name, u.email as client_email, u.phone as client_phone
@@ -118,10 +129,21 @@ exports.getAppointments = async (req, res, next) => {
       ORDER BY a.date DESC, a.time_slot ASC
     `, [bakerId]);
 
-    res.json({
-      success: true,
-      data: appointments
-    });
+    // Si se solicitó full y el usuario es admin o es el repostero dueño, devolver datos completos
+    const isOwner = req.user.role === 'repostero' || req.user.role === 'admin';
+    if (full && isOwner) {
+      return res.json({ success: true, data: appointments });
+    }
+
+    // Enmascarar datos sensibles (PII) antes de devolver
+    const masked = appointments.map((a) => ({
+      ...a,
+      client_name: maskName(a.client_name),
+      client_email: maskEmail(a.client_email),
+      client_phone: maskPhone(a.client_phone)
+    }));
+
+    res.json({ success: true, data: masked });
   } catch (err) {
     next(err);
   }
@@ -421,4 +443,37 @@ exports.getMyProfile = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+// Helpers de enmascaramiento de PII
+const maskEmail = (email) => {
+  if (!email || typeof email !== 'string') return null;
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***@***';
+  const name = parts[0];
+  const domain = parts[1];
+  const visible = name.length > 2 ? 2 : 1;
+  return `${name.substring(0, visible)}***@${domain}`;
+};
+
+const maskPhone = (phone) => {
+  if (!phone || typeof phone !== 'string') return null;
+  // Keep last 2-3 digits visible
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length <= 3) return '***';
+  const visible = digits.slice(-3);
+  return `***-***-${visible}`;
+};
+
+const maskName = (name) => {
+  if (!name || typeof name !== 'string') return null;
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) {
+    const n = parts[0];
+    return n.length <= 2 ? n[0] + '*' : n[0] + '*'.repeat(Math.min(3, n.length - 1));
+  }
+  // Show first name and initial of last name
+  const first = parts[0];
+  const lastInitial = parts[parts.length - 1][0] || '';
+  return `${first} ${lastInitial}.`;
 };

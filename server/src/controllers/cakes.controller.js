@@ -16,6 +16,13 @@ const normalizeImageUrl = (imageUrl) => {
  */
 exports.getAll = async (req, res, next) => {
   const { category, baker, featured } = req.query;
+  let { limit, offset } = req.query;
+  limit = parseInt(limit, 10);
+  offset = parseInt(offset, 10);
+
+  if (!limit || limit <= 0) limit = 20;
+  if (limit > 100) limit = 100;
+  if (!offset || offset < 0) offset = 0;
   
   // Validar y sanitizar inputs
   const sanitizedCategory = sanitizeString(category, 100);
@@ -49,6 +56,8 @@ exports.getAll = async (req, res, next) => {
   }
 
   try {
+    query += ' LIMIT ? OFFSET ?';
+    params.push(limit, offset);
     const [cakes] = await db.execute(query, params);
       const normalizedCakes = cakes.map((cake) => ({
         ...cake,
