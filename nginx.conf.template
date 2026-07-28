@@ -1,0 +1,159 @@
+# Rate limiting zone
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=general_limit:10m rate=30r/s;
+
+server {
+  listen 80;
+  server_name _;
+
+  # ============================================================
+  # BLOQUEO DE MÉTODOS HTTP PELIGROSOS A NIVEL DE NGINX
+  # ============================================================
+  # Rechazar explícitamente métodos inseguros y sospechosos
+  if ($request_method ~* ^(TRACE|PUT|DELETE|PATCH)$) {
+    return 403;
+  }
+
+  # Solo permitir: GET, POST, HEAD, OPTIONS
+  if ($request_method !~ ^(GET|POST|HEAD|OPTIONS)$) {
+    return 405;
+  }
+
+  set_real_ip_from 10.0.0.0/8;
+  set_real_ip_from 172.16.0.0/12;
+  set_real_ip_from 192.168.0.0/16;
+  real_ip_header X-Forwarded-For;
+
+  # Security Headers
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+  add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; form-action 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://snitch-wing-riddance.ngrok-free.dev; object-src 'none'; frame-ancestors 'none';" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-XSS-Protection "1; mode=block" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+  # Ocultar completamente header Server
+  server_tokens off;
+  proxy_hide_header Server;
+
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # Bloquear rutas comunes de ataque
+  location ~ ^/(admin|wp-admin|wp-login|phpmyadmin|cpanel|dashboard|login|\.env|\.git|backup|config|sql|swagger|docs|temp|logs|debug|test|backoffice|moderator|superuser|root|manage|control|panel|package(\.json)?) {
+    return 404;
+  }
+
+  # Bloquear archivos y directorios expuestos por fuzzing
+  location ~* ^/(robots\.txt|crossdomain\.xml|clientaccesspolicy\.xml|phpmyadmin|phpMyAdmin|vendor|node_modules|yarn\.lock|Dockerfile|docker-compose\.yml|nginx\.conf|web\.config|package\.json|package-lock\.json)(/|$) {
+    return 404;
+  }
+
+  # Bloquear rutas de fuzzing de directorios que no deben exponerse
+  location ~ ^/(old|dev|info|cgi-bin|mail|webmail)(/|$) {
+    return 404;
+  }
+
+  # Bloquear acceso a archivos sensibles
+  location ~ /\.(?!well-known).* {
+    return 404;
+  }
+
+  # Bloquear extensiones de archivos sospechosos
+  location ~ \.(zip|tar|gz|rar|bz2|7z|sql|php|phtml|php3|php4|php5|phps|jsp|asp|aspx|cgi|pl|py|rb|sh|bash|zsh|csh|tcsh|ksh|bat|cmd|exe|dll|so|dylib|bin|deb|rpm|dmg|iso|img|vmdk|ova|ovf|qcow2|vdi|map)$ {
+    return 404;
+  }
+
+  # Servir assets estáticos directamente sin bloquear referer
+  location ~ \.(css|js|json|svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot)$ {
+    try_files $uri =404;
+
+    # Agregar headers de seguridad para assets
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+
+    # Headers adicionales para dificultar robo de código
+    add_header X-Robots-Tag "noindex, nofollow, nosnippet, noarchive" always;
+  }
+
+  # Denegar acceso directo a archivos multimedia sensibles en `public` y `dist`
+  location ~* ^/(public|dist)/.*\.(mp4|mov|webm|mkv)$ {
+    return 403;
+  }
+
+  # Redirect HTTP forwarded through proxy to HTTPS
+  if ($http_x_forwarded_proto = "http") {
+    return 301 https://$host$request_uri;
+  }
+
+  # Proxy para servir medios protegidos vía backend (requiere validación)
+  location /protected-media/ {
+    proxy_pass ${BACKEND_URL}/protected-media/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header ngrok-skip-browser-warning "true";
+    proxy_hide_header Server;
+    proxy_hide_header ngrok-agent-ips;
+  }
+
+  location / {
+    # Rate limiting general
+    limit_req zone=general_limit burst=50 nodelay;
+
+    try_files $uri $uri/ /index.html =404;
+  }
+
+  # Manejo de rutas inexistentes (corregir soft 404)
+  location ~ ^/api/ {
+    # Rate limiting para API
+    limit_req zone=api_limit burst=20 nodelay;
+    
+    proxy_pass ${BACKEND_URL};
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 3600s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header ngrok-skip-browser-warning "true";
+    proxy_hide_header Server;
+    proxy_hide_header ngrok-agent-ips;
+
+    # Security headers para API
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; form-action 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://snitch-wing-riddance.ngrok-free.dev; object-src 'none'; frame-ancestors 'none';" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    # Manejo de errores del backend - devolver 404 para rutas inexistentes
+    proxy_intercept_errors off;
+  }
+
+  location /uploads/ {
+    # Rate limiting para uploads
+    limit_req zone=general_limit burst=10 nodelay;
+    
+    proxy_pass ${BACKEND_URL}/uploads/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header ngrok-skip-browser-warning "true";
+    proxy_hide_header Server;
+    proxy_hide_header ngrok-agent-ips;
+
+    # Security headers para uploads
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; form-action 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://snitch-wing-riddance.ngrok-free.dev; object-src 'none'; frame-ancestors 'none';" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    proxy_intercept_errors on;
+    error_page 500 502 503 504 =404 /404.html;
+  }
+}
