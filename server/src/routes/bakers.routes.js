@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bakersController = require('../controllers/bakers.controller');
 const { authMiddleware, authorize } = require('../middleware/auth');
-const { bakersLimiter } = require('../middleware/rateLimiter');
+const { bakersLimiter, readLimiter, writeLimiter } = require('../middleware/rateLimiter');
 const upload = require('../middleware/upload');
 const { uploadWithSignatureCheck } = require('../middleware/upload');
 const { body, param, query } = require('express-validator');
@@ -116,6 +116,7 @@ router.get('/',
 // ============================================================
 
 router.get('/stats',
+  readLimiter,
   authMiddleware,
   authorize('repostero'),
   validateAllParameters,
@@ -124,6 +125,7 @@ router.get('/stats',
 );
 
 router.get('/appointments',
+  readLimiter,
   authMiddleware,
   authorize('repostero', 'admin'),
   validateAllParameters,
@@ -133,6 +135,7 @@ router.get('/appointments',
 );
 
 router.put('/appointments/:id/status',
+  writeLimiter,
   authMiddleware,
   authorize('repostero'),
   validateAllParameters,
@@ -142,6 +145,7 @@ router.put('/appointments/:id/status',
 );
 
 router.get('/cakes',
+  readLimiter,
   authMiddleware,
   authorize('repostero'),
   validateAllParameters,
@@ -151,6 +155,7 @@ router.get('/cakes',
 );
 
 router.post('/cakes',
+  writeLimiter,
   authMiddleware,
   authorize('repostero'),
   uploadWithSignatureCheck('image'),
@@ -161,6 +166,7 @@ router.post('/cakes',
 );
 
 router.put('/cakes/:id',
+  writeLimiter,
   authMiddleware,
   authorize('repostero'),
   uploadWithSignatureCheck('image'),
@@ -171,6 +177,7 @@ router.put('/cakes/:id',
 );
 
 router.delete('/cakes/:id',
+  writeLimiter,
   authMiddleware,
   authorize('repostero'),
   validateAllParameters,
@@ -180,6 +187,7 @@ router.delete('/cakes/:id',
 );
 
 router.get('/profile/me',
+  readLimiter,
   authMiddleware,
   authorize('repostero'),
   validateAllParameters,
@@ -188,6 +196,7 @@ router.get('/profile/me',
 );
 
 router.put('/profile',
+  writeLimiter,
   authMiddleware,
   authorize('repostero'),
   validateAllParameters,

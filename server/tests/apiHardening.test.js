@@ -37,7 +37,7 @@ test('rejects oversized or overstuffed parameter payloads before routes', () => 
   assert.equal(res.statusCode, 400);
   assert.equal(nextCalled, false);
   assert.equal(res.payload.success, false);
-  assert.equal(res.payload.error_code, 'PARAMETER_FUZZING_BLOCKED');
+  assert.equal(res.payload.error_code, 'REQUEST_BLOCKED');
 });
 
 test('returns a uniform error payload for API failures', () => {
@@ -51,5 +51,5 @@ test('returns a uniform error payload for API failures', () => {
   assert.equal(res.statusCode, 500);
   assert.equal(res.payload.success, false);
   assert.equal(res.payload.error_code, 'INTERNAL_SERVER_ERROR');
-  assert.equal(res.payload.message, 'boom');
+  assert.equal(res.payload.message, 'Error interno del servidor.');
 });

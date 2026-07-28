@@ -254,19 +254,14 @@ app.use('/api', (req, res, next) => {
     const rawInput = JSON.stringify(req.body || {}) + JSON.stringify(req.query || {}) + JSON.stringify(req.params || {});
     if (suspiciousPatterns.some((pattern) => pattern.test(rawInput))) {
       console.log(`[SECURITY] Bloqueo preventivo de mutación maliciosa en ${req.originalUrl}`);
-      return res.status(400).json({ success: false, error_code: 'MALICIOUS_MUTATION_BLOCKED', message: 'Operación bloqueada por seguridad' });
+        return res.status(400).json({ success: false, error_code: 'REQUEST_BLOCKED', message: 'Solicitud inválida.' });
+      }
     }
-  }
 
-  for (const paramName of suspiciousRedirectParams) {
-    const value = req.query?.[paramName] || req.body?.[paramName];
-    if (typeof value === 'string' && /^(https?:)?\/\//i.test(value)) {
-      return res.status(400).json({ success: false, error_code: 'OPEN_REDIRECT_BLOCKED', message: 'Redirección externa bloqueada' });
-    }
-  }
-
-  next();
-});
+    for (const paramName of suspiciousRedirectParams) {
+      const value = req.query?.[paramName] || req.body?.[paramName];
+      if (typeof value === 'string' && /^(https?:)?\/\//i.test(value)) {
+        return res.status(400).json({ success: false, error_code: 'REQUEST_BLOCKED', message: 'Solicitud inválida.' });
 
 // ============================================================
 // BLOQUEO DE MÉTODOS HTTP PELIGROSOS Y DETECCIÓN DE SQLi

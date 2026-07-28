@@ -52,6 +52,6 @@ const validateCakeId = [
 // ============================================================
 
 router.get('/', readLimiter, validateAllParameters, validateCakesQuery, handleValidationErrors, cakesController.getAll);
-router.get('/:id', validateAllParameters, validateCakeId, handleValidationErrors, cakesController.getById);
+router.get('/:id', readLimiter, validateAllParameters, validateCakeId, handleValidationErrors, cakesController.getById);
 
 module.exports = router;

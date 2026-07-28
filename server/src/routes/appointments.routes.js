@@ -77,7 +77,9 @@ router.post('/guest',
 );
 
 // Ruta pública para verificar disponibilidad de un repostero
+const { readLimiter } = require('../middleware/rateLimiter');
 router.get('/baker/:baker_id/date/:date',
+  readLimiter,
   validateAllParameters,
   validateBakerId,
   validateDate,
