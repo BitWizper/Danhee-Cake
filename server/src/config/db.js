@@ -58,9 +58,22 @@ const isDockerRuntime = fs.existsSync('/.dockerenv');
 const shouldUseLocalDb = process.env.DB_USE_LOCAL_DB === 'true' || process.env.DB_USE_LOCAL_DB === '1';
 const hasCleverCloudCredentials = process.env.DB_HOST && 
                                    (process.env.DB_HOST.includes('clever-cloud.com') || process.env.DB_HOST.includes('clever-cloud'));
-const config = shouldUseLocalDb ? localDbConfig : (hasCleverCloudCredentials ? cleverCloudConfig : localDbConfig);
 
-console.log(`🔗 Usando configuración: ${shouldUseLocalDb ? 'Base de datos local (Docker)' : (hasCleverCloudCredentials ? 'Clever Cloud' : 'Base de datos local (Docker)')}`);
+let config;
+let useCleverCloud = false;
+
+if (shouldUseLocalDb) {
+  config = localDbConfig;
+  console.log('🔗 Usando configuración: Base de datos local (Docker) - Forzado por DB_USE_LOCAL_DB');
+} else if (hasCleverCloudCredentials) {
+  config = cleverCloudConfig;
+  useCleverCloud = true;
+  console.log('🔗 Usando configuración: Clever Cloud - Detectado DB_HOST con clever-cloud');
+} else {
+  config = localDbConfig;
+  console.log('🔗 Usando configuración: Base de datos local (Docker) - Sin credenciales Clever Cloud');
+}
+
 console.log(`📍 DB_HOST usado en conexión: ${config.host}`);
 console.log(`📦 DB_NAME usado en conexión: ${config.database}`);
 console.log(`👤 DB_USER usado en conexión: ${config.user}`);
@@ -223,24 +236,70 @@ const getConnectionInfo = () => {
   };
 };
 
-// Test de conexión
-pool.getConnection()
-  .then(conn => {
-    console.log(`✅  MySQL conectado – ${hasCleverCloudCredentials ? 'Clever Cloud' : 'Base de datos local'}`);
+// Test de conexión con fallback automático
+let actualPool = pool;
+let fallbackAttempted = false;
+
+const testConnection = async (poolInstance, poolName) => {
+  try {
+    const conn = await poolInstance.getConnection();
+    console.log(`✅  MySQL conectado – ${poolName}`);
     console.log('🔒  Seguridad de base de datos activa:');
     console.log('   - SSL/TLS habilitado (encriptación activa)');
     console.log('   - Múltiples sentencias deshabilitadas');
     console.log('   - Validación de queries activa');
     console.log('   - Detección de patrones sospechosos activa');
-    if (hasCleverCloudCredentials) {
+    if (poolName === 'Clever Cloud') {
       console.log('   - Certificado Clever Cloud aceptado (rejectUnauthorized: false)');
     }
     conn.release();
-  })
-  .catch(err => {
-    console.error('❌  Error de conexión MySQL:', err.message);
-    console.error('⚠️  El servidor continuará ejecutándose pero la base de datos no estará disponible');
-  });
+    return true;
+  } catch (err) {
+    console.error(`❌  Error de conexión MySQL (${poolName}):`, err.message);
+    return false;
+  }
+};
+
+const initializeConnection = async () => {
+  // Si estamos usando Clever Cloud, probar conexión primero
+  if (useCleverCloud) {
+    const cleverCloudConnected = await testConnection(pool, 'Clever Cloud');
+    
+    if (!cleverCloudConnected && !fallbackAttempted) {
+      console.log('🔄 Clever Cloud falló. Intentando fallback a base de datos local...');
+      fallbackAttempted = true;
+      
+      try {
+        // Crear pool local
+        actualPool = mysql2.createPool(localDbConfig);
+        const localConnected = await testConnection(actualPool, 'Base de datos local (Docker) - Fallback');
+        
+        if (localConnected) {
+          console.log('✅ Fallback exitoso: usando base de datos local');
+          // Reemplazar el pool exportado
+          module.exports = actualPool;
+          module.exports.safeExecute = safeExecute;
+          module.exports.safeQuery = safeQuery;
+          module.exports.getConnectionInfo = getConnectionInfo;
+          module.exports.validateTableName = validateTableName;
+          module.exports.validateColumnName = validateColumnName;
+        } else {
+          console.error('❌ Fallback falló: no se pudo conectar a ninguna base de datos');
+        }
+      } catch (fallbackErr) {
+        console.error('❌ Error al crear pool de fallback:', fallbackErr.message);
+      }
+    }
+  } else {
+    // Si no es Clever Cloud, solo probar conexión local
+    await testConnection(pool, 'Base de datos local (Docker)');
+  }
+};
+
+initializeConnection().catch(err => {
+  console.error('❌ Error fatal en inicialización de base de datos:', err.message);
+  console.error('⚠️  El servidor continuará ejecutándose pero la base de datos no estará disponible');
+});
 
 // Exportar pool y wrappers seguros
 module.exports = pool;
