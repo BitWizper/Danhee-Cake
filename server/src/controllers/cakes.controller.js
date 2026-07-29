@@ -1,14 +1,33 @@
 const db = require('../config/db');
 const { sanitizeString, validateNumber } = require('../middleware/inputValidator');
+const crypto = require('crypto');
 
 const normalizeImageUrl = (imageUrl) => {
   if (!imageUrl) return imageUrl;
-  if (imageUrl.startsWith('/uploads/')) return imageUrl;
-  if (imageUrl.includes('/uploads/')) {
-    const filename = imageUrl.split('/uploads/').pop();
-    return `/uploads/${filename}`;
+  
+  // Si ya es una URL completa (http/https), retornarla tal cual
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl;
   }
-  return imageUrl;
+  
+  // Si es una ruta relativa de uploads, construir URL segura con token temporal
+  let filename = imageUrl;
+  if (imageUrl.includes('/uploads/')) {
+    filename = imageUrl.split('/uploads/').pop();
+  } else if (imageUrl.startsWith('/uploads/')) {
+    filename = imageUrl.replace('/uploads/', '');
+  }
+  
+  // Generar token temporal firmado para acceso seguro a la imagen
+  const timestamp = Date.now() + (3600 * 1000); // Token válido por 1 hora
+  const tokenData = `${filename}|${timestamp}`;
+  const signature = crypto
+    .createHmac('sha256', process.env.JWT_SECRET || 'default-secret')
+    .update(tokenData)
+    .digest('hex');
+  
+  // Retornar URL relativa que el frontend completará con su API base
+  return `/api/images/${filename}?token=${signature}&expires=${timestamp}`;
 };
 
 const buildCakeForClient = (cake) => ({

@@ -83,7 +83,7 @@ const FeaturedCakes = () => {
                 {/* Visual del pastel */}
                 <div className="cake-card__visual" style={{ background: 'var(--color-surface-2)' }}>
                   {cake.image_url ? (
-                    <img src={cake.image_url} alt={cake.name} className="cake-card__img" />
+                    <img src={getApiUrl(cake.image_url)} alt={cake.name} className="cake-card__img" />
                   ) : (
                     <span className="cake-card__emoji">🎂</span>
                   )}

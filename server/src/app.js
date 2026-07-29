@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 // Importar middlewares de seguridad
 const { securityLogger, getSecurityStats } = require('./middleware/securityLogger');
@@ -254,7 +255,84 @@ app.use('/api/auth/register', bruteForceProtection);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-app.use('/uploads', express.static('uploads'));
+// Endpoint seguro para servir imágenes con token temporal
+app.get('/api/images/:filename', (req, res) => {
+  const { filename } = req.params;
+  const { token, expires } = req.query;
+  
+  // Validar parámetros
+  if (!filename || !token || !expires) {
+    return res.status(400).json({ success: false, message: 'Parámetros inválidos' });
+  }
+  
+  // Validar que el token no haya expirado
+  const currentTime = Date.now();
+  if (parseInt(expires) < currentTime) {
+    return res.status(403).json({ success: false, message: 'Token expirado' });
+  }
+  
+  // Validar la firma del token
+  const tokenData = `${filename}|${expires}`;
+  const expectedSignature = crypto
+    .createHmac('sha256', process.env.JWT_SECRET || 'default-secret')
+    .update(tokenData)
+    .digest('hex');
+  
+  if (token !== expectedSignature) {
+    console.warn('[Security] Token inválido para imagen:', filename);
+    return res.status(403).json({ success: false, message: 'Token inválido' });
+  }
+  
+  // Validar el nombre del archivo para prevenir path traversal
+  const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '');
+  if (sanitizedFilename !== filename) {
+    return res.status(400).json({ success: false, message: 'Nombre de archivo inválido' });
+  }
+  
+  // Construir ruta segura del archivo
+  const filePath = path.join(__dirname, '..', 'uploads', sanitizedFilename);
+  
+  // Verificar que el archivo existe y está dentro del directorio uploads
+  const uploadsDir = path.join(__dirname, '..', 'uploads');
+  if (!filePath.startsWith(uploadsDir)) {
+    return res.status(403).json({ success: false, message: 'Acceso denegado' });
+  }
+  
+  // Servir el archivo si existe
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      return res.status(404).json({ success: false, message: 'Imagen no encontrada' });
+    }
+    
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        console.error('[Images] Error sirviendo imagen:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ success: false, message: 'Error al servir imagen' });
+        }
+      }
+    });
+  });
+});
+
+// Mantener el endpoint estático para compatibilidad, pero con restricciones
+app.use('/uploads', (req, res, next) => {
+  // Solo permitir acceso si viene del mismo origen (prevenir hotlinking externo)
+  const origin = req.headers.origin || req.headers.referer;
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://danhee-cake.vercel.app',
+    process.env.FRONTEND_URL
+  ].filter(Boolean);
+  
+  // Si no hay origin/referer o no está en la lista permitida, bloquear
+  if (!origin || !allowedOrigins.some(allowed => origin.includes(allowed.replace(/^https?:\/\//, '')))) {
+    return res.status(403).json({ success: false, message: 'Acceso no autorizado' });
+  }
+  
+  next();
+}, express.static('uploads'));
 
 // Ruta para servir medios protegidos (p.ej. videos) desde `public` o `dist`.
 // Requiere `X-MEDIA-KEY` header o query `?key=` con valor en env `MEDIA_KEY`,
