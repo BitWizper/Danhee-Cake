@@ -18,7 +18,12 @@ const buildCakeForClient = (cake) => ({
   image_url: normalizeImageUrl(cake.image_url),
   is_featured: cake.is_featured,
   baker_id: cake.baker_id,
-  baker_business_name: cake.business_name
+  user_id: cake.user_id,
+  business_name: cake.business_name,
+  location: cake.location,
+  price: cake.price,
+  rating: cake.rating || 0,
+  reviews_count: cake.reviews_count || 0
 });
 
 const buildCakeForPrivilegedUser = (cake) => ({
@@ -59,7 +64,7 @@ exports.getAll = async (req, res, next) => {
   const sanitizedFeatured = sanitizeString(featured, 10);
   
   let query = `
-    SELECT c.*, b.business_name, b.location, cat.name as category_name 
+    SELECT c.*, b.business_name, b.location, b.user_id, cat.name as category_name 
     FROM cakes c
     JOIN baker_profiles b ON c.baker_id = b.id
     LEFT JOIN categories cat ON c.category_id = cat.id
@@ -115,7 +120,7 @@ exports.getById = async (req, res, next) => {
   
   try {
     const [cakes] = await db.execute(`
-      SELECT c.*, b.business_name, b.location, b.bio, cat.name as category_name
+      SELECT c.*, b.business_name, b.location, b.bio, b.user_id, cat.name as category_name
       FROM cakes c
       JOIN baker_profiles b ON c.baker_id = b.id
       LEFT JOIN categories cat ON c.category_id = cat.id
