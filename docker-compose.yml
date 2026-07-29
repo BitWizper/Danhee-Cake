@@ -1,14 +1,4 @@
-version: '3.8'
-
 services:
-  frontend:
-    build: .
-    ports:
-      - "3000:80"
-    restart: always
-    networks:
-      - app-network
-
   backend:
     build: ./server
     ports:
@@ -18,7 +8,7 @@ services:
       - PORT=5000
       - NODE_ENV=production
       - START_RAG=true
-      - JWT_SECRET=${JWT_SECRET:-}
+      - JWT_SECRET=${JWT_SECRET:-default_secret_change_in_production}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       # Si se quiere forzar la base local en Docker, establecer DB_USE_LOCAL_DB=true.
       - LOCAL_DB_NAME=${LOCAL_DB_NAME:-danhee_db}
@@ -26,11 +16,11 @@ services:
       - LOCAL_DB_PASSWORD=${LOCAL_DB_PASSWORD:-password}
       # Si te conectas a Ollama localmente, usa esta variable:
       - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
-      - DB_HOST=${DB_HOST:-}
+      - DB_HOST=${DB_HOST:-database}
       - DB_PORT=${DB_PORT:-3306}
-      - DB_NAME=${DB_NAME:-}
-      - DB_USER=${DB_USER:-}
-      - DB_PASSWORD=${DB_PASSWORD:-}
+      - DB_NAME=${DB_NAME:-danhee_db}
+      - DB_USER=${DB_USER:-usuario}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
     volumes:
       - ./server:/app
       - /app/node_modules
@@ -39,7 +29,6 @@ services:
     restart: always
     depends_on:
       - database
-      - frontend
     networks:
       - app-network
     extra_hosts:
@@ -63,23 +52,13 @@ services:
       - app-network
     command: --default-authentication-plugin=mysql_native_password --ssl=0
 
-  ngrok_tunnel:
-    image: ngrok/ngrok:latest
-    container_name: ngrok_tunnel
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared_tunnel
     restart: always
-    command:
-      - "http"
-      - "--url=retying-subsidize-subatomic.ngrok-free.dev"
-      - "frontend:80"
-      - "--log=stdout"
-    environment:
-<<<<<<< HEAD
-      NGROK_AUTHTOKEN: "3H9MftP2KTQ4kFS6LEOtw9cEXTl_3HqDAiMuFe6jTWSsRB3aJ"
-=======
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
->>>>>>> 7998c61f590e6011bb5c4d967d0649f5e6f2397b
+    command: tunnel --url http://backend:5000
     depends_on:
-      - frontend
+      - backend
     networks:
       - app-network
 
