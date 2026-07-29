@@ -11,19 +11,22 @@ export default defineConfig({
   },
   build: {
     sourcemap: false,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-      mangle: true,
+    minify: 'esbuild',
+    esbuild: {
+      drop: ['debugger'],
+      pure: ['console.log'],
     },
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            return 'vendor';
+            const directories = id.toString().split('node_modules/')[1].split('/');
+            let pkg = directories[0];
+            if (pkg.startsWith('@')) {
+              pkg = `${pkg}/${directories[1]}`;
+            }
+            return pkg.replace('/', '_');
           }
         }
       }
