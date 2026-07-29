@@ -24,11 +24,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Python (Entorno virtual y caché)
-.venv/
-__pycache__/
-*.pyc
-
 # ChromaDB (Base de datos de vectores local)
 server/rag/chroma/chroma.sqlite3
 server/rag/chroma/

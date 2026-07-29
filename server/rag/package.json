@@ -1,0 +1,26 @@
+{
+  "name": "danhee-rag-js",
+  "version": "1.0.0",
+  "description": "Microservicio RAG de Danhee Cake en JavaScript/Node.js",
+  "main": "app.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "keywords": ["rag", "chatbot", "danhee", "cake"],
+  "author": "Danhee",
+  "license": "ISC",
+  "dependencies": {
+    "chromadb": "^1.8.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mysql2": "^3.22.2",
+    "ollama": "^0.5.0",
+    "pdf-parse": "^1.1.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
