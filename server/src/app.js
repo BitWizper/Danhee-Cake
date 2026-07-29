@@ -4,6 +4,14 @@ const helmet = require('helmet');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+
+// Importar middlewares de seguridad
+const { securityLogger, getSecurityStats } = require('./middleware/securityLogger');
+const { fileUploadValidator } = require('./middleware/fileUploadValidator');
+const { ipRateLimiter, apiRateLimiter, getRateLimitStats } = require('./middleware/ipRateLimiter');
+const { bruteForceProtection, loginBruteForceProtection, getBruteForceStats } = require('./middleware/bruteForceProtection');
+const { inputSanitizer } = require('./middleware/inputSanitizer');
+const httpsEnforcer = require('./middleware/httpsEnforcer');
 let rootPackage = {};
 try {
   rootPackage = require(path.join(__dirname, '..', 'package.json'));
@@ -66,6 +74,21 @@ app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 
 // Bloquear accesos sensibles y manejar OPTIONS de forma temprana
 app.use(requestGuard);
+
+// Forzar HTTPS en producción
+app.use(httpsEnforcer);
+
+// Logging de seguridad
+app.use(securityLogger);
+
+// Rate limiting por IP (global)
+app.use(ipRateLimiter({
+  windowMs: 60 * 1000, // 1 minuto
+  maxRequests: 100 // 100 solicitudes por minuto
+}));
+
+// Sanitización de inputs
+app.use(inputSanitizer({ strict: true }));
 
 // Security headers con Helmet
 app.use(helmet({
@@ -227,6 +250,10 @@ const sanitizeQueryParams = (req, res, next) => {
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', registerLimiter);
 
+// Brute force protection para auth
+app.use('/api/auth/login', loginBruteForceProtection);
+app.use('/api/auth/register', bruteForceProtection);
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
@@ -350,6 +377,31 @@ app.post('/api/chat/stream', clientChatGuard, streamChatbot);
 // Ruta base
 app.get('/', (req, res) => {
   res.json({ message: 'Bienvenido a la API de Danhee' });
+});
+
+// Endpoint de estadísticas de seguridad (solo para administradores autenticados)
+app.get('/api/admin/security-stats', authMiddleware, authorize(['admin']), (req, res) => {
+  try {
+    const securityStats = getSecurityStats();
+    const rateLimitStats = getRateLimitStats();
+    const bruteForceStats = getBruteForceStats();
+    
+    res.json({
+      success: true,
+      data: {
+        security: securityStats,
+        rateLimiting: rateLimitStats,
+        bruteForce: bruteForceStats,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching security stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching security statistics'
+    });
+  }
 });
 
 app.get('/health', (req, res) => {

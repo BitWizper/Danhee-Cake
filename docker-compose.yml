@@ -8,7 +8,7 @@ services:
       - PORT=5000
       - NODE_ENV=production
       - START_RAG=true
-      - JWT_SECRET=${JWT_SECRET:-default_secret_change_in_production}
+      - JWT_SECRET=${JWT_SECRET:-d40af9264936dd8e2a1e2ddc3393be08aeb64b0f55c2cc873929f88d107f0b7927759c7bda083c5c055e949da18df355ebf89c9024c91b3fb6bde63bc0cac884}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       # Si se quiere forzar la base local en Docker, establecer DB_USE_LOCAL_DB=true.
       - LOCAL_DB_NAME=${LOCAL_DB_NAME:-danhee_db}
@@ -37,7 +37,7 @@ services:
   database:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cbd4373f5df5781a670f7b53064828d1ef452cea3bd8c410ee67d35a3a886d9c1253dc9f09e6d346ae1dc9705a69a5561e75e6653e3285c3dd22823df0c68969}
       MYSQL_DATABASE: ${LOCAL_DB_NAME:-danhee_db}
       MYSQL_USER: ${LOCAL_DB_USER:-usuario}
       MYSQL_PASSWORD: ${LOCAL_DB_PASSWORD:-password}
@@ -56,16 +56,35 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared_tunnel
     restart: always
-    command: tunnel --url http://backend:5000
+    command: tunnel --url http://backend:5000 --http-host-header=backend:5000
+    environment:
+      - TUNNEL_CREDENTIAL_FILE=/root/.cloudflared/${TUNNEL_ID}.json
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
     depends_on:
       - backend
     networks:
       - app-network
 
+  backup:
+    image: mysql:8.0
+    container_name: database_backup
+    restart: "no"
+    volumes:
+      - ./scripts/backup-database.sh:/backup-database.sh:ro
+      - db_backups:/backups
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-cbd4373f5df5781a670f7b53064828d1ef452cea3bd8c410ee67d35a3a886d9c1253dc9f09e6d346ae1dc9705a69a5561e75e6653e3285c3dd22823df0c68969}
+    depends_on:
+      - database
+    networks:
+      - app-network
+    entrypoint: ["/bin/sh", "-c", "chmod +x /backup-database.sh && /backup-database.sh"]
+
 # Volumen definido para la persistencia de datos
 volumes:
   db_data:
   server_node_modules:
+  db_backups:
 
 # Red personalizada para comunicación entre servicios
 networks:

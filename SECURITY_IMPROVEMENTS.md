@@ -1,8 +1,87 @@
-# 🔒 Mejoras de Seguridad Frontend - Danhee Cake
+# 🔒 Mejoras de Seguridad Completas - Danhee Cake
 
-## Resumen de Mejoras Implementadas
+## Resumen de Mejoras Implementadas (2026-07-28)
 
-Se han implementado múltiples capas de protección contra vulnerabilidades OWASP Top 10 en el frontend del chatbot y la página del diseñador de pasteles.
+Se han implementado múltiples capas de protección contra vulnerabilidades OWASP Top 10 en frontend y backend, incluyendo nuevas medidas de seguridad críticas.
+
+---
+
+## 🆕 Nuevas Mejoras de Seguridad (Backend)
+
+### 1. **Secretos Seguros** ✅
+- JWT_SECRET generado con crypto.randomBytes (128 caracteres hex)
+- MYSQL_ROOT_PASSWORD generado con crypto.randomBytes (128 caracteres hex)
+- Eliminados valores por defecto inseguros
+
+### 2. **Sistema de Logging de Seguridad** ✅
+- **Archivo:** `server/src/middleware/securityLogger.js`
+- Logging centralizado de intentos de ataque
+- Niveles de severidad: LOW, MEDIUM, HIGH, CRITICAL
+- Tipos de eventos: SQL_INJECTION, XSS_ATTEMPT, NOSQL_INJECTION, AUTH_FAILURE, BRUTE_FORCE, RATE_LIMIT, etc.
+- Logs persistentes en `server/logs/security.log`
+- Endpoint de estadísticas: `/api/admin/security-stats`
+
+### 3. **Validación de Archivos Subidos** ✅
+- **Archivo:** `server/src/middleware/fileUploadValidator.js`
+- Validación de tipos MIME reales (firmas de archivos)
+- Validación de extensiones (whitelist)
+- Límite de tamaño: 5MB máximo
+- Detección de extensiones peligrosas (.exe, .bat, .php, etc.)
+- Validación de nombres de archivos (path traversal)
+- Soporte para múltiples archivos
+
+### 4. **Rate Limiting por IP** ✅
+- **Archivo:** `server/src/middleware/ipRateLimiter.js`
+- Límite global: 100 solicitudes por minuto por IP
+- Límite estricto: 10 solicitudes por minuto
+- Límite de auth: 5 intentos por 15 minutos
+- Bloqueo automático de IPs por 5 minutos
+- Headers informativos: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
+- Limpieza automática de entradas antiguas
+
+### 5. **Protección contra Brute Force** ✅
+- **Archivo:** `server/src/middleware/bruteForceProtection.js`
+- Bloqueo después de 5 intentos fallidos
+- Bloqueo por 15 minutos
+- Tracking de intentos por IP
+- Logging de ataques de brute force
+- Reset automático en login exitoso
+- Protección específica para login y registro
+
+### 6. **Sanitización de Inputs** ✅
+- **Archivo:** `server/src/middleware/inputSanitizer.js`
+- Validación de longitud de campos por tipo
+- Validación de patrones (email, phone, username)
+- Detección de contenido sospechoso (XSS, SQLi, path traversal)
+- Sanitización de strings (eliminación de caracteres de control)
+- Validación recursiva de objetos anidados
+- Modo estricto configurable
+
+### 7. **Forzado de HTTPS** ✅
+- **Archivo:** `server/src/middleware/httpsEnforcer.js`
+- Redirección automática HTTP → HTTPS en producción
+- Exclusión para localhost
+- Header HSTS con preload
+
+### 8. **Autenticación de Cloudflare Tunnel** ✅
+- Configuración de TUNNEL_TOKEN en docker-compose.yml
+- Soporte para túneles nombrados con credenciales
+- Mejor control de acceso al tunnel
+
+### 9. **Backup Automático de Base de Datos** ✅
+- **Archivo:** `scripts/backup-database.sh`
+- Servicio de backup en docker-compose.yml
+- Compresión gzip de backups
+- Retención de 7 días
+- Limpieza automática de backups antiguos
+- Volumen dedicado para backups
+
+### 10. **Endpoint de Estadísticas de Seguridad** ✅
+- Ruta: `/api/admin/security-stats`
+- Requiere autenticación admin
+- Estadísticas de seguridad, rate limiting, y brute force
+- Top IPs ofensoras
+- Timestamp de última actualización
 
 ---
 
