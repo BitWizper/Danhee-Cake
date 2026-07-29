@@ -1,9 +1,11 @@
 /**
  * customer-agent.js — Agente especializado para clientes de Danhee Cake.
  * Versión JavaScript/Node.js equivalente a customer_agent.py
+ * Migrado a LangChain.js
  */
 
-const ollama = require('ollama');
+const { ChatOllama } = require("@langchain/community/chat_models/ollama");
+const { HumanMessage, SystemMessage, AIMessage } = require("@langchain/core/messages");
 const db = require('../db-config');
 const { 
     getCachedResponse, setCachedResponse, shouldSkipRag, shouldUseTools,
@@ -16,6 +18,15 @@ class CustomerAgent {
     constructor(ragAgent = null) {
         this.ragAgent = ragAgent;
         this.systemPrompt = this.buildSystemPrompt();
+        
+        // Inicializar ChatOllama con LangChain
+        this.llm = new ChatOllama({
+            model: "llama3.1",
+            temperature: 0.7,
+            numPredict: 2048,
+            topK: 40,
+            topP: 0.9
+        });
     }
 
     buildSystemPrompt() {
@@ -89,18 +100,31 @@ class CustomerAgent {
             messages[messages.length - 1].content = `Contexto relevante:\n${context}\n\nPregunta del usuario: ${userMessage}`;
         }
 
-        const options = getOllamaOptionsCliente();
+        // Convertir mensajes a formato LangChain
+        const langchainMessages = [
+            new SystemMessage(this.systemPrompt),
+            ...chatHistory.map(msg => {
+                if (msg.role === 'user') return new HumanMessage(msg.content);
+                if (msg.role === 'assistant') return new AIMessage(msg.content);
+                return new HumanMessage(msg.content);
+            }),
+            new HumanMessage(context ? `Contexto relevante:\n${context}\n\nPregunta del usuario: ${userMessage}` : userMessage)
+        ];
+
         let responseText = '';
         let ttftMs = 0;
         let startTime = Date.now();
 
         try {
             if (useTools) {
+                // Usar LangChain con tools (manteniendo compatibilidad con estructura existente)
+                // Por ahora, usamos el cliente directo para tools ya que LangChain tools requiere más configuración
+                const ollama = require('ollama');
                 const toolResponse = await ollama.chat({
                     model: 'llama3.1',
                     messages,
                     tools: TOOLS_SCHEMA,
-                    options,
+                    options: getOllamaOptionsCliente(),
                     stream: false
                 });
 
@@ -126,7 +150,7 @@ class CustomerAgent {
                     const finalResponse = await ollama.chat({
                         model: 'llama3.1',
                         messages,
-                        options,
+                        options: getOllamaOptionsCliente(),
                         stream: false
                     });
 
@@ -135,20 +159,29 @@ class CustomerAgent {
                     responseText = toolResponse.message.content;
                 }
             } else {
-                const response = await ollama.chat({
-                    model: 'llama3.1',
-                    messages,
-                    options,
-                    stream: false
-                });
-                responseText = response.message.content;
+                // Usar LangChain ChatOllama para respuestas sin tools
+                const response = await this.llm.invoke(langchainMessages);
+                responseText = response.content;
             }
 
             ttftMs = Date.now() - startTime;
 
         } catch (e) {
-            console.error(`[CustomerAgent] Error en Ollama: ${e.message}`);
-            responseText = 'Lo siento, hubo un error al procesar tu mensaje. Por favor intenta de nuevo.';
+            console.error(`[CustomerAgent] Error en LangChain/Ollama: ${e.message}`);
+            // Fallback a cliente directo
+            try {
+                const ollama = require('ollama');
+                const response = await ollama.chat({
+                    model: 'llama3.1',
+                    messages,
+                    options: getOllamaOptionsCliente(),
+                    stream: false
+                });
+                responseText = response.message.content;
+            } catch (fallbackError) {
+                console.error(`[CustomerAgent] Error en fallback: ${fallbackError.message}`);
+                responseText = 'Lo siento, hubo un error al procesar tu mensaje. Por favor intenta de nuevo.';
+            }
         }
 
         const filteredResponse = this.filterAlucinatoryResponse(responseText, userMessage);
@@ -225,22 +258,26 @@ class CustomerAgent {
         await db.getOrCreateChatSession(conversationId, clientId);
         const chatHistory = await db.getChatHistory(conversationId, this.systemPrompt);
 
-        const messages = [...chatHistory, { role: 'user', content: userMessage }];
-        const options = getOllamaOptionsCliente();
+        // Convertir mensajes a formato LangChain
+        const langchainMessages = [
+            new SystemMessage(this.systemPrompt),
+            ...chatHistory.map(msg => {
+                if (msg.role === 'user') return new HumanMessage(msg.content);
+                if (msg.role === 'assistant') return new AIMessage(msg.content);
+                return new HumanMessage(msg.content);
+            }),
+            new HumanMessage(userMessage)
+        ];
 
         try {
-            const stream = await ollama.chat({
-                model: 'llama3.1',
-                messages,
-                options,
-                stream: true
-            });
-
+            // Usar LangChain ChatOllama para streaming
+            const stream = await this.llm.stream(langchainMessages);
+            
             let fullResponse = '';
             
             for await (const chunk of stream) {
-                if (chunk.message && chunk.message.content) {
-                    fullResponse += chunk.message.content;
+                if (chunk.content) {
+                    fullResponse += chunk.content;
                 }
             }
 
@@ -249,8 +286,34 @@ class CustomerAgent {
 
             return { response: fullResponse, wasBlocked: false };
         } catch (e) {
-            console.error(`[CustomerAgent] Error en streaming: ${e.message}`);
-            return { response: 'Error al procesar la solicitud.', wasBlocked: false };
+            console.error(`[CustomerAgent] Error en streaming LangChain: ${e.message}`);
+            // Fallback a cliente directo
+            try {
+                const ollama = require('ollama');
+                const messages = [...chatHistory, { role: 'user', content: userMessage }];
+                const stream = await ollama.chat({
+                    model: 'llama3.1',
+                    messages,
+                    options: getOllamaOptionsCliente(),
+                    stream: true
+                });
+
+                let fullResponse = '';
+                
+                for await (const chunk of stream) {
+                    if (chunk.message && chunk.message.content) {
+                        fullResponse += chunk.message.content;
+                    }
+                }
+
+                await db.addChatMessage(conversationId, 'user', userMessage);
+                await db.addChatMessage(conversationId, 'assistant', fullResponse);
+
+                return { response: fullResponse, wasBlocked: false };
+            } catch (fallbackError) {
+                console.error(`[CustomerAgent] Error en fallback streaming: ${fallbackError.message}`);
+                return { response: 'Error al procesar la solicitud.', wasBlocked: false };
+            }
         }
     }
 

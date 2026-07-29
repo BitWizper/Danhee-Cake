@@ -8,6 +8,7 @@ services:
       - PORT=5000
       - NODE_ENV=production
       - START_RAG=true
+      - CHROMA_HOST=http://chromadb:8000
       - JWT_SECRET=${JWT_SECRET:-d40af9264936dd8e2a1e2ddc3393be08aeb64b0f55c2cc873929f88d107f0b7927759c7bda083c5c055e949da18df355ebf89c9024c91b3fb6bde63bc0cac884}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       # Si se quiere forzar la base local en Docker, establecer DB_USE_LOCAL_DB=true.
@@ -29,6 +30,7 @@ services:
     restart: always
     depends_on:
       - database
+      - chromadb
     networks:
       - app-network
     extra_hosts:
@@ -51,6 +53,17 @@ services:
     networks:
       - app-network
     command: --default-authentication-plugin=mysql_native_password --ssl=0
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    networks:
+      - app-network
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -85,6 +98,7 @@ volumes:
   db_data:
   server_node_modules:
   db_backups:
+  chroma_data:
 
 # Red personalizada para comunicación entre servicios
 networks:
