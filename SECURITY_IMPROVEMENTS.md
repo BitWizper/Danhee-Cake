@@ -581,3 +581,71 @@ getSafeStorageValue(storage, key, defaultValue)
 
 **Última actualización:** 2026-07-27
 **Estado:** ✅ Implementado y Testeado
+
+---
+
+## 🆕 Mejoras Adicionales (2026-07-28)
+
+### Nuevos Middlewares de Seguridad Implementados
+
+#### 1. Secretos Seguros
+- JWT_SECRET: 128 caracteres hex (generado con crypto.randomBytes)
+- MYSQL_ROOT_PASSWORD: 128 caracteres hex (generado con crypto.randomBytes)
+- Actualizado en docker-compose.yml
+
+#### 2. Sistema de Logging de Seguridad
+- Archivo: `server/src/middleware/securityLogger.js`
+- Logging centralizado de intentos de ataque
+- Niveles: LOW, MEDIUM, HIGH, CRITICAL
+- Eventos: SQL_INJECTION, XSS_ATTEMPT, NOSQL_INJECTION, AUTH_FAILURE, BRUTE_FORCE, RATE_LIMIT
+- Logs en: `server/logs/security.log`
+
+#### 3. Validación de Archivos Subidos
+- Archivo: `server/src/middleware/fileUploadValidator.js`
+- Validación MIME real (firmas de archivos)
+- Whitelist de extensiones: .jpg, .jpeg, .png, .gif, .webp, .svg
+- Límite: 5MB máximo
+- Detección de extensiones peligrosas
+
+#### 4. Rate Limiting por IP
+- Archivo: `server/src/middleware/ipRateLimiter.js`
+- Global: 100 req/min por IP
+- Estricto: 10 req/min
+- Auth: 5 intentos/15min
+- Bloqueo automático: 5 minutos
+
+#### 5. Protección contra Brute Force
+- Archivo: `server/src/middleware/bruteForceProtection.js`
+- Bloqueo después de 5 intentos fallidos
+- Bloqueo por 15 minutos
+- Tracking por IP
+- Reset en login exitoso
+
+#### 6. Sanitización de Inputs
+- Archivo: `server/src/middleware/inputSanitizer.js`
+- Validación de longitud por campo
+- Validación de patrones (email, phone, username)
+- Detección de contenido sospechoso
+- Sanitización de caracteres de control
+
+#### 7. Forzado de HTTPS
+- Archivo: `server/src/middleware/httpsEnforcer.js`
+- Redirección HTTP → HTTPS en producción
+- Header HSTS con preload
+
+#### 8. Backup Automático
+- Archivo: `scripts/backup-database.sh`
+- Servicio en docker-compose.yml
+- Compresión gzip
+- Retención: 7 días
+
+#### 9. Endpoint de Estadísticas
+- Ruta: `/api/admin/security-stats`
+- Requiere autenticación admin
+- Estadísticas de seguridad, rate limiting, brute force
+
+### Archivos Modificados
+- `server/src/app.js` - Integración de middlewares
+- `docker-compose.yml` - Secretos, backup, tunnel config
+
+**Estado:** ✅ COMPLETADO
