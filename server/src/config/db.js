@@ -215,8 +215,9 @@ const safeQuery = async (sql, params) => {
 const originalExecute = pool.execute.bind(pool);
 const originalQuery = pool.query.bind(pool);
 
+// Use pool.query instead of pool.execute for better compatibility with Clever Cloud
 pool.execute = async function executeWithSafety(sql, params) {
-  return safeExecute(sql, params, originalExecute);
+  return safeExecute(sql, params, originalQuery);
 };
 
 pool.query = async function queryWithSafety(sql, params) {

@@ -139,6 +139,19 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   FOREIGN KEY (conversation_id) REFERENCES chat_sessions(conversation_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT NOT NULL,
+  token       VARCHAR(500) NOT NULL,
+  expires_at  DATETIME NOT NULL,
+  revoked     TINYINT(1) DEFAULT 0,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_token (token),
+  INDEX idx_user_id (user_id),
+  INDEX idx_expires_at (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT IGNORE INTO categories (name, slug, icon, description, sort_order) VALUES
 ('XV Años',     'xv-anos',      '👑', 'Pasteles elegantes y memorables para la gran celebración de quince años',         1),
 ('Boda',        'boda',         '💍', 'Pasteles nupciales de lujo, diseñados para el día más especial de tu vida',        2),
