@@ -7,8 +7,9 @@ services:
     environment:
       - PORT=5000
       - NODE_ENV=production
-      - START_RAG=true
+      - START_RAG=false
       - CHROMA_HOST=http://chromadb:8000
+      - RAG_SERVICE_URL=http://rag-service:5001
       - JWT_SECRET=${JWT_SECRET:-d40af9264936dd8e2a1e2ddc3393be08aeb64b0f55c2cc873929f88d107f0b7927759c7bda083c5c055e949da18df355ebf89c9024c91b3fb6bde63bc0cac884}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       # Si se quiere forzar la base local en Docker, establecer DB_USE_LOCAL_DB=true.
@@ -31,6 +32,7 @@ services:
     depends_on:
       - database
       - chromadb
+      - rag-service
     networks:
       - app-network
     extra_hosts:
@@ -64,6 +66,26 @@ services:
       - chroma_data:/chroma/chroma
     networks:
       - app-network
+
+  rag-service:
+    build: ./server/rag
+    container_name: rag-service
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - CHROMA_HOST=http://chromadb:8000
+      - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
+    volumes:
+      - ./server/rag:/app/rag
+      - /app/rag/node_modules
+    restart: always
+    depends_on:
+      - chromadb
+    networks:
+      - app-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   cloudflared:
     image: cloudflare/cloudflared:latest

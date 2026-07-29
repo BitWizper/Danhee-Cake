@@ -68,27 +68,38 @@ const askChatbot = async (req, res) => {
   }
 
   try {
-    console.log(`[Chat DEBUG] Intentando conectar a http://backend:5005/chat`);
-    const response = await fetch("http://backend:5005/chat", {
+    const ragUrl = process.env.RAG_SERVICE_URL;
+    const conversationId = req.body.conversation_id || `conv_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    
+    console.log(`[Chat DEBUG] Conectando a RAG service: ${ragUrl}/chat`);
+    const response = await fetch(`${ragUrl}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: sanitizedMessage, client_id, role, client_datetime: req.body.client_datetime || null }),
+      body: JSON.stringify({ 
+        conversation_id: conversationId,
+        user_message: sanitizedMessage, 
+        user_role: role || 'cliente', 
+        user_id: client_id 
+      }),
     });
 
     console.log(`[Chat DEBUG] Response status: ${response.status}`);
     
     if (!response.ok) {
       const errText = await response.text();
-      console.error("[Node Server] Error del servicio RAG Python:", errText);
+      console.error("[Node Server] Error del servicio RAG:", errText);
       return res.status(500).json({ error: "Error en el servicio RAG" });
     }
 
     const data = await response.json();
     return res.json({
       response: (data.response || "").trim(),
+      conversation_id: conversationId,
+      tool_calls: data.tool_calls,
+      was_blocked: data.was_blocked
     });
   } catch (error) {
-    console.error("[Node Server] No se pudo conectar con el servicio RAG Python:", error.message);
+    console.error("[Node Server] No se pudo conectar con el servicio RAG:", error.message);
     return res.status(500).json({
       error: "El asistente de IA se está iniciando. Por favor, intenta de nuevo en unos segundos."
     });
@@ -109,22 +120,19 @@ const getChatHistory = async (req, res) => {
   }
 
   try {
-    const params = new URLSearchParams();
-    if (sanitizedConversationId) params.set("conversation_id", sanitizedConversationId);
-    if (sanitizedClientId) params.set("client_id", sanitizedClientId);
-
-    const response = await fetch(`http://backend:5005/chat/history?${params.toString()}`);
+    const ragUrl = process.env.RAG_SERVICE_URL;
+    const response = await fetch(`${ragUrl}/chat/history/${sanitizedConversationId}`);
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("[Node Server] Error del historial RAG Python:", errText);
+      console.error("[Node Server] Error del historial RAG:", errText);
       return res.status(response.status).json({ error: "Error en el servicio RAG" });
     }
 
     const data = await response.json();
     return res.json(data);
   } catch (error) {
-    console.error("[Node Server] No se pudo conectar con el historial RAG Python:", error.message);
+    console.error("[Node Server] No se pudo conectar con el historial RAG:", error.message);
     return res.status(500).json({
       error: "El asistente de IA se está iniciando. Por favor, intenta de nuevo en unos segundos."
     });
@@ -173,20 +181,28 @@ const streamChatbot = async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
 
   try {
-    // Llamar al endpoint de stream del backend en Python
-    const pythonRes = await fetch("http://backend:5005/chat/stream", {
+    const ragUrl = process.env.RAG_SERVICE_URL;
+    const conversationId = sanitizedConversationId || `conv_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    
+    // Llamar al endpoint de stream del RAG service
+    const ragRes = await fetch(`${ragUrl}/chat/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: sanitizedMessage, client_id, conversation_id: sanitizedConversationId, role, client_datetime: req.body.client_datetime || null }),
+      body: JSON.stringify({ 
+        conversation_id: conversationId,
+        user_message: sanitizedMessage, 
+        user_role: role || 'cliente', 
+        user_id: client_id 
+      }),
     });
 
-    if (!pythonRes.ok) {
-      console.error("[Node Stream] Error del servicio RAG Python:", pythonRes.statusText);
+    if (!ragRes.ok) {
+      console.error("[Node Stream] Error del servicio RAG:", ragRes.statusText);
       res.write(`data: ${JSON.stringify({ type: "error", content: "Error en el servicio RAG" })}\n\n`);
       return res.end();
     }
 
-    const reader = pythonRes.body.getReader();
+    const reader = ragRes.body.getReader();
     const decoder = new TextDecoder();
     let streamBuffer = "";
 
@@ -215,14 +231,14 @@ const streamChatbot = async (req, res) => {
         }
       }
     } finally {
-      reader.releaseLock(); // Liberar el lector de Python pase lo que pase
+      reader.releaseLock();
     }
 
     // Cierre forzado y limpio de la conexión HTTP hacia React
     res.end();
 
   } catch (error) {
-    console.error("[Node Stream] Error conectando con el servicio RAG Python:", error.message);
+    console.error("[Node Stream] Error conectando con el servicio RAG:", error.message);
     res.write(`data: ${JSON.stringify({ type: "error", content: "El asistente de IA se está iniciando. Por favor, intenta de nuevo." })}\n\n`);
     res.end();
   }
@@ -238,10 +254,10 @@ const deleteChatHistory = async (req, res) => {
   const sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
 
   try {
-    const response = await fetch("http://backend:5005/chat/delete", {
-      method: "POST",
+    const ragUrl = process.env.RAG_SERVICE_URL;
+    const response = await fetch(`${ragUrl}/chat/${sanitizedConversationId}?client_id=${sanitizedClientId}`, {
+      method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversation_id: sanitizedConversationId, client_id: sanitizedClientId }),
     });
 
     if (!response.ok) {

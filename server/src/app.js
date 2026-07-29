@@ -457,39 +457,5 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-  // Control opcional del microservicio RAG JavaScript/Node.js (deshabilitado por defecto)
-  let ragProcess = null;
-  if (process.env.START_RAG === 'true') {
-    console.log("🤖 Iniciando microservicio RAG JavaScript en app.js...");
-    ragProcess = spawn("node", ["rag/app.js"], {
-      cwd: path.join(__dirname, ".."),
-      stdio: "inherit",
-      env: {
-        ...process.env
-      }
-    });
-
-    ragProcess.on("error", (err) => {
-      console.error("❌ Error al iniciar el microservicio RAG JavaScript:", err.message);
-      console.error("Asegúrate de tener Node.js instalado y en tu variable de entorno PATH.");
-    });
-
-    ragProcess.on("close", (code) => {
-      console.log(`🤖 Microservicio RAG JavaScript finalizó con código: ${code}`);
-    });
-  } else {
-    console.log("🤖 Microservicio RAG JavaScript deshabilitado (START_RAG !== 'true')");
-  }
-
-  // Limpieza de procesos huérfanos al apagar la aplicación
-  const cleanup = () => {
-    console.log("🧹 Cerrando microservicio RAG JavaScript...");
-    if (ragProcess) {
-      ragProcess.kill("SIGINT");
-    }
-    process.exit();
-  };
-
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
+  console.log(`🤖 RAG service: ${process.env.RAG_SERVICE_URL || 'http://rag-service:5001'}`);
 });
