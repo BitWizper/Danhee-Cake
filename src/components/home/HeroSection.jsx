@@ -37,7 +37,6 @@ const HeroSection = () => {
           muted
           loop
           playsInline
-          poster="/hero-poster.jpg"
         />
         {/* Overlay degradado */}
         <div className="hero__overlay" />

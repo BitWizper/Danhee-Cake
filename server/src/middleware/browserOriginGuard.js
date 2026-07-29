@@ -34,6 +34,14 @@ const browserOriginGuard = (req, res, next) => {
       return next();
     }
 
+    // Permitir solicitudes desde localhost/127.0.0.1 sin Origin header (para desarrollo)
+    const ip = req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
+    const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost';
+    
+    if (isLocalhost) {
+      return next();
+    }
+
     logSecurityEvent('MISSING_ORIGIN_HEADER', {
       path: req.originalUrl,
       method: req.method,

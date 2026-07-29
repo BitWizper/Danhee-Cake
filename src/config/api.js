@@ -1,8 +1,8 @@
 // Configuración de API URL
-// Prioridad: VITE_BASE_URL (variable de entorno) > localhost (desarrollo) > producción
+// Prioridad: VITE_BASE_URL (variable de entorno) > proxy relativo (desarrollo) > producción
 const API_URL = import.meta.env.VITE_BASE_URL || 
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:4000'
+    ? '' // Usar rutas relativas para que Vite proxy funcione
     : window.location.origin; // Usar el origen actual en producción
 
 export const API_BASE_URL = API_URL;

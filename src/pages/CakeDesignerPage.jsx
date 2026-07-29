@@ -211,6 +211,7 @@ const CakeDesignerPage = () => {
                 shadows 
                 camera={{ position: [4, 4, 4], fov: 50 }}
                 style={{ background: 'linear-gradient(135deg, rgba(201,169,110,0.05) 0%, rgba(60,30,15,0.05) 100%)' }}
+                gl={{ xrEnabled: false }}
               >
                 <Stage environment="city" intensity={0.5} contactShadow={false}>
                   <CakeModel spongeColor={currentSponge.color} decoration={design.decoration} />
