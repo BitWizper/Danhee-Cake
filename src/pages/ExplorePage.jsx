@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getApiUrl } from '../config/api';
 import StarRating from '../components/ui/StarRating';
 import CakeModal from '../components/ui/CakeModal';
 import './ExplorePage.css';
@@ -35,8 +36,8 @@ const ExplorePage = () => {
     const fetchData = async () => {
       try {
         const [cakesRes, catsRes] = await Promise.all([
-          fetch('/api/cakes'),
-          fetch('/api/categories')
+          fetch(getApiUrl('/api/cakes')),
+          fetch(getApiUrl('/api/categories'))
         ]);
 
         if (!cakesRes.ok || !catsRes.ok) {

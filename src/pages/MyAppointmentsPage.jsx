@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getApiUrl } from '../config/api';
 import './MyAppointmentsPage.css';
 
 /* ── Helpers ── */
@@ -265,7 +266,7 @@ const MyAppointmentsPage = () => {
         ? '/api/bakers/appointments'
         : '/api/appointments/my-appointments';
 
-      const res = await fetch(endpoint, {
+      const res = await fetch(getApiUrl(endpoint), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const result = await res.json();
@@ -306,7 +307,7 @@ const MyAppointmentsPage = () => {
             headers: { Authorization: `Bearer ${token}` }
           };
 
-      const res = await fetch(endpoint, options);
+      const res = await fetch(getApiUrl(endpoint), options);
       const result = await res.json();
       if (result.success) {
         setAppointments(prev =>
@@ -325,7 +326,7 @@ const MyAppointmentsPage = () => {
 
   const handleUpdateBakerStatus = async (apptId, newStatus) => {
     try {
-      const res = await fetch(`/api/bakers/appointments/${apptId}/status`, {
+      const res = await fetch(getApiUrl(`/api/bakers/appointments/${apptId}/status`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

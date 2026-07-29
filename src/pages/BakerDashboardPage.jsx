@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { getApiUrl } from '../config/api';
 import Button from '../components/ui/Button';
 import CakeModal from '../components/ui/CakeModal';
 import './BakerDashboardPage.css';
@@ -80,10 +81,10 @@ const BakerDashboardPage = () => {
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const [statsRes, appRes, catRes, cakesRes] = await Promise.all([
-        fetch('/api/bakers/stats', { headers }),
-        fetch('/api/bakers/appointments', { headers }),
-        fetch('/api/categories'),
-        fetch('/api/bakers/cakes', { headers })
+        fetch(getApiUrl('/api/bakers/stats'), { headers }),
+        fetch(getApiUrl('/api/bakers/appointments'), { headers }),
+        fetch(getApiUrl('/api/categories')),
+        fetch(getApiUrl('/api/bakers/cakes'), { headers })
       ]);
 
       const statsData = await statsRes.json();
@@ -137,7 +138,7 @@ const BakerDashboardPage = () => {
       if (activeTab === 'profile' && token) {
         try {
           const headers = { 'Authorization': `Bearer ${token}` };
-          const response = await fetch('/api/bakers/profile/me', { headers });
+          const response = await fetch(getApiUrl('/api/bakers/profile/me'), { headers });
           const result = await response.json();
           if (result.success && result.data) {
             setBakerProfile(prev => ({
@@ -162,7 +163,7 @@ const BakerDashboardPage = () => {
       
       const method = editingCake ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await fetch(getApiUrl(url), {
         method,
         headers: { 'Authorization': `Bearer ${token}` },
         body: cakeData
@@ -186,7 +187,7 @@ const BakerDashboardPage = () => {
     if (!window.confirm('¿Estás seguro de que quieres eliminar este pastel?')) return;
     
     try {
-      const response = await fetch(`/api/bakers/cakes/${id}`, {
+      const response = await fetch(getApiUrl(`/api/bakers/cakes/${id}`), {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -205,7 +206,7 @@ const BakerDashboardPage = () => {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      const response = await fetch('/api/bakers/profile', {
+      const response = await fetch(getApiUrl('/api/bakers/profile'), {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -229,7 +230,7 @@ const BakerDashboardPage = () => {
   const handleUpdateAppointmentStatus = async (apptId, newStatus) => {
     setUpdatingApptId(apptId);
     try {
-      const response = await fetch(`/api/bakers/appointments/${apptId}/status`, {
+      const response = await fetch(getApiUrl(`/api/bakers/appointments/${apptId}/status`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

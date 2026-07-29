@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getApiUrl } from '../../config/api';
 import Button from '../../components/ui/Button';
 import CakeModal from '../../components/ui/CakeModal';
 import './UI_editproduct.css';
@@ -31,7 +32,7 @@ const UI_editproduct = () => {
         setError(null);
 
         // Cargar perfil del repostero
-        const profileRes = await fetch('/api/bakers/profile/me', {
+        const profileRes = await fetch(getApiUrl('/api/bakers/profile/me'), {
           headers: { Authorization: `Bearer ${token}` }
         });
         const profileData = await profileRes.json();
@@ -40,10 +41,10 @@ const UI_editproduct = () => {
         }
 
         const [cakesRes, categoriesRes] = await Promise.all([
-          fetch('/api/bakers/cakes', {
+          fetch(getApiUrl('/api/bakers/cakes'), {
             headers: { Authorization: `Bearer ${token}` }
           }),
-          fetch('/api/categories')
+          fetch(getApiUrl('/api/categories'))
         ]);
 
         const cakesData = await cakesRes.json();
@@ -73,7 +74,7 @@ const UI_editproduct = () => {
   useEffect(() => {
     const handleCatalogUpdate = () => {
       if (isAuthenticated && token) {
-        fetch('/api/bakers/cakes', {
+        fetch(getApiUrl('/api/bakers/cakes'), {
           headers: { Authorization: `Bearer ${token}` }
         })
           .then(res => res.json())
@@ -116,7 +117,7 @@ const UI_editproduct = () => {
       : '/api/bakers/cakes';
 
     try {
-      const response = await fetch(url, {
+      const response = await fetch(getApiUrl(url), {
         method,
         headers: { Authorization: `Bearer ${token}` },
         body: formData
@@ -139,7 +140,7 @@ const UI_editproduct = () => {
 
   const refreshMyCakes = async () => {
     try {
-      const cakesRes = await fetch('/api/bakers/cakes', {
+      const cakesRes = await fetch(getApiUrl('/api/bakers/cakes'), {
         headers: { Authorization: `Bearer ${token}` }
       });
       const cakesData = await cakesRes.json();

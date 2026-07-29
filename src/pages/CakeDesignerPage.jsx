@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stage, ContactShadows } from '@react-three/drei';
 import { useAuth } from '../context/AuthContext';
+import { getApiUrl } from '../config/api';
 import Button from '../components/ui/Button';
 import './CakeDesignerPage.css';
 
@@ -166,7 +167,7 @@ const CakeDesignerPage = () => {
     setLoginError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(loginForm)

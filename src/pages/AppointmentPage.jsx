@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getApiUrl } from '../config/api';
 import './AppointmentPage.css';
 
 const STEPS = ['Fecha', 'Horario', 'Detalles', 'Confirmar'];
@@ -95,7 +96,7 @@ const AppointmentPage = () => {
 
     const fetchBaker = async () => {
       try {
-        const response = await fetch(`/api/bakers/${id}`);
+        const response = await fetch(getApiUrl(`/api/bakers/${id}`));
         const result = await response.json();
         if (result.success) setBaker(result.data);
       } catch (err) {
@@ -117,7 +118,7 @@ const AppointmentPage = () => {
     if (!form.date || !id) return;
     const fetchAvailability = async () => {
       try {
-        const res = await fetch(`/api/appointments/baker/${id}/date/${form.date}`);
+        const res = await fetch(getApiUrl(`/api/appointments/baker/${id}/date/${form.date}`));
         const data = await res.json();
         if (data.success) setTakenSlots(data.horarios_ocupados || []);
       } catch { setTakenSlots([]); }
@@ -128,7 +129,7 @@ const AppointmentPage = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const response = await fetch('/api/appointments', {
+      const response = await fetch(getApiUrl('/api/appointments'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

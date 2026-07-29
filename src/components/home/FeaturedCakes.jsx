@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getApiUrl } from '../../config/api';
 import StarRating from '../ui/StarRating';
 import './FeaturedCakes.css';
 
@@ -15,7 +16,7 @@ const FeaturedCakes = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/cakes?featured=true');
+      const response = await fetch(getApiUrl('/api/cakes?featured=true'));
       if (!response.ok) {
         throw new Error(`Error de red: ${response.status} ${response.statusText}`);
       }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
+import { getApiUrl } from '../../config/api';
 import './UI_checkout_process.css';
 
 const UICheckout = () => {
@@ -41,7 +42,7 @@ const UICheckout = () => {
         }
 
         try {
-          const resp = await fetch('/api/payments/oxxo-ticket', {
+          const resp = await fetch(getApiUrl('/api/payments/oxxo-ticket'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

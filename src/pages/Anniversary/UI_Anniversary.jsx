@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getApiUrl } from '../../config/api';
 import StarRating from '../../components/ui/StarRating';
 import './UI_Anniversary.css';
 
@@ -17,8 +18,8 @@ const UIAnniversary = () => {
     const fetchData = async () => {
       try {
         const [cakesRes, catsRes] = await Promise.all([
-          fetch('/api/cakes'),
-          fetch('/api/categories')
+          fetch(getApiUrl('/api/cakes')),
+          fetch(getApiUrl('/api/categories'))
         ]);
         
         if (!cakesRes.ok || !catsRes.ok) {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthRateLimit } from '../hooks/useAuthRateLimit';
+import { getApiUrl } from '../config/api';
 import Button from '../components/ui/Button';
 import './LoginPage.css';
 
@@ -33,7 +34,7 @@ const LoginPage = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
