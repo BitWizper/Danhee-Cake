@@ -19,7 +19,7 @@ class BakerAgent {
         
         // Inicializar ChatOllama con LangChain
         this.llm = new ChatOllama({
-            model: "llama3.1",
+            model: "llama3.1:latest",
             temperature: 0.6,
             numPredict: 2048,
             topK: 40,
@@ -85,7 +85,7 @@ class BakerAgent {
             // Para tools, usamos cliente directo Ollama (LangChain tools requiere más configuración)
             const ollama = require('ollama');
             const toolResponse = await ollama.chat({
-                model: 'llama3.1',
+                model: 'llama3.1:latest',
                 messages,
                 tools: BAKER_TOOLS_SCHEMA,
                 options,
@@ -114,7 +114,7 @@ class BakerAgent {
                 }
 
                 const finalResponse = await ollama.chat({
-                    model: 'llama3.1',
+                    model: 'llama3.1:latest',
                     messages,
                     options,
                     stream: false
@@ -144,7 +144,7 @@ class BakerAgent {
             try {
                 const ollama = require('ollama');
                 const toolResponse = await ollama.chat({
-                    model: 'llama3.1',
+                    model: 'llama3.1:latest',
                     messages,
                     tools: BAKER_TOOLS_SCHEMA,
                     options,
@@ -173,7 +173,7 @@ class BakerAgent {
                     }
 
                     const finalResponse = await ollama.chat({
-                        model: 'llama3.1',
+                        model: 'llama3.1:latest',
                         messages,
                         options,
                         stream: false
@@ -280,7 +280,7 @@ class BakerAgent {
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
                 const options = getOllamaOptions();
                 const stream = await ollama.chat({
-                    model: 'llama3.1',
+                    model: 'llama3.1:latest',
                     messages,
                     options,
                     stream: true
