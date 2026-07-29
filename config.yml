@@ -1,7 +1,0 @@
-tunnel: b99328ed-39f3-4318-9397-793913f0fb58
-credentials-file: C:\Users\Salazar\.cloudflared\b99328ed-39f3-4318-9397-793913f0fb58.json
-
-ingress:
-  - hostname: api.danhee.com
-    service: http://localhost:4000
-  - service: http_status:404
