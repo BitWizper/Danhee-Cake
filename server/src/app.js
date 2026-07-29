@@ -155,12 +155,9 @@ app.use((req, res, next) => {
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://danhee-cake-sage.vercel.app',
   'https://danhee-cake.vercel.app',
-  'https://research-throughout-approach-historical.trycloudflare.com',
-  'https://holders-alternative-after-org.trycloudflare.com',
-  'https://bikini-screensaver-responding-attending.trycloudflare.com',
-  'https://punk-actually-corners-twiki.trycloudflare.com'
+  // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
 ];
 
 const corsOptions = {

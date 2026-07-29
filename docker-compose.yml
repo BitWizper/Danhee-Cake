@@ -20,6 +20,8 @@ services:
       - LOCAL_DB_PASSWORD=${LOCAL_DB_PASSWORD:-password}
       # Si te conectas a Ollama localmente, usa esta variable:
       - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
+      # FRONTEND_URL: URL del frontend en Vercel para CORS
+      - FRONTEND_URL=${FRONTEND_URL:-https://danhee-cake.vercel.app}
       - DB_HOST=${DB_HOST:-database}
       - DB_PORT=${DB_PORT:-3306}
       - DB_NAME=${DB_NAME:-danhee_db}
