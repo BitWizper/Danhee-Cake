@@ -25,7 +25,7 @@ const cleverCloudConfig = {
   charset: 'utf8mb4',
   timezone: '+00:00',
   multipleStatements: false, // Prevenir SQL injection por múltiples sentencias
-  namedPlaceholders: true
+  namedPlaceholders: false
 };
 
 // Configuración para base de datos local (fallback para Docker)
@@ -49,7 +49,7 @@ const localDbConfig = {
   charset: 'utf8mb4',
   timezone: '+00:00',
   multipleStatements: false, // Prevenir SQL injection por múltiples sentencias
-  namedPlaceholders: true
+  namedPlaceholders: false
 };
 
 // Determinar qué configuración usar.
@@ -88,7 +88,7 @@ const SUSPICIOUS_SQL_PATTERNS = [
   /truncate\s+table/i,
   /alter\s+table/i,
   /create\s+table/i,
-  /insert\s+into/i,
+  // /insert\s+into/i, // Permitido para operaciones legítimas (refresh tokens, registros)
   /delete\s+from/i,
   /update\s+\w+\s+set/i,
   /grant\s+/i,
