@@ -84,7 +84,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       scriptSrcAttr: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://research-throughout-approach-historical.trycloudflare.com"],
+      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://research-throughout-approach-historical.trycloudflare.com", "https://holders-alternative-after-org.trycloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -133,7 +133,8 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://danhee-cake-sage.vercel.app',
-  'https://research-throughout-approach-historical.trycloudflare.com'
+  'https://research-throughout-approach-historical.trycloudflare.com',
+  'https://holders-alternative-after-org.trycloudflare.com'
 ];
 
 const corsOptions = {
