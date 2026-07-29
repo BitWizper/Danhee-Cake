@@ -84,7 +84,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       scriptSrcAttr: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://retying-subsidize-subatomic.ngrok-free.dev"],
+      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://research-throughout-approach-historical.trycloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -132,7 +132,8 @@ app.use((req, res, next) => {
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://retying-subsidize-subatomic.ngrok-free.dev'
+  'https://danhee-cake-sage.vercel.app',
+  'https://research-throughout-approach-historical.trycloudflare.com'
 ];
 
 const corsOptions = {
