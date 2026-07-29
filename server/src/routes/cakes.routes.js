@@ -4,7 +4,7 @@ const cakesController = require('../controllers/cakes.controller');
 const { query, param } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
 const { readLimiter, ipBlocker } = require('../middleware/rateLimiter');
-const { optionalAuth } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
