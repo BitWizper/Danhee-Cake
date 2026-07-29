@@ -2,7 +2,7 @@
 const API_URL = import.meta.env.VITE_BASE_URL || 
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:4000'
-    : 'https://bikini-screensaver-responding-attending.trycloudflare.com';
+    : 'https://punk-actually-corners-twiki.trycloudflare.com';
 
 export const API_BASE_URL = API_URL;
 
