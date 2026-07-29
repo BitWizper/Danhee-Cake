@@ -3,7 +3,7 @@
 const API_URL = import.meta.env.VITE_BASE_URL || 
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? '' // Usar rutas relativas para que Vite proxy funcione
-    : window.location.origin; // Usar el origen actual en producción
+    : 'https://research-throughout-approach-historical.trycloudflare.com'; // URL del backend en producción (Cloudflare Tunnel)
 
 export const API_BASE_URL = API_URL;
 
