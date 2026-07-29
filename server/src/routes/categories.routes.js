@@ -4,7 +4,7 @@ const categoriesController = require('../controllers/categories.controller');
 const { query } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
 const { readLimiter, ipBlocker } = require('../middleware/rateLimiter');
-const { authMiddleware } = require('../middleware/auth');
+const { optionalAuth } = require('../middleware/auth');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 
 // ============================================================
@@ -36,7 +36,7 @@ const validateQueryParams = [
 // RUTAS
 // ============================================================
 
-router.get('/', authMiddleware, ipBlocker, readLimiter, validateAllParameters, validateQueryParams, handleValidationErrors, categoriesController.getAll);
+router.get('/', optionalAuth, ipBlocker, readLimiter, validateAllParameters, validateQueryParams, handleValidationErrors, categoriesController.getAll);
 
 // Protected category routes can be added below.
 router.use(authMiddleware);

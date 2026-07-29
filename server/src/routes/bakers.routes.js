@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bakersController = require('../controllers/bakers.controller');
-const { authMiddleware, authorize } = require('../middleware/auth');
+const { authMiddleware, authorize, optionalAuth } = require('../middleware/auth');
 const { bakersLimiter, readLimiter, writeLimiter, ipBlocker } = require('../middleware/rateLimiter');
 const upload = require('../middleware/upload');
 const { uploadWithSignatureCheck } = require('../middleware/upload');
@@ -104,7 +104,7 @@ const validateQueryParams = [
 // ============================================================
 
 router.get('/',
-  authMiddleware,
+  optionalAuth,
   ipBlocker,
   bakersLimiter,
   validateAllParameters,
@@ -209,7 +209,7 @@ router.put('/profile',
 
 // Esta ruta se mantiene al final para evitar conflictos con rutas estáticas como /cakes o /stats
 router.get('/:id',
-  authMiddleware,
+  optionalAuth,
   ipBlocker,
   bakersLimiter,
   validateAllParameters,
