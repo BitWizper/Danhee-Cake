@@ -21,7 +21,7 @@ class CustomerAgent {
         
         // Inicializar ChatOllama con LangChain
         this.llm = new ChatOllama({
-            model: "llama3.1:latest",
+            model: "llama3.2:latest",
             temperature: 0.7,
             numPredict: 2048,
             topK: 40,
@@ -121,7 +121,7 @@ class CustomerAgent {
                 // Por ahora, usamos el cliente directo para tools ya que LangChain tools requiere más configuración
                 const ollama = require('ollama');
                 const toolResponse = await ollama.chat({
-                    model: 'llama3.1:latest',
+                    model: 'llama3.2:latest',
                     messages,
                     tools: TOOLS_SCHEMA,
                     options: getOllamaOptionsCliente(),
@@ -148,7 +148,7 @@ class CustomerAgent {
                     }
 
                     const finalResponse = await ollama.chat({
-                        model: 'llama3.1:latest',
+                        model: 'llama3.2:latest',
                         messages,
                         options: getOllamaOptionsCliente(),
                         stream: false
@@ -172,7 +172,7 @@ class CustomerAgent {
             try {
                 const ollama = require('ollama');
                 const response = await ollama.chat({
-                    model: 'llama3.1:latest',
+                    model: 'llama3.2:latest',
                     messages,
                     options: getOllamaOptionsCliente(),
                     stream: false
@@ -292,7 +292,7 @@ class CustomerAgent {
                 const ollama = require('ollama');
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
                 const stream = await ollama.chat({
-                    model: 'llama3.1:latest',
+                    model: 'llama3.2:latest',
                     messages,
                     options: getOllamaOptionsCliente(),
                     stream: true

@@ -10,7 +10,7 @@ services:
     environment:
       - PORT=5000
       - NODE_ENV=production
-      - START_RAG=false
+      - START_RAG=true
       - CHROMA_HOST=http://chromadb:8000
       - RAG_SERVICE_URL=http://rag-service:5001
       - JWT_SECRET=${JWT_SECRET}
