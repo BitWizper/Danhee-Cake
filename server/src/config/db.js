@@ -32,7 +32,7 @@ const cleverCloudConfig = {
 const localDbConfig = {
   host: 'database', // Nombre del servicio en docker-compose
   port: 3306,
-  database: process.env.LOCAL_DB_NAME || process.env.DB_NAME || 'danhee_db',
+  database: process.env.LOCAL_DB_NAME || 'danhee_db',
   user: process.env.LOCAL_DB_USER || 'usuario',
   password: process.env.LOCAL_DB_PASSWORD || 'password',
   waitForConnections: true,
