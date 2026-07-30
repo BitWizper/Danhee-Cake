@@ -12,22 +12,18 @@ services:
       - START_RAG=false
       - CHROMA_HOST=http://chromadb:8000
       - RAG_SERVICE_URL=http://rag-service:5001
-      - JWT_SECRET=${JWT_SECRET:-d40af9264936dd8e2a1e2ddc3393be08aeb64b0f55c2cc873929f88d107f0b7927759c7bda083c5c055e949da18df355ebf89c9024c91b3fb6bde63bc0cac884}
+      - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
-      # Si se quiere forzar la base local en Docker, establecer DB_USE_LOCAL_DB=true.
-      - LOCAL_DB_NAME=${LOCAL_DB_NAME:-danhee_db}
-      - LOCAL_DB_USER=${LOCAL_DB_USER:-usuario}
-      - LOCAL_DB_PASSWORD=${LOCAL_DB_PASSWORD:-password}
-      # Si te conectas a Ollama localmente, usa esta variable:
-      - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
-      # FRONTEND_URL: URL del frontend en Vercel para CORS
-      - FRONTEND_URL=${FRONTEND_URL:-https://danhee-cake.vercel.app}
-      # Clever Cloud MySQL Configuration
-      - DB_HOST=${DB_HOST:-bvtdjsmypbwpngczasgf-mysql.services.clever-cloud.com}
+      - LOCAL_DB_NAME=${LOCAL_DB_NAME}
+      - LOCAL_DB_USER=${LOCAL_DB_USER}
+      - LOCAL_DB_PASSWORD=${LOCAL_DB_PASSWORD}
+      - OLLAMA_HOST=${OLLAMA_HOST}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT:-3306}
-      - DB_NAME=${DB_NAME:-bvtdjsmypbwpngczasgf}
-      - DB_USER=${DB_USER:-ueixm6eypteu4pjt}
-      - DB_PASSWORD=${DB_PASSWORD:-2BIOKddsIrsSJGKlxClR}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
       - DB_USE_LOCAL_DB=${DB_USE_LOCAL_DB:-false}
     volumes:
       - ./server:/app
@@ -47,10 +43,10 @@ services:
   database:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cbd4373f5df5781a670f7b53064828d1ef452cea3bd8c410ee67d35a3a886d9c1253dc9f09e6d346ae1dc9705a69a5561e75e6653e3285c3dd22823df0c68969}
-      MYSQL_DATABASE: ${LOCAL_DB_NAME:-danhee_db}
-      MYSQL_USER: ${LOCAL_DB_USER:-usuario}
-      MYSQL_PASSWORD: ${LOCAL_DB_PASSWORD:-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${LOCAL_DB_NAME}
+      MYSQL_USER: ${LOCAL_DB_USER}
+      MYSQL_PASSWORD: ${LOCAL_DB_PASSWORD}
       MYSQL_ALLOW_EMPTY_PASSWORD: "no"
     volumes:
       - db_data:/var/lib/mysql
@@ -114,7 +110,7 @@ services:
       - ./scripts/backup-database.sh:/backup-database.sh:ro
       - db_backups:/backups
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-cbd4373f5df5781a670f7b53064828d1ef452cea3bd8c410ee67d35a3a886d9c1253dc9f09e6d346ae1dc9705a69a5561e75e6653e3285c3dd22823df0c68969}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
     depends_on:
       - database
     networks:
