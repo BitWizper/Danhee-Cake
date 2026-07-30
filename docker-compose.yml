@@ -19,12 +19,7 @@ services:
       - LOCAL_DB_PASSWORD=${LOCAL_DB_PASSWORD}
       - OLLAMA_HOST=${OLLAMA_HOST}
       - FRONTEND_URL=${FRONTEND_URL}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT:-3306}
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_USE_LOCAL_DB=${DB_USE_LOCAL_DB:-false}
+      
     volumes:
       - ./server:/app
       - /app/node_modules
