@@ -88,10 +88,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared_tunnel
     restart: always
-    command: tunnel --url http://backend:5000 --http-host-header=backend:5000
-    environment:
-      - TUNNEL_CREDENTIAL_FILE=/root/.cloudflared/${TUNNEL_ID}.json
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    command: tunnel --url http://backend:5000
     depends_on:
       - backend
     networks:

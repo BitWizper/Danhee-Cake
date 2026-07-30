@@ -1,0 +1,4 @@
+ingress:
+  - hostname: api.danhee.com
+    service: http://localhost:4000
+  - service: http_status:404
