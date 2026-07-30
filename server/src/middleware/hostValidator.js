@@ -17,7 +17,11 @@ const isValidHost = (req) => {
   const forwarded = normalizeHeader(req.headers['forwarded']);
   const hostname = normalizeHeader(req.hostname);
 
-  if (allowedHosts.includes(hostHeader) || allowedHosts.includes(forwardedHost) || allowedHosts.includes(hostname)) {
+  // Allow any Cloudflare Tunnel host
+  const isCloudflareTunnel = (host) => host && host.endsWith('.trycloudflare.com');
+
+  if (allowedHosts.includes(hostHeader) || allowedHosts.includes(forwardedHost) || allowedHosts.includes(hostname) ||
+      isCloudflareTunnel(hostHeader) || isCloudflareTunnel(forwardedHost) || isCloudflareTunnel(hostname)) {
     return true;
   }
 

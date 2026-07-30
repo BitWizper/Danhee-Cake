@@ -65,6 +65,7 @@ if ($domainMatches.Count -gt 0) {
     # Copiar al portapapeles
     Set-Clipboard "https://$domain"
     Write-Host "URL copiada al portapapeles" -ForegroundColor Green
+    Write-Host "Configura VITE_BASE_URL en Vercel con: https://$domain" -ForegroundColor Yellow
 } else {
     Write-Host "No se pudo extraer el dominio temporal. Verifica los logs de cloudflared_tunnel" -ForegroundColor Red
     docker logs cloudflared_tunnel --tail 100
