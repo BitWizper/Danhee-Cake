@@ -1,0 +1,71 @@
+# Script para actualizar automáticamente el dominio temporal de Cloudflare Tunnel
+# y configurarlo en el backend
+
+Write-Host "Reiniciando contenedores Docker..." -ForegroundColor Yellow
+docker compose down
+
+Write-Host "Iniciando contenedores Docker..." -ForegroundColor Yellow
+docker compose up -d
+
+Write-Host "Esperando a que Cloudflare Tunnel genere la URL temporal..." -ForegroundColor Yellow
+Start-Sleep -Seconds 15
+
+Write-Host "Extrayendo dominio temporal de Cloudflare Tunnel..." -ForegroundColor Yellow
+$cloudflareLogs = docker logs cloudflared_tunnel --tail 100 2>&1 | Out-String
+
+if ([string]::IsNullOrWhiteSpace($cloudflareLogs)) {
+    Write-Host "No se pudieron obtener los logs del contenedor. Esperando 5 segundos más..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 5
+    $cloudflareLogs = docker logs cloudflared_tunnel --tail 100 2>&1 | Out-String
+}
+
+if ([string]::IsNullOrWhiteSpace($cloudflareLogs)) {
+    Write-Host "Error: No se pudieron obtener los logs del contenedor cloudflared_tunnel" -ForegroundColor Red
+    exit 1
+}
+
+$domainPattern = "https://([a-z0-9-]+\.trycloudflare\.com)"
+$domainMatches = [regex]::Matches($cloudflareLogs, $domainPattern)
+
+if ($domainMatches.Count -gt 0) {
+    # Tomar el último match (el más reciente)
+    $domain = $domainMatches[$domainMatches.Count - 1].Groups[1].Value
+    
+    Write-Host "Dominio temporal encontrado: https://$domain" -ForegroundColor Green
+    
+    # Actualizar PUBLIC_HOST en el .env del servidor
+    $envPath = "server\.env"
+    $envContent = Get-Content $envPath -Raw
+    
+    # Eliminar línea PUBLIC_HOST existente si existe
+    $envContent = $envContent -replace "PUBLIC_HOST=.*`r?`n", ""
+    
+    # Agregar nueva línea PUBLIC_HOST
+    $envContent = $envContent.TrimEnd() + "`nPUBLIC_HOST=localhost,127.0.0.1,$domain"
+    
+    Set-Content $envPath $envContent -NoNewline
+    Write-Host "PUBLIC_HOST actualizado en server/.env" -ForegroundColor Green
+    
+    # Actualizar PUBLIC_HOST en docker.env para Docker Compose
+    $dockerEnvPath = "docker.env"
+    $dockerEnvContent = "PUBLIC_HOST=localhost,127.0.0.1,$domain"
+    Set-Content $dockerEnvPath $dockerEnvContent -NoNewline
+    Write-Host "PUBLIC_HOST actualizado en docker.env" -ForegroundColor Green
+    
+    # Reiniciar el backend para aplicar cambios
+    Write-Host "Reiniciando backend para aplicar cambios..." -ForegroundColor Yellow
+    docker compose restart backend
+    
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "DOMINIO TEMPORAL DE CLOUDFLARE:" -ForegroundColor Cyan
+    Write-Host "https://$domain" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "Actualiza VITE_BASE_URL en Vercel con este dominio" -ForegroundColor Yellow
+    
+    # Copiar al portapapeles
+    Set-Clipboard "https://$domain"
+    Write-Host "URL copiada al portapapeles" -ForegroundColor Green
+} else {
+    Write-Host "No se pudo extraer el dominio temporal. Verifica los logs de cloudflared_tunnel" -ForegroundColor Red
+    docker logs cloudflared_tunnel --tail 100
+}

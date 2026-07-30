@@ -6,6 +6,7 @@ services:
       - "5005:5005"
     env_file:
       - ./server/.env
+      - ./docker.env
     environment:
       - PORT=5000
       - NODE_ENV=production
@@ -19,6 +20,7 @@ services:
       - LOCAL_DB_PASSWORD=${LOCAL_DB_PASSWORD}
       - OLLAMA_HOST=${OLLAMA_HOST}
       - FRONTEND_URL=${FRONTEND_URL}
+      - PUBLIC_HOST=${PUBLIC_HOST}
       
     volumes:
       - ./server:/app
