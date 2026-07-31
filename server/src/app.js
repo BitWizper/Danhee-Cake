@@ -108,7 +108,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       scriptSrcAttr: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://danhee-cake.vercel.app", "https://research-throughout-approach-historical.trycloudflare.com", "https://holders-alternative-after-org.trycloudflare.com", "https://bikini-screensaver-responding-attending.trycloudflare.com", "https://punk-actually-corners-twiki.trycloudflare.com"],
+      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://danhee-cake.vercel.app", "https://research-throughout-approach-historical.trycloudflare.com", "https://holders-alternative-after-org.trycloudflare.com", "https://bikini-screensaver-responding-attending.trycloudflare.com", "https://punk-actually-corners-twiki.trycloudflare.com", "https://redeem-bundle-distinction-advertisement.trycloudflare.com", "https://*.trycloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -157,6 +157,9 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://danhee-cake.vercel.app',
+  'https://redeem-bundle-distinction-advertisement.trycloudflare.com',
+  // En desarrollo, permitir cualquier subdominio de trycloudflare.com
+  ...(process.env.NODE_ENV !== 'production' ? ['https://*.trycloudflare.com'] : []),
   // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
 ];
@@ -166,8 +169,18 @@ const corsOptions = {
     // Permitir solicitudes sin origin (como mobile apps, curl, postman)
     if (!origin) return callback(null, true);
     
-    // Verificar si el origen está en la lista permitida
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Verificar si el origen está en la lista permitida o si coincide con un patrón
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (allowedOrigin.includes('*')) {
+        // Patrón con wildcard (ej: https://*.trycloudflare.com)
+        const pattern = allowedOrigin.replace('*', '.*');
+        const regex = new RegExp(`^${pattern}$`);
+        return regex.test(origin);
+      }
+      return allowedOrigin === origin;
+    });
+
+    if (isAllowed) {
       return callback(null, true);
     }
 
