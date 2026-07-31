@@ -184,6 +184,13 @@ const streamChatbot = async (req, res) => {
     const ragUrl = process.env.RAG_SERVICE_URL;
     const conversationId = sanitizedConversationId || `conv_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     
+    // TEMPORALMENTE: Si no hay RAG service, responder con mensaje de error amigable
+    if (!ragUrl) {
+      console.warn("[Node Stream] RAG_SERVICE_URL no configurado, respondiendo con mensaje de servicio no disponible");
+      res.write(`data: ${JSON.stringify({ type: "error", content: "El servicio de chat no está disponible en este momento. Por favor intenta más tarde." })}\n\n`);
+      return res.end();
+    }
+    
     // Llamar al endpoint de stream del RAG service
     const ragRes = await fetch(`${ragUrl}/chat/stream`, {
       method: "POST",

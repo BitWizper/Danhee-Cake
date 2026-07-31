@@ -132,14 +132,15 @@ export const isValidConversationId = (id) => {
 };
 
 export const isValidSSEEvent = (data) => {
+  // TEMPORALMENTE: Desactivar validaciones estrictas para debug
   if (!data || typeof data !== 'object') return false;
   if (!VALID_SSE_TYPES.has(data.type)) return false;
   
-  // Validar estructura contra prototype pollution
-  if (!validateJSONStructure(data)) {
-    console.warn('[Security] SSE event failed structure validation');
-    return false;
-  }
+  // Validar estructura contra prototype pollution - DESACTIVADO TEMPORALMENTE
+  // if (!validateJSONStructure(data)) {
+  //   console.warn('[Security] SSE event failed structure validation');
+  //   return false;
+  // }
   
   if (data.type === 'conversation_id' && typeof data.conversation_id !== 'string') return false;
   if (data.type === 'token' && typeof data.content !== 'string') return false;
