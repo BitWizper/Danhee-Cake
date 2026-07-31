@@ -450,11 +450,11 @@ app.use(sanitizeMiddleware);
 // Logging de auditoría para seguridad
 app.use(auditLogger);
 
-// Rate limiting general para API
-app.use('/api/', apiLimiter);
-app.use('/api/', methodLimiter);
-app.use('/api/', writeLimiter);
-app.use('/api/', readLimiter);
+// Rate limiting general para API - DESACTIVADO TEMPORALMENTE PARA DEBUG DEL CHAT
+// app.use('/api/', apiLimiter);
+// app.use('/api/', methodLimiter);
+// app.use('/api/', writeLimiter);
+// app.use('/api/', readLimiter);
 
 // Middleware de bloqueo por IP para todas las rutas de API públicas - DESACTIVADO TEMPORALMENTE
 // app.use('/api', validateHostHeader, browserOriginGuard, ipBlocker);
@@ -476,10 +476,10 @@ app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
 app.use('/api/payments', require('./routes/payments.routes'));
-// Endpoint de streaming específico para chat
+// Endpoint de streaming específico para chat (sin rate limiting temporalmente)
 app.post('/api/chat/stream', clientChatGuard, streamChatbot);
 // Aplicar guardrail específico para clientes (no afecta a reposteros)
-app.use('/api/chat', clientChatGuard, chatLimiter, chatRoutes);
+app.use('/api/chat', clientChatGuard, chatRoutes);
 
 // Ruta base
 app.get('/', (req, res) => {
