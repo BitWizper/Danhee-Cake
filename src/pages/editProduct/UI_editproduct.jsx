@@ -203,7 +203,7 @@ const UI_editproduct = () => {
             {myCakes.map((cake) => (
               <div key={cake.id} className="cake-card glass">
                 <div className="cake-card__image">
-                  <img src={cake.image_url || 'https://via.placeholder.com/400x240'} alt={cake.name} />
+                  <img src={cake.image_url ? getApiUrl(cake.image_url) : 'https://via.placeholder.com/400x240'} alt={cake.name} />
                 </div>
                 <div className="cake-card__body">
                   <div className="card-head">

@@ -200,7 +200,7 @@ const ExplorePage = () => {
           >
             <div className="cake-card__visual" style={{ height: '220px', background: 'var(--color-surface-2)' }}>
               {cake.image_url ? (
-                <img src={cake.image_url} alt={cake.name} className="cake-card__img" />
+                <img src={getApiUrl(cake.image_url)} alt={cake.name} className="cake-card__img" />
               ) : (
                 <span className="cake-card__emoji" style={{ fontSize: '3.5rem' }}>🎂</span>
               )}

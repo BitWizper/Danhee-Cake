@@ -66,7 +66,7 @@ const BakerProfilePage = () => {
           <div className="profile-header">
             <div className="profile-avatar glass">
               {baker.avatar_url ? (
-                <img src={baker.avatar_url} alt={baker.business_name} />
+                <img src={getApiUrl(baker.avatar_url)} alt={baker.business_name} />
               ) : (
                 <span className="avatar-placeholder">🎂</span>
               )}
@@ -135,7 +135,7 @@ const BakerProfilePage = () => {
                 >
                   <div className="cake-card-simple__img">
                     {cake.image_url ? (
-                      <img src={cake.image_url} alt={cake.name} />
+                      <img src={getApiUrl(cake.image_url)} alt={cake.name} />
                     ) : (
                       <div className="placeholder-img">🎂</div>
                     )}

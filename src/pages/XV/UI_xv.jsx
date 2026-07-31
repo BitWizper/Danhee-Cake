@@ -153,7 +153,7 @@ const UIXV = () => {
             <Link to={`/pastel/${cake.id}`} style={{ display: 'block', textDecoration: 'none' }}>
               <div className="xv-cake-card__visual" style={{ height: '220px', background: 'var(--color-surface-2)' }}>
                 {cake.image_url ? (
-                  <img src={cake.image_url} alt={cake.name} className="xv-cake-card__img" />
+                  <img src={getApiUrl(cake.image_url)} alt={cake.name} className="xv-cake-card__img" />
                 ) : (
                   <span className="xv-cake-card__emoji" style={{ fontSize: '3.5rem' }}>👑</span>
                 )}

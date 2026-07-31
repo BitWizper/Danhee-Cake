@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { getApiUrl } from '../../config/api';
 import './Navbar.css';
 
 const Navbar = () => {
@@ -107,7 +108,7 @@ const Navbar = () => {
                     <div key={item.id} className="navbar__cart-item">
                       <div className="navbar__cart-item__img">
                         {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} />
+                          <img src={getApiUrl(item.image_url)} alt={item.name} />
                         ) : (
                           <span>🎂</span>
                         )}

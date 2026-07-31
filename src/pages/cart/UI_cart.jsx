@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
+import { getApiUrl } from '../../config/api';
 import './UI_cart.css';
 
 const UICart = () => {
@@ -41,7 +42,7 @@ const UICart = () => {
                 <article key={item.id} className="cart-item">
                   <div className="cart-item__image">
                     {item.image_url ? (
-                      <img src={item.image_url} alt={item.name} />
+                      <img src={getApiUrl(item.image_url)} alt={item.name} />
                     ) : (
                       <span className="cart-item__emoji">🎂</span>
                     )}

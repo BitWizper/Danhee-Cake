@@ -178,7 +178,7 @@ const UICheckout = () => {
                   {cartItems.map(item => (
                     <div key={item.id} className="review-item">
                       <div className="review-item__left">
-                        <img src={item.image_url || 'https://via.placeholder.com/80'} alt={item.name} />
+                        <img src={item.image_url ? getApiUrl(item.image_url) : 'https://via.placeholder.com/80'} alt={item.name} />
                         <div>
                           <strong>{item.name}</strong>
                           <div className="muted">{item.business_name} • {item.quantity} x ${item.price}</div>

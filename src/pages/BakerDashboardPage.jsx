@@ -435,7 +435,7 @@ const BakerDashboardPage = () => {
                   currentCakes.map(cake => (
                     <div key={cake.id} className="cake-manage-card glass">
                       <div className="cake-manage-card__img">
-                        <img src={cake.image_url || 'https://via.placeholder.com/300x200?text=Sin+Imagen'} alt={cake.name} />
+                        <img src={cake.image_url ? getApiUrl(cake.image_url) : 'https://via.placeholder.com/300x200?text=Sin+Imagen'} alt={cake.name} />
                         {cake.is_featured ? <span className="featured-badge">⭐ Destacado</span> : null}
                       </div>
                       <div className="cake-manage-card__info">

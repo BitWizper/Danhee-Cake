@@ -65,7 +65,7 @@ const CakeDetailPage = () => {
         {/* Sección Izquierda: Imagen */}
         <div className="cake-detail__image-wrapper glass">
           {cake.image_url ? (
-            <img src={cake.image_url} alt={cake.name} className="cake-detail__image" />
+            <img src={getApiUrl(cake.image_url)} alt={cake.name} className="cake-detail__image" />
           ) : (
             <div className="cake-detail__placeholder">🎂</div>
           )}
