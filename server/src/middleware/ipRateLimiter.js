@@ -56,6 +56,26 @@ const ipRateLimiter = (options = {}) => {
   const skipSuccessfulRequests = options.skipSuccessfulRequests || false;
   
   return (req, res, next) => {
+    // En desarrollo, desactivar rate limiting
+    if (process.env.NODE_ENV !== 'production') {
+      return next();
+    }
+    
+    // Eximir a reposteros del rate limiting por IP
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const token = authHeader.slice(7);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded.role === 'repostero') {
+          return next();
+        }
+      } catch (error) {
+        // Continuar con verificación normal
+      }
+    }
+    
     const ip = req.ip || req.connection.remoteAddress;
     const info = getIpInfo(ip);
     

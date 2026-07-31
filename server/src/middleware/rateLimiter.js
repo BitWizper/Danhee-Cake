@@ -28,7 +28,28 @@ const isIPBlocked = (ip) => {
 
 // Middleware para verificar IP bloqueada
 const ipBlocker = (req, res, next) => {
+  // En desarrollo, desactivar bloqueo por IP
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+  
   const ip = getClientIP(req);
+  
+  // Eximir a reposteros del bloqueo por IP
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const jwt = require('jsonwebtoken');
+      const token = authHeader.slice(7);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded.role === 'repostero') {
+        return next();
+      }
+    } catch (error) {
+      // Continuar con verificación normal
+    }
+  }
+  
   if (isIPBlocked(ip)) {
     console.log(`[SECURITY] Intento bloqueado desde IP: ${ip}`);
     return res.status(403).json({
@@ -97,6 +118,21 @@ exports.registerLimiter = createLimiter({
 exports.chatLimiter = createLimiter({
   windowMs: 1 * 60 * 1000,
   max: 20,
+  skip: (req) => {
+    // Eximir a reposteros del rate limiting del chat
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const token = authHeader.slice(7);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        return decoded.role === 'repostero';
+      } catch (error) {
+        return false;
+      }
+    }
+    return false;
+  },
   message: {
     success: false,
     message: 'Demasiadas solicitudes al chat. Por favor, espera un momento.'

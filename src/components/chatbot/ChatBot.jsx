@@ -582,15 +582,20 @@ function ChatBot() {
       return;
     }
 
-    const validation = validateMessage(trimmedMessage);
-    if (!validation.valid) {
-      showValidationError(validation.error);
-      return;
-    }
+    // Solo aplicar validación de seguridad para usuarios que no son reposteros
+    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+    console.log('[ChatBot] User role:', storedUser?.role, 'User:', storedUser);
+    if (storedUser?.role !== "repostero") {
+      const validation = validateMessage(trimmedMessage);
+      if (!validation.valid) {
+        showValidationError(validation.error);
+        return;
+      }
 
-    if (isSpamMessage(trimmedMessage, chat)) {
-      showValidationError("Por favor evita repetir el mismo mensaje varias veces.");
-      return;
+      if (isSpamMessage(trimmedMessage, chat)) {
+        showValidationError("Por favor evita repetir el mismo mensaje varias veces.");
+        return;
+      }
     }
 
     if (!trimmedMessage || isSending) return;

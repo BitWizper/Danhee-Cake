@@ -1,9 +1,22 @@
 const { logSecurityEvent } = require('./auditLogger');
 
-const validOrigins = (process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173,http://localhost:3000')
-  .split(',')
-  .map((origin) => origin.trim().toLowerCase())
-  .filter(Boolean);
+const getValidOrigins = () => {
+  const origins = (process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173,http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim().toLowerCase())
+    .filter(Boolean);
+
+  // En desarrollo, permitir también orígenes de trycloudflare.com para tunnels
+  if (process.env.NODE_ENV !== 'production') {
+    // Agregar patrones para túneles de desarrollo
+    origins.push('https://redeem-bundle-distinction-advertisement.trycloudflare.com');
+    origins.push('https://spirits-palmer-daughter-adventures.trycloudflare.com');
+    // También permitir cualquier subdominio de trycloudflare.com
+    origins.push('.trycloudflare.com');
+  }
+
+  return origins;
+};
 
 const normalizeHost = (value) => {
   if (!value) return '';
@@ -26,7 +39,13 @@ const getRequestOrigin = (req) => {
 };
 
 const browserOriginGuard = (req, res, next) => {
+  // En desarrollo, desactivar temporalmente las restricciones de origen
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+
   const requestOrigin = getRequestOrigin(req);
+  const validOrigins = getValidOrigins();
 
   if (!requestOrigin) {
     // Permitir GET/HEAD directos desde el navegador que no incluyen Origin
@@ -54,7 +73,16 @@ const browserOriginGuard = (req, res, next) => {
     });
   }
 
-  if (!validOrigins.includes(requestOrigin)) {
+  // Verificar si el origen está en la lista de orígenes permitidos o si coincide con un patrón
+  const isOriginAllowed = validOrigins.some(allowedOrigin => {
+    if (allowedOrigin.startsWith('.')) {
+      // Patrón de dominio (ej: .trycloudflare.com)
+      return requestOrigin.endsWith(allowedOrigin) || requestOrigin.endsWith(allowedOrigin.substring(1));
+    }
+    return allowedOrigin === requestOrigin;
+  });
+
+  if (!isOriginAllowed) {
     logSecurityEvent('INVALID_ORIGIN', {
       origin: requestOrigin,
       allowedOrigins: validOrigins,

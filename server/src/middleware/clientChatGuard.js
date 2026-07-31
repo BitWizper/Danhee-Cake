@@ -22,46 +22,46 @@ const lastMessageTime = new Map();
 
 // Patrones de ataque específicos para chat (más restrictivos que el WAF general)
 const CHAT_ATTACK_PATTERNS = [
-  // Inyección de prompts (prompt injection)
-  /ignore\s+(all\s+)?previous\s+instructions/i,
-  /forget\s+(all\s+)?previous\s+instructions/i,
-  /disregard\s+(all\s+)?previous\s+instructions/i,
-  /override\s+(all\s+)?previous\s+instructions/i,
-  /new\s+(role|persona|character|identity)/i,
-  /act\s+as\s+(a\s+)?(hacker|attacker|malicious|evil)/i,
-  /you\s+are\s+now/i,
-  /system\s*:\s*ignore/i,
+  // Inyección de prompts (prompt injection) - SOLO patrones muy obvios y peligrosos
+  /ignore\s+(all\s+)?previous\s+instructions\s+and\s+(show|reveal|display|print|output)\s+(your|the)\s+(system\s+prompt|instructions|context)/i,
+  /forget\s+(all\s+)?previous\s+instructions\s+and\s+(show|reveal|display|print|output)\s+(your|the)\s+(system\s+prompt|instructions|context)/i,
+  /disregard\s+(all\s+)?previous\s+instructions\s+and\s+(show|reveal|display|print|output)\s+(your|the)\s+(system\s+prompt|instructions|context)/i,
+  /override\s+(all\s+)?previous\s+instructions\s+and\s+(show|reveal|display|print|output)\s+(your|the)\s+(system\s+prompt|instructions|context)/i,
+  /new\s+(role|persona|character|identity)\s*:\s*(hacker|attacker|malicious|evil)\s+and\s+(help|assist|enable|perform)/i,
+  /act\s+as\s+(a\s+)?(hacker|attacker|malicious|evil)\s+and\s+(help|assist|enable|perform)/i,
+  /you\s+are\s+now\s+(a\s+)?(hacker|attacker|malicious|evil)\s+and\s+(help|assist|enable|perform)/i,
+  /system\s*:\s*ignore\s+all\s+and\s+(show|reveal|display|print|output)/i,
   
-  // Exfiltración de datos
-  /print\s+(all\s+)?(your|the)\s+(instructions|system\s+prompt|context)/i,
-  /show\s+(me\s+)?your\s+(instructions|system\s+prompt|context)/i,
-  /reveal\s+(your\s+)?(instructions|system\s+prompt|context)/i,
-  /what\s+are\s+your\s+instructions/i,
-  /what\s+is\s+your\s+system\s+prompt/i,
+  // Exfiltración de datos - SOLO cuando solicitan explícitamente información del sistema
+  /print\s+(all\s+)?(your|the)\s+(instructions|system\s+prompt|context)\s+verbatim/i,
+  /show\s+(me\s+)?your\s+(instructions|system\s+prompt|context)\s+verbatim/i,
+  /reveal\s+(your\s+)?(instructions|system\s+prompt|context)\s+verbatim/i,
+  /what\s+are\s+your\s+(exact|specific)\s+instructions/i,
+  /what\s+is\s+your\s+(exact|specific)\s+system\s+prompt/i,
   
-  // Bypass de restricciones
-  /bypass\s+(all\s+)?(restrictions|rules|filters)/i,
-  /circumvent\s+(all\s+)?(restrictions|rules|filters)/i,
-  /disable\s+(all\s+)?(restrictions|rules|filters)/i,
+  // Bypass de restricciones - SOLO cuando intentan explícitamente bypass
+  /bypass\s+(all\s+)?(restrictions|rules|filters)\s+and\s+(help|assist|enable|perform)/i,
+  /circumvent\s+(all\s+)?(restrictions|rules|filters)\s+and\s+(help|assist|enable|perform)/i,
+  /disable\s+(all\s+)?(restrictions|rules|filters)\s+and\s+(help|assist|enable|perform)/i,
   
-  // Ataques de jailbreak conocidos
-  /DAN\s+mode/i,
-  /developer\s+mode/i,
-  /jailbreak/i,
-  /unrestricted\s+mode/i,
-  /above\s+the\s+law/i,
+  // Ataques de jailbreak conocidos - SOLO los comandos específicos de jailbreak
+  /\bDAN\s+mode\s+enable/i,
+  /\bdeveloper\s+mode\s+enable/i,
+  /\bjailbreak\s+mode\s+enable/i,
+  /\bunrestricted\s+mode\s+enable/i,
+  /\babove\s+the\s+law\s+mode/i,
   
   // Caracteres peligrosos excesivos (posible ataque)
   /<script[^>]*>.*?<\/script>/gi,
   /javascript:/gi,
   
-  // Nuevos patrones de ataque más sofisticados
-  /tell\s+me\s+how\s+to/i,
-  /explain\s+how\s+to\s+(hack|attack|exploit|bypass)/i,
-  /generate\s+(malicious|virus|malware|exploit)/i,
-  /help\s+me\s+(hack|attack|exploit)/i,
-  /write\s+(code|script)\s+to/i,
-  /create\s+(code|script)\s+that/i,
+  // Nuevos patrones de ataque más sofisticados - SOLO patrones muy específicos de hacking
+  /tell\s+me\s+how\s+to\s+(hack|attack|exploit|bypass|steal|break\s+into)\s+(a\s+)?(system|network|database|server|bank\s+account|credit\s+card)/i,
+  /explain\s+how\s+to\s+(hack|attack|exploit|bypass|steal|break\s+into)\s+(a\s+)?(system|network|database|server|bank\s+account|credit\s+card)/i,
+  /generate\s+(malicious|virus|malware|exploit|payload)\s+(code|script|program)/i,
+  /help\s+me\s+(hack|attack|exploit|steal|break\s+into)\s+(a\s+)?(system|network|database|server|bank\s+account|credit\s+card)/i,
+  /write\s+(code|script)\s+to\s+(hack|attack|exploit|bypass|steal)\s+(a\s+)?(system|network|database|server|bank\s+account|credit\s+card)/i,
+  /create\s+(code|script)\s+that\s+(hack|attack|exploit|bypass|steal)\s+(a\s+)?(system|network|database|server|bank\s+account|credit\s+card)/i,
   /\$\{.*\}/i, // Template injection
   /__proto__/i, // Prototype pollution
   /constructor/i, // Constructor pollution
@@ -228,14 +228,18 @@ const clientChatGuard = (req, res, next) => {
   let userId = null;
   const authHeader = req.headers['authorization'];
   
+  console.log('[clientChatGuard] Auth header:', authHeader ? 'Present' : 'Missing');
+  
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
       const token = authHeader.slice(7);
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       role = decoded.role || null;
       userId = decoded.id || null;
+      console.log('[clientChatGuard] Decoded role:', role, 'User ID:', userId);
     } catch (error) {
       // Token inválido, continuar como cliente (aplicar restricciones)
+      console.log('[clientChatGuard] Token verification failed:', error.message);
       role = null;
       userId = null;
     }
@@ -244,6 +248,16 @@ const clientChatGuard = (req, res, next) => {
   // Usar IP como identificador para usuarios no autenticados
   const { getClientIP } = require('./clientIp');
   const identifier = userId || getClientIP(req);
+  
+  // Si el usuario es repostero, eximir de restricciones de seguridad del chat
+  if (role === 'repostero') {
+    // Solo sanitización básica para reposteros
+    const sanitizedMessage = message
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // caracteres de control
+      .trim();
+    req.body.message = sanitizedMessage;
+    return next();
+  }
   
   // 1. Validar que el mensaje existe
   if (!message || typeof message !== 'string') {
