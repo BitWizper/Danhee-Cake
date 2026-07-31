@@ -28,6 +28,27 @@ const sanitizeString = (value, maxLength = 1000) => {
   return sanitized;
 };
 
+// Sanitización específica para chat (menos agresiva, permite caracteres normales de conversación)
+const sanitizeChatMessage = (value, maxLength = 5000) => {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  
+  // Solo eliminar scripts y patrones muy peligrosos, pero permitir caracteres normales de conversación
+  let sanitized = value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Eliminar scripts
+    .replace(/javascript:/gi, '') // Eliminar protocolos javascript
+    .replace(/on\w+\s*=/gi, '') // Eliminar event handlers
+    .replace(/data:text\/html/gi, '') // Eliminar data URLs HTML
+    .trim();
+  
+  // Limitar longitud
+  if (maxLength > 0) {
+    sanitized = sanitized.substring(0, maxLength);
+  }
+  
+  return sanitized;
+};
+
 // Validar que sea un número
 const validateNumber = (value, min = null, max = null) => {
   if (value === null || value === undefined) return true;
@@ -209,6 +230,7 @@ const validateMethod = (allowedMethods) => {
 
 module.exports = {
   sanitizeString,
+  sanitizeChatMessage,
   validateNumber,
   validateEmail,
   validateUrl,

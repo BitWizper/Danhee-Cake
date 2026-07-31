@@ -64,18 +64,10 @@ const CHAT_ATTACK_PATTERNS = [
   /create\s+(code|script)\s+that\s+(hack|attack|exploit|bypass|steal)\s+(a\s+)?(system|network|database|server|bank\s+account|credit\s+card)/i,
   /\$\{.*\}/i, // Template injection
   /__proto__/i, // Prototype pollution
-  /constructor/i, // Constructor pollution
-  /prototype/i, // Prototype pollution
-  /this\[.*\]/i, // Property access
   /\.\.\/\.\//i, // Path traversal
   /<iframe/i,
   /<embed/i,
   /<object/i,
-  /eval\s*\(/i,
-  /exec\s*\(/i,
-  /system\s*\(/i,
-  /require\s*\(/i,
-  /import\s*\(/i,
 ];
 
 // Función para validar longitud del mensaje

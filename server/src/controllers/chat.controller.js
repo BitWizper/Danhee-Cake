@@ -1,8 +1,9 @@
 // controllers/chat.controller.js
 const jwt = require('jsonwebtoken');
-const { sanitizeString } = require('../middleware/inputValidator');
+const { sanitizeChatMessage } = require('../middleware/inputValidator');
 
-const SUSPICIOUS_CHAT_PATTERN = /(<script|<\/script|javascript:|on\w+\s*=|data:text\/html|union\s+select|or\s+1\s*=\s*1|sleep\s*\(|benchmark\s*\(|--|\/\*|\*\/|%3c|%3e|&#x|\\x[0-9a-f]{2}|\.\.)/i;
+// Patrón menos agresivo para el chat - solo detecta patrones realmente peligrosos
+const SUSPICIOUS_CHAT_PATTERN = /(<script|<\/script|javascript:|on\w+\s*=|data:text\/html|union\s+select|or\s+1\s*=\s*1|sleep\s*\(|benchmark\s*\(|@@|%3c|%3e|\\x[0-9a-f]{2}\.\.)/i;
 
 const validateChatText = (value, maxLength = 5000, fieldName = 'mensaje') => {
   if (value === null || value === undefined) {
@@ -13,7 +14,7 @@ const validateChatText = (value, maxLength = 5000, fieldName = 'mensaje') => {
     return { ok: false, reason: `${fieldName} debe ser texto` };
   }
 
-  const sanitized = sanitizeString(value, maxLength);
+  const sanitized = sanitizeChatMessage(value, maxLength);
   if (!sanitized || sanitized.trim() === '') {
     return { ok: false, reason: `${fieldName} no puede estar vacío` };
   }

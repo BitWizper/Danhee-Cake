@@ -85,6 +85,8 @@ const sanitizeMiddleware = (req, res, next) => {
   // Para rutas de autenticación: solo detectar patrones peligrosos, NO mutar los valores.
   // Los datos van a bcrypt y queries parametrizadas, nunca se renderizan como HTML.
   const isAuthRoute = req.originalUrl.startsWith('/api/auth/');
+  // Para rutas de chat: no aplicar sanitización global (tienen su propia validación específica)
+  const isChatRoute = req.originalUrl.startsWith('/api/chat/');
 
   const sanitizeForAuth = (str) => {
     if (typeof str !== 'string') return str;
@@ -105,6 +107,10 @@ const sanitizeMiddleware = (req, res, next) => {
   const sanitizeForGeneral = (obj) => sanitizeObject(obj);
 
   try {
+    if (isChatRoute) {
+      // No aplicar sanitización global al chat (tiene su propia validación específica)
+      return next();
+    }
     if (isAuthRoute) {
       // Solo validar body de auth sin mutar los valores
       if (req.body && typeof req.body === 'object') {
