@@ -108,7 +108,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       scriptSrcAttr: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://danhee-cake.vercel.app", "https://research-throughout-approach-historical.trycloudflare.com", "https://holders-alternative-after-org.trycloudflare.com", "https://bikini-screensaver-responding-attending.trycloudflare.com", "https://punk-actually-corners-twiki.trycloudflare.com", "https://redeem-bundle-distinction-advertisement.trycloudflare.com", "https://*.trycloudflare.com"],
+      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://danhee-cake.vercel.app", "https://research-throughout-approach-historical.trycloudflare.com", "https://holders-alternative-after-org.trycloudflare.com", "https://bikini-screensaver-responding-attending.trycloudflare.com", "https://punk-actually-corners-twiki.trycloudflare.com", "https://redeem-bundle-distinction-advertisement.trycloudflare.com", "https://spirits-palmer-daughter-adventures.trycloudflare.com", "https://*.trycloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -158,6 +158,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'https://danhee-cake.vercel.app',
   'https://redeem-bundle-distinction-advertisement.trycloudflare.com',
+  'https://spirits-palmer-daughter-adventures.trycloudflare.com',
   // En desarrollo, permitir cualquier subdominio de trycloudflare.com
   ...(process.env.NODE_ENV !== 'production' ? ['https://*.trycloudflare.com'] : []),
   // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)
@@ -166,6 +167,11 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function(origin, callback) {
+    // En desarrollo, permitir cualquier origen
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
     // Permitir solicitudes sin origin (como mobile apps, curl, postman)
     if (!origin) return callback(null, true);
     

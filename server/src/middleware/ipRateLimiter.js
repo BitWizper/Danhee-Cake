@@ -56,6 +56,11 @@ const ipRateLimiter = (options = {}) => {
   const skipSuccessfulRequests = options.skipSuccessfulRequests || false;
   
   return (req, res, next) => {
+    // En desarrollo, desactivar rate limiting
+    if (process.env.NODE_ENV !== 'production') {
+      return next();
+    }
+    
     // Eximir a reposteros del rate limiting por IP
     const authHeader = req.headers['authorization'];
     if (authHeader && authHeader.startsWith('Bearer ')) {

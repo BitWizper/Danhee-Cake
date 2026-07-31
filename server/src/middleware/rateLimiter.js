@@ -28,6 +28,11 @@ const isIPBlocked = (ip) => {
 
 // Middleware para verificar IP bloqueada
 const ipBlocker = (req, res, next) => {
+  // En desarrollo, desactivar bloqueo por IP
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+  
   const ip = getClientIP(req);
   
   // Eximir a reposteros del bloqueo por IP

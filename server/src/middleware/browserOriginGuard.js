@@ -10,6 +10,7 @@ const getValidOrigins = () => {
   if (process.env.NODE_ENV !== 'production') {
     // Agregar patrones para túneles de desarrollo
     origins.push('https://redeem-bundle-distinction-advertisement.trycloudflare.com');
+    origins.push('https://spirits-palmer-daughter-adventures.trycloudflare.com');
     // También permitir cualquier subdominio de trycloudflare.com
     origins.push('.trycloudflare.com');
   }
@@ -38,6 +39,11 @@ const getRequestOrigin = (req) => {
 };
 
 const browserOriginGuard = (req, res, next) => {
+  // En desarrollo, desactivar temporalmente las restricciones de origen
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+
   const requestOrigin = getRequestOrigin(req);
   const validOrigins = getValidOrigins();
 
