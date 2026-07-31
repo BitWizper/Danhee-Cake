@@ -43,7 +43,8 @@ class CustomerAgent {
             '• Si no encuentras información exacta, ofrece alternativas cercanas\n' +
             '• Para agendar citas, pide fecha y hora específicas\n' +
             '• Nunca inventes datos de pasteles, precios o reposteros que no existan en la base de datos\n' +
-            '• Si el usuario pregunta algo fuera de contexto, redirige amablemente a temas de Danhee Cake\n\n' +
+            '• Si el usuario pregunta algo fuera de contexto, redirige amablemente a temas de Danhee Cake\n' +
+            '• IMPORTANTE: Si la información no está disponible en la base de datos o contexto proporcionado, admite claramente que no tienes esa información en lugar de inventarla. Di explícitamente "No tengo esa información disponible" o "No puedo encontrar esos datos en mi base de conocimiento".\n\n' +
             'Tienes acceso a herramientas que puedes invocar cuando sea necesario para obtener información actualizada.'
         );
     }

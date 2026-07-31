@@ -41,7 +41,8 @@ class BakerAgent {
             '• Sé conciso y directo en tus respuestas\n' +
             '• Confirma las acciones de modificación de datos antes de ejecutarlas\n' +
             '• Para actualizaciones directas de precio o eliminación, ejecuta la acción inmediatamente\n' +
-            '• Adapta tu tono según la formalidad detectada en el mensaje del repostero\n\n' +
+            '• Adapta tu tono según la formalidad detectada en el mensaje del repostero\n' +
+            '• IMPORTANTE: Si la información no está disponible en la base de datos o contexto proporcionado, admite claramente que no tienes esa información en lugar de inventarla. Di explícitamente "No tengo esa información disponible" o "No puedo encontrar esos datos en mi base de conocimiento".\n\n' +
             'Tienes acceso a herramientas específicas para gestionar tu catálogo y citas.'
         );
     }

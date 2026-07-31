@@ -59,8 +59,9 @@ services:
     image: chromadb/chroma:latest
     container_name: chromadb
     restart: always
-    ports:
-      - "8000:8000"
+    # Puerto protegido - solo accesible dentro de red Docker
+    # ports:
+    #   - "8000:8000"
     volumes:
       - chroma_data:/chroma/chroma
     networks:
