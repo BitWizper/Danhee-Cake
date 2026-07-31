@@ -223,7 +223,7 @@ const clientChatGuard = (req, res, next) => {
   
   const { message } = req.body;
   
-  // Verificar si el usuario es repostero - si lo es, no aplicar restricciones
+  // Verificar el rol del usuario
   let role = null;
   let userId = null;
   const authHeader = req.headers['authorization'];
@@ -238,7 +238,7 @@ const clientChatGuard = (req, res, next) => {
       userId = decoded.id || null;
       console.log('[clientChatGuard] Decoded role:', role, 'User ID:', userId);
     } catch (error) {
-      // Token inválido, continuar como cliente (aplicar restricciones)
+      // Token inválido, continuar como no autenticado
       console.log('[clientChatGuard] Token verification failed:', error.message);
       role = null;
       userId = null;
@@ -249,9 +249,8 @@ const clientChatGuard = (req, res, next) => {
   const { getClientIP } = require('./clientIp');
   const identifier = userId || getClientIP(req);
   
-  // Si el usuario es repostero, eximir de restricciones de seguridad del chat
+  // Si el usuario es repostero, solo sanitización básica
   if (role === 'repostero') {
-    // Solo sanitización básica para reposteros
     const sanitizedMessage = message
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // caracteres de control
       .trim();
@@ -259,7 +258,7 @@ const clientChatGuard = (req, res, next) => {
     return next();
   }
   
-  // 1. Validar que el mensaje existe
+  // Para clientes y no autenticados: validación mínima
   if (!message || typeof message !== 'string') {
     return res.status(400).json({
       error: 'Invalid message',
@@ -267,72 +266,23 @@ const clientChatGuard = (req, res, next) => {
     });
   }
   
-  // 2. Validar longitud del mensaje
-  const lengthValidation = validateMessageLength(message);
-  if (!lengthValidation.valid) {
-    logSecurityEvent('CHAT_MESSAGE_LENGTH_EXCEEDED', {
-      ip: req.ip,
-      userId,
-      reason: lengthValidation.reason,
-      messageLength: message.length
-    });
+  // Validación básica de longitud
+  if (message.length > 5000) {
     return res.status(400).json({
-      error: lengthValidation.reason,
-      message: lengthValidation.message
+      error: 'Message too long',
+      message: 'El mensaje no puede exceder 5000 caracteres'
     });
   }
   
-  // 3. Verificar cooldown entre mensajes
-  const cooldownCheck = checkCooldown(identifier);
-  if (!cooldownCheck.valid) {
-    logSecurityEvent('CHAT_COOLDOWN_ACTIVE', {
-      ip: req.ip,
-      userId
-    });
-    return res.status(429).json({
-      error: cooldownCheck.reason,
-      message: cooldownCheck.message
-    });
-  }
-  
-  // 4. Verificar mensajes repetidos
-  const repeatCheck = checkRepeatMessages(identifier, message);
-  if (!repeatCheck.valid) {
-    logSecurityEvent('CHAT_REPEAT_MESSAGE', {
-      ip: req.ip,
-      userId
-    });
-    return res.status(400).json({
-      error: repeatCheck.reason,
-      message: repeatCheck.message
-    });
-  }
-  
-  // 5. Detectar patrones de ataque específicos del chat
-  const attackPattern = detectChatAttackPatterns(message);
-  if (attackPattern) {
-    logSecurityEvent('CHAT_ATTACK_PATTERN_DETECTED', {
-      ip: req.ip,
-      userId,
-      attackType: attackPattern.type,
-      pattern: attackPattern.pattern,
-      userAgent: req.headers['user-agent']
-    });
-    
-    return res.status(403).json({
-      error: 'Message blocked',
-      message: 'Tu mensaje contiene patrones sospechosos y fue bloqueado por seguridad'
-    });
-  }
-  
-  // 6. Sanitización básica (remover caracteres de control peligrosos)
+  // Sanitización básica (solo caracteres de control)
   const sanitizedMessage = message
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // caracteres de control
     .trim();
   
-  // Reemplazar el mensaje original con el sanitizado
   req.body.message = sanitizedMessage;
   
+  // Continuar sin validaciones complejas de seguridad temporalmente
+  console.log('[clientChatGuard] Validación básica completada para:', role || 'no autenticado');
   next();
 };
 

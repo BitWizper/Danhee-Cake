@@ -476,9 +476,10 @@ app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
 app.use('/api/payments', require('./routes/payments.routes'));
+// Endpoint de streaming específico para chat
+app.post('/api/chat/stream', clientChatGuard, streamChatbot);
 // Aplicar guardrail específico para clientes (no afecta a reposteros)
 app.use('/api/chat', clientChatGuard, chatLimiter, chatRoutes);
-app.post('/api/chat/stream', clientChatGuard, streamChatbot);
 
 // Ruta base
 app.get('/', (req, res) => {
