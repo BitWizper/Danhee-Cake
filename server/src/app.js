@@ -82,11 +82,11 @@ app.use(httpsEnforcer);
 // Logging de seguridad
 app.use(securityLogger);
 
-// Rate limiting por IP (global)
-app.use(ipRateLimiter({
-  windowMs: 60 * 1000, // 1 minuto
-  maxRequests: 100 // 100 solicitudes por minuto
-}));
+// Rate limiting por IP (global) - DESACTIVADO TEMPORALMENTE PARA DESARROLLO
+// app.use(ipRateLimiter({
+//   windowMs: 60 * 1000, // 1 minuto
+//   maxRequests: 100 // 100 solicitudes por minuto
+// }));
 
 // Sanitización de inputs
 app.use(inputSanitizer({ strict: true }));
@@ -142,15 +142,15 @@ app.use(disablePoweredBy);
 // Temporalmente desactivado debido a falsos positivos que bloquean peticiones legítimas
 // app.use(advancedSecurity);
 
-// Bloqueo de rutas sensibles y archivos de configuración
-app.use((req, res, next) => {
-  const suspiciousPath = req.originalUrl || req.url || '';
-  const sensitivePatterns = [/\/\.env/i, /\/\.git/i, /\/phpmyadmin/i, /\/wp-admin/i, /\/config\.(php|json|js)/i, /\/backup/i, /\/logs/i, /\\/i];
-  if (sensitivePatterns.some((pattern) => pattern.test(suspiciousPath))) {
-    return res.status(404).json({ success: false, error_code: 'NOT_FOUND', message: 'Recurso no encontrado' });
-  }
-  next();
-});
+// Bloqueo de rutas sensibles y archivos de configuración - DESACTIVADO TEMPORALMENTE
+// app.use((req, res, next) => {
+//   const suspiciousPath = req.originalUrl || req.url || '';
+//   const sensitivePatterns = [/\/\.env/i, /\/\.git/i, /\/phpmyadmin/i, /\/wp-admin/i, /\/config\.(php|json|js)/i, /\/backup/i, /\/logs/i, /\\/i];
+//   if (sensitivePatterns.some((pattern) => pattern.test(suspiciousPath))) {
+//     return res.status(404).json({ success: false, error_code: 'NOT_FOUND', message: 'Recurso no encontrado' });
+//   }
+//   next();
+// });
 
 // CORS restrictivo - solo permitir orígenes específicos
 const allowedOrigins = [
@@ -159,6 +159,7 @@ const allowedOrigins = [
   'https://danhee-cake.vercel.app',
   'https://redeem-bundle-distinction-advertisement.trycloudflare.com',
   'https://spirits-palmer-daughter-adventures.trycloudflare.com',
+  'https://ppm-harrison-liability-affordable.trycloudflare.com',
   // En desarrollo, permitir cualquier subdominio de trycloudflare.com
   ...(process.env.NODE_ENV !== 'production' ? ['https://*.trycloudflare.com'] : []),
   // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)
@@ -167,6 +168,9 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function(origin, callback) {
+    // TEMPORALMENTE: Permitir cualquier origen para resolver el problema
+    return callback(null, true);
+    
     // En desarrollo, permitir cualquier origen
     if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
@@ -203,6 +207,10 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
+
+// TEMPORALMENTE: Desactivar browserOriginGuard para debug
+// const browserOriginGuard = require('./middleware/browserOriginGuard');
+// app.use(browserOriginGuard);
 
 // Validación de tipos de datos en request body para prevenir NoSQL injection
 const validateRequestBody = (req, res, next) => {
@@ -447,15 +455,18 @@ app.use('/api/', methodLimiter);
 app.use('/api/', writeLimiter);
 app.use('/api/', readLimiter);
 
-// Middleware de bloqueo por IP para todas las rutas de API públicas
-app.use('/api', validateHostHeader, browserOriginGuard, ipBlocker);
+// Middleware de bloqueo por IP para todas las rutas de API públicas - DESACTIVADO TEMPORALMENTE
+// app.use('/api', validateHostHeader, browserOriginGuard, ipBlocker);
+// app.use('/api', validateHostHeader); // Solo validación de host por ahora - DESACTIVADO
 
-// Middleware de detección de ataques para todas las rutas de API
-app.use('/api', attackDetector);
+// Middleware de detección de ataques para todas las rutas de API - DESACTIVADO TEMPORALMENTE
+// app.use('/api', attackDetector);
 
-// También proteger rutas top-level adicionales si existen
-app.use('/chat', validateHostHeader, browserOriginGuard, ipBlocker, attackDetector);
-app.use('/admin', validateHostHeader, browserOriginGuard, ipBlocker, attackDetector);
+// También proteger rutas top-level adicionales si existen - DESACTIVADO TEMPORALMENTE
+// app.use('/chat', validateHostHeader, browserOriginGuard, ipBlocker, attackDetector);
+// app.use('/admin', validateHostHeader, browserOriginGuard, ipBlocker, attackDetector);
+// app.use('/chat', validateHostHeader); // Solo validación de host por ahora - DESACTIVADO
+// app.use('/admin', validateHostHeader); // Solo validación de host por ahora - DESACTIVADO
 
 // Rutas (rate limiting específico aplicado en archivos de rutas)
 app.use('/api/auth', require('./routes/auth.routes'));
