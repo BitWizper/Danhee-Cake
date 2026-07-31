@@ -76,18 +76,12 @@ services:
       - PORT=5001
       - CHROMA_HOST=http://chromadb:8000
       - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
-      - DB_HOST=database
-      - DB_PORT=3306
-      - DB_NAME=danhee_db
-      - DB_USER=usuario
-      - DB_PASSWORD=password
     volumes:
       - ./server/rag:/app/rag
       - /app/rag/node_modules
     restart: always
     depends_on:
       - chromadb
-      - database
     networks:
       - app-network
     extra_hosts:
