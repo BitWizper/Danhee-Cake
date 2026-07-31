@@ -121,47 +121,14 @@ class CustomerAgent {
                 // Usar LangChain con tools (manteniendo compatibilidad con estructura existente)
                 // Por ahora, usamos el cliente directo para tools ya que LangChain tools requiere más configuración
                 const ollama = require('ollama');
-                const toolResponse = await ollama.chat({
+                const toolResponse = await ollama.generate({
                     model: 'llama3.2:latest',
-                    messages,
-                    tools: TOOLS_SCHEMA,
+                    prompt: JSON.stringify(messages),
                     options: getOllamaOptionsCliente(),
                     stream: false
                 });
 
-                if (toolResponse.message.tool_calls && toolResponse.message.tool_calls.length > 0) {
-                    toolCalls = toolResponse.message.tool_calls;
-                    
-                    for (const toolCall of toolCalls) {
-                        const toolName = toolCall.function.name;
-                        const toolArgs = JSON.parse(toolCall.function.arguments);
-                        
-                        try {
-                            const result = await executeTool(toolName, toolArgs);
-                            toolResults.push({ toolName, result });
-                            
-                            const resultText = typeof result === 'object' ? JSON.stringify(result) : String(result);
-                            messages.push({ role: 'tool', content: resultText, tool_call_id: toolCall.id });
-                        } catch (e) {
-                            console.error(`[CustomerAgent] Error ejecutando ${toolName}: ${e.message}`);
-                            // NO persistir error en memoria del agente para evitar bucles de estado fallido
-                            toolResults.push({ toolName, error: e.message });
-                            // Agregar mensaje temporal para esta ejecución pero no persistir
-                            messages.push({ role: 'tool', content: `Error temporal: ${e.message}. Por favor intenta con otra consulta.`, tool_call_id: toolCall.id, temporary: true });
-                        }
-                    }
-
-                    const finalResponse = await ollama.chat({
-                        model: 'llama3.2:latest',
-                        messages,
-                        options: getOllamaOptionsCliente(),
-                        stream: false
-                    });
-
-                    responseText = finalResponse.message.content;
-                } else {
-                    responseText = toolResponse.message.content;
-                }
+                responseText = toolResponse.response;
             } else {
                 // Usar LangChain ChatOllama para respuestas sin tools
                 const response = await this.llm.invoke(langchainMessages);
@@ -175,13 +142,13 @@ class CustomerAgent {
             // Fallback a cliente directo
             try {
                 const ollama = require('ollama');
-                const response = await ollama.chat({
+                const response = await ollama.generate({
                     model: 'llama3.2:latest',
-                    messages,
+                    prompt: userMessage,
                     options: getOllamaOptionsCliente(),
                     stream: false
                 });
-                responseText = response.message.content;
+                responseText = response.response;
             } catch (fallbackError) {
                 console.error(`[CustomerAgent] Error en fallback: ${fallbackError.message}`);
                 responseText = 'Lo siento, hubo un error al procesar tu mensaje. Por favor intenta de nuevo.';
@@ -295,20 +262,14 @@ class CustomerAgent {
             try {
                 const ollama = require('ollama');
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
-                const stream = await ollama.chat({
+                const response = await ollama.chat({
                     model: 'llama3.2:latest',
                     messages,
                     options: getOllamaOptionsCliente(),
-                    stream: true
+                    stream: false
                 });
 
-                let fullResponse = '';
-                
-                for await (const chunk of stream) {
-                    if (chunk.message && chunk.message.content) {
-                        fullResponse += chunk.message.content;
-                    }
-                }
+                const fullResponse = response.message.content;
 
                 await db.addChatMessage(conversationId, 'user', userMessage);
                 await db.addChatMessage(conversationId, 'assistant', fullResponse);

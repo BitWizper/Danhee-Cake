@@ -16,13 +16,12 @@ function getPool() {
     if (pool === null) {
         try {
             pool = mysql.createPool({
-                poolSize: 1,
+                connectionLimit: 1,
                 host: process.env.DB_HOST,
                 port: parseInt(process.env.DB_PORT || '3306'),
                 database: process.env.DB_NAME,
                 user: process.env.DB_USER,
                 password: process.env.DB_PASSWORD,
-                connectionTimeout: 20000,
                 waitForConnections: true,
                 queueLimit: 0
             });
@@ -349,6 +348,26 @@ async function getChatMessages(conversationId) {
     }
 }
 
+async function getConversationsByClientId(clientId) {
+    const conn = await getConnection();
+    if (!conn) return [];
+    
+    try {
+        const [rows] = await conn.execute(`
+            SELECT conversation_id, created_at
+            FROM chat_sessions
+            WHERE client_id = ?
+            ORDER BY created_at DESC
+        `, [clientId]);
+        return rows;
+    } catch (e) {
+        console.error(`[db-config] Error en getConversationsByClientId: ${e.message}`);
+        return [];
+    } finally {
+        conn.release();
+    }
+}
+
 async function addChatMessage(conversationId, role, content, toolCalls = null) {
     if (!conversationId) return false;
     
@@ -594,6 +613,7 @@ module.exports = {
     getChatHistory,
     getLastConversationByClient,
     getChatMessages,
+    getConversationsByClientId,
     addChatMessage,
     addObservabilityLog,
     getBakerProfileByUserId,

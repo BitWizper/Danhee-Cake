@@ -85,51 +85,14 @@ class BakerAgent {
         try {
             // Para tools, usamos cliente directo Ollama (LangChain tools requiere más configuración)
             const ollama = require('ollama');
-            const toolResponse = await ollama.chat({
+            const toolResponse = await ollama.generate({
                 model: 'llama3.2:latest',
-                messages,
-                tools: BAKER_TOOLS_SCHEMA,
+                prompt: JSON.stringify(messages),
                 options,
                 stream: false
             });
 
-            let responseText = '';
-
-            if (toolResponse.message.tool_calls && toolResponse.message.tool_calls.length > 0) {
-                toolCalls = toolResponse.message.tool_calls;
-                
-                for (const toolCall of toolCalls) {
-                    const toolName = toolCall.function.name;
-                    const toolArgs = JSON.parse(toolCall.function.arguments);
-                    
-                    try {
-                        const result = await executeTool(toolName, toolArgs);
-                        toolResults.push({ toolName, result });
-                        
-                        const resultText = typeof result === 'object' ? JSON.stringify(result) : String(result);
-                        messages.push({ role: 'tool', content: resultText, tool_call_id: toolCall.id });
-                    } catch (e) {
-                        console.error(`[BakerAgent] Error ejecutando ${toolName}: ${e.message}`);
-                        // NO persistir error en memoria del agente para evitar bucles de estado fallido
-                        toolResults.push({ toolName, error: e.message });
-                        // Agregar mensaje temporal para esta ejecución pero no persistir
-                        messages.push({ role: 'tool', content: `Error temporal: ${e.message}. Por favor intenta con otra consulta.`, tool_call_id: toolCall.id, temporary: true });
-                    }
-                }
-
-                const finalResponse = await ollama.chat({
-                    model: 'llama3.2:latest',
-                    messages,
-                    options,
-                    stream: false
-                });
-
-                responseText = finalResponse.message.content;
-            } else {
-                // Sin tools, usar LangChain ChatOllama
-                const response = await this.llm.invoke(langchainMessages);
-                responseText = response.content;
-            }
+            let responseText = toolResponse.response;
 
             const filteredResponse = this.filterResponse(responseText, userMessage);
             
@@ -147,46 +110,14 @@ class BakerAgent {
             // Fallback a cliente directo completo
             try {
                 const ollama = require('ollama');
-                const toolResponse = await ollama.chat({
+                const toolResponse = await ollama.generate({
                     model: 'llama3.2:latest',
-                    messages,
-                    tools: BAKER_TOOLS_SCHEMA,
+                    prompt: JSON.stringify(messages),
                     options,
                     stream: false
                 });
 
-                let responseText = '';
-
-                if (toolResponse.message.tool_calls && toolResponse.message.tool_calls.length > 0) {
-                    toolCalls = toolResponse.message.tool_calls;
-                    
-                    for (const toolCall of toolCalls) {
-                        const toolName = toolCall.function.name;
-                        const toolArgs = JSON.parse(toolCall.function.arguments);
-                        
-                        try {
-                            const result = await executeTool(toolName, toolArgs);
-                            toolResults.push({ toolName, result });
-                            
-                            const resultText = typeof result === 'object' ? JSON.stringify(result) : String(result);
-                            messages.push({ role: 'tool', content: resultText, tool_call_id: toolCall.id });
-                        } catch (e) {
-                            console.error(`[BakerAgent] Error ejecutando ${toolName}: ${e.message}`);
-                            messages.push({ role: 'tool', content: `Error: ${e.message}`, tool_call_id: toolCall.id });
-                        }
-                    }
-
-                    const finalResponse = await ollama.chat({
-                        model: 'llama3.2:latest',
-                        messages,
-                        options,
-                        stream: false
-                    });
-
-                    responseText = finalResponse.message.content;
-                } else {
-                    responseText = toolResponse.message.content;
-                }
+                let responseText = toolResponse.response;
 
                 const filteredResponse = this.filterResponse(responseText, userMessage);
                 
@@ -283,20 +214,14 @@ class BakerAgent {
                 const ollama = require('ollama');
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
                 const options = getOllamaOptions();
-                const stream = await ollama.chat({
+                const response = await ollama.generate({
                     model: 'llama3.2:latest',
-                    messages,
+                    prompt: JSON.stringify(messages),
                     options,
-                    stream: true
+                    stream: false
                 });
 
-                let fullResponse = '';
-                
-                for await (const chunk of stream) {
-                    if (chunk.message && chunk.message.content) {
-                        fullResponse += chunk.message.content;
-                    }
-                }
+                const fullResponse = response.response;
 
                 await db.addChatMessage(conversationId, 'user', userMessage);
                 await db.addChatMessage(conversationId, 'assistant', fullResponse);

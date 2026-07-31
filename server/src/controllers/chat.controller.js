@@ -121,7 +121,13 @@ const getChatHistory = async (req, res) => {
 
   try {
     const ragUrl = process.env.RAG_SERVICE_URL;
-    const response = await fetch(`${ragUrl}/chat/history/${sanitizedConversationId}`);
+    let response;
+    
+    if (sanitizedConversationId) {
+      response = await fetch(`${ragUrl}/chat/history/${sanitizedConversationId}`);
+    } else {
+      response = await fetch(`${ragUrl}/chat/history?client_id=${encodeURIComponent(sanitizedClientId)}`);
+    }
 
     if (!response.ok) {
       const errText = await response.text();

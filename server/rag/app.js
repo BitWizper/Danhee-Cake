@@ -104,6 +104,38 @@ app.get('/chat/history/:conversationId', async (req, res) => {
     }
 });
 
+app.get('/chat/history', async (req, res) => {
+    try {
+        const { client_id } = req.query;
+        
+        if (!client_id) {
+            return res.status(400).json({ error: 'client_id parameter is required' });
+        }
+        
+        const conversations = await db.getConversationsByClientId(client_id);
+        
+        // Get messages for the most recent conversation
+        let messages = [];
+        let conversation_id = null;
+        
+        if (conversations.length > 0) {
+            conversation_id = conversations[0].conversation_id;
+            messages = await db.getChatMessages(conversation_id);
+        }
+        
+        res.json({
+            conversation_id: conversation_id,
+            messages,
+            count: messages.length,
+            total_conversations: conversations.length
+        });
+        
+    } catch (e) {
+        console.error(`[app] Error en /chat/history (by client_id): ${e.message}`);
+        res.status(500).json({ error: 'Internal server error', message: e.message });
+    }
+});
+
 app.delete('/chat/:conversationId', async (req, res) => {
     try {
         const { conversationId } = req.params;
