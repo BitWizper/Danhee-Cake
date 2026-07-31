@@ -141,9 +141,19 @@ const getChatHistory = async (req, res) => {
 };
 
 const streamChatbot = async (req, res) => {
+  console.log('[Chat Stream] ===== INICIO =====');
+  console.log('[Chat Stream] Request body:', JSON.stringify(req.body));
+  console.log('[Chat Stream] Request headers:', JSON.stringify(req.headers));
+  
   const { message, conversation_id } = req.body;
   console.log('[Chat Stream] Message received:', message);
   console.log('[Chat Stream] Conversation ID:', conversation_id);
+  
+  // Validación básica primero
+  if (!message || typeof message !== 'string') {
+    console.log('[Chat Stream] ERROR: Mensaje inválido o no existe');
+    return res.status(400).json({ error: 'El mensaje es requerido y debe ser texto' });
+  }
   
   const messageValidation = validateChatText(message, 5000, 'El mensaje');
   const conversationValidation = validateChatText(conversation_id, 100, 'conversation_id');

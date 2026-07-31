@@ -88,8 +88,13 @@ app.use(securityLogger);
 //   maxRequests: 100 // 100 solicitudes por minuto
 // }));
 
-// Sanitización de inputs
-app.use(inputSanitizer({ strict: true }));
+// Sanitización de inputs (excluyendo chat)
+app.use((req, res, next) => {
+  if (req.originalUrl.startsWith('/api/chat/')) {
+    return next();
+  }
+  return inputSanitizer({ strict: true })(req, res, next);
+});
 
 // Security headers con Helmet
 app.use(helmet({
@@ -478,7 +483,43 @@ app.use('/api/appointments', require('./routes/appointments.routes'));
 app.use('/api/payments', require('./routes/payments.routes'));
 // Aplicar guardrail específico para clientes (no afecta a reposteros)
 app.use('/api/chat', clientChatGuard, chatLimiter, chatRoutes);
-app.post('/api/chat/stream', clientChatGuard, streamChatbot);
+// Endpoint temporal simplificado para debug
+app.post('/api/chat/stream', (req, res) => {
+  console.log('[DEBUG STREAM] Request received');
+  console.log('[DEBUG STREAM] Body:', req.body);
+  console.log('[DEBUG STREAM] Headers:', req.headers);
+  
+  try {
+    const { message, conversation_id } = req.body;
+    
+    if (!message) {
+      console.log('[DEBUG STREAM] ERROR: No message provided');
+      return res.status(400).json({ error: 'Message is required' });
+    }
+    
+    console.log('[DEBUG STREAM] Message:', message);
+    console.log('[DEBUG STREAM] Conversation ID:', conversation_id);
+    
+    // Configurar cabeceras de Server-Sent Events (SSE)
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'close');
+    res.setHeader('X-Accel-Buffering', 'no');
+    
+    // Enviar respuesta de prueba
+    res.write(`data: ${JSON.stringify({ type: "content", content: "Mensaje recibido: " + message })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+    res.end();
+    
+    console.log('[DEBUG STREAM] Response sent');
+  } catch (error) {
+    console.error('[DEBUG STREAM] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Versión original con clientChatGuard
+// app.post('/api/chat/stream', clientChatGuard, streamChatbot);
 
 // Ruta base
 app.get('/', (req, res) => {
