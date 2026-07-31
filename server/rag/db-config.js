@@ -50,7 +50,8 @@ async function getConnection() {
             port: parseInt(process.env.DB_PORT || '3306'),
             database: process.env.DB_NAME,
             user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD
+            password: process.env.DB_PASSWORD,
+            waitForConnections: true
         });
     } catch (e) {
         console.error(`[db-config] Error conectando a MySQL: ${e.message}`);
@@ -268,6 +269,7 @@ async function getChatHistory(conversationId, systemPrompt, maxTurns = 12) {
     if (!conn) return [{ role: 'system', content: systemPrompt }];
     
     try {
+        const limitValue = parseInt(maxTurns * 2);
         const [rows] = await conn.execute(`
             SELECT role, content
             FROM chat_messages
@@ -277,7 +279,7 @@ async function getChatHistory(conversationId, systemPrompt, maxTurns = 12) {
               AND TRIM(content) != ''
             ORDER BY id DESC
             LIMIT ?
-        `, [conversationId, maxTurns * 2]);
+        `, [conversationId, limitValue]);
         
         const reversedRows = rows.reverse();
         const messages = [{ role: 'system', content: systemPrompt }];
@@ -293,7 +295,7 @@ async function getChatHistory(conversationId, systemPrompt, maxTurns = 12) {
         console.error(`[db-config] Error en getChatHistory: ${e.message}`);
         return [{ role: 'system', content: systemPrompt }];
     } finally {
-        conn.release();
+        if (conn) conn.release();
     }
 }
 
