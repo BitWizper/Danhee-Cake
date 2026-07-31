@@ -108,7 +108,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       scriptSrcAttr: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://danhee-cake.vercel.app", "https://*.trycloudflare.com"],
+      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://danhee-cake.vercel.app", "https://research-throughout-approach-historical.trycloudflare.com", "https://holders-alternative-after-org.trycloudflare.com", "https://bikini-screensaver-responding-attending.trycloudflare.com", "https://punk-actually-corners-twiki.trycloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -157,9 +157,6 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://danhee-cake.vercel.app',
-  
-  // Permitir cualquier host de Cloudflare Tunnel para desarrollo
-  ...((process.env.NODE_ENV !== 'production') ? ['*.trycloudflare.com'] : []),
   // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
 ];
@@ -171,11 +168,6 @@ const corsOptions = {
     
     // Verificar si el origen está en la lista permitida
     if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    }
-
-    // Permitir cualquier host de Cloudflare Tunnel en desarrollo
-    if (process.env.NODE_ENV !== 'production' && origin.endsWith('.trycloudflare.com')) {
       return callback(null, true);
     }
 
@@ -447,7 +439,6 @@ app.use('/chat', validateHostHeader, browserOriginGuard, ipBlocker, attackDetect
 app.use('/admin', validateHostHeader, browserOriginGuard, ipBlocker, attackDetector);
 
 // Rutas (rate limiting específico aplicado en archivos de rutas)
-app.use('/api/config', require('./routes/config.routes'));
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/categories', require('./routes/categories.routes'));
 app.use('/api/cakes', require('./routes/cakes.routes'));
