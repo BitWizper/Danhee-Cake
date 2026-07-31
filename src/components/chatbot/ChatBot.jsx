@@ -584,6 +584,7 @@ function ChatBot() {
 
     // Solo aplicar validación de seguridad para usuarios que no son reposteros
     const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+    console.log('[ChatBot] User role:', storedUser?.role, 'User:', storedUser);
     if (storedUser?.role !== "repostero") {
       const validation = validateMessage(trimmedMessage);
       if (!validation.valid) {

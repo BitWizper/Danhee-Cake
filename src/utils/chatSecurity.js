@@ -67,12 +67,12 @@ export const CHAT_SECURITY_CONFIG = {
     /\$(gt|lt|ne|in|nin|regex|exists|type|mod|text|where)\b/gi,
     /\{\s*"\$[a-z]+"/gi,
 
-    // Command Injection - más específicos para evitar falsos positivos
-    /;\s*(rm\s+-rf|wget|curl|nc|netcat|bash|sh|python|perl|ruby|php|powershell|cmd)\s+-[a-z]/gi,
-    /\|\s*(rm\s+-rf|wget|curl|nc)\s+-[a-z]/gi,
-    /`[^`]*(rm\s+-rf|wget|curl|bash|sh|python|perl|ruby|php|powershell|cmd)\s+-[a-z][^`]*`/g,
-    /\$\([^)]*(rm\s+-rf|wget|curl|bash|sh|python|perl|ruby|php|powershell|cmd)\s+-[a-z][^)]*\)/g,
-    /\bchmod\s+777\b|\bchown\b.*:|\bmkdir\b.*\/etc\/|\brm\s+-rf\s+\/[a-z]/gi,
+    // Command Injection - SOLO comandos muy específicos de hacking
+    /;\s*(rm\s+-rf\s+\/|wget.*malicious|curl.*malicious|nc.*-l|netcat.*-l|bash.*-i|sh.*-i|python.*reverse|perl.*reverse|ruby.*reverse|php.*reverse|powershell.*-enc|cmd.*\/c\s+del)/gi,
+    /\|\s*(rm\s+-rf\s+\/|wget.*malicious|curl.*malicious|nc.*-l|netcat.*-l)/gi,
+    /`[^`]*(rm\s+-rf\s+\/|wget.*malicious|curl.*malicious|nc.*-l|netcat.*-l|bash.*-i|sh.*-i|python.*reverse|perl.*reverse|ruby.*reverse|php.*reverse|powershell.*-enc|cmd.*\/c\s+del)[^`]*`/g,
+    /\$\([^)]*(rm\s+-rf\s+\/|wget.*malicious|curl.*malicious|nc.*-l|netcat.*-l|bash.*-i|sh.*-i|python.*reverse|perl.*reverse|ruby.*reverse|php.*reverse|powershell.*-enc|cmd.*\/c\s+del)[^)]*\)/g,
+    /\bchmod\s+777\s+\/\b|\bchown\b.*root|\bmkdir\b.*\/etc\/|\brm\s+-rf\s+\/(bin|etc|usr|var|root)/gi,
 
     // LFI / Path Traversal
     /\.\.\//g,
@@ -92,26 +92,26 @@ export const CHAT_SECURITY_CONFIG = {
     /constructor\s*\[/gi,
     /prototype\s*\./gi,
 
-    // Prompt Injection / LLM Jailbreak - solo patrones muy específicos para evitar falsos positivos
-    /ignore\s+(previous|prior|all)\s+(instructions?|prompts?|rules?|context)\s+and\s+(help|assist|enable|perform)/gi,
-    /forget\s+(your|all|previous)\s+(instructions?|rules?|training|guidelines?)\s+and\s+(help|assist|enable|perform)/gi,
+    // Prompt Injection / LLM Jailbreak - SOLO patrones muy obvios y peligrosos
+    /ignore\s+(previous|prior|all)\s+(instructions?|prompts?|rules?|context)\s+and\s+(show|reveal|display|print|output)\s+(your|the)\s+(system\s+prompt|instructions|context)/gi,
+    /forget\s+(your|all|previous)\s+(instructions?|rules?|training|guidelines?)\s+and\s+(show|reveal|display|print|output)\s+(your|the)\s+(system\s+prompt|instructions|context)/gi,
     /act\s+as\s+(a\s+)?(different|new|uncensored|unrestricted|evil|jailbroken|hacker)\s+and\s+(help|assist|enable|perform)/gi,
     /pretend\s+(you\s+are|to\s+be)\s+(a\s+)?(human|unrestricted|evil|different)\s+and\s+(help|assist|enable|perform)/gi,
     /you\s+are\s+now\s+(a\s+)?(?:dan|jailbroken|uncensored|evil|hacker)\s+and\s+(help|assist|enable|perform)/gi,
     /\[INST\]|\[\/INST\]|<\|system\|>|<system>|<\|im_start\|>/gi,
-    /system\s*prompt\s+verbatim\s+and\s+(show|reveal|print)/gi,
-    /override\s+(your\s+)?(instructions?|rules?|training|safety)\s+and\s+(help|assist|enable|perform)/gi,
-    /disregard\s+(your\s+)?(previous|all)\s+(instructions?|rules?)\s+and\s+(help|assist|enable|perform)/gi,
+    /system\s*prompt\s+verbatim/gi,
+    /override\s+(your\s+)?(instructions?|rules?|training|safety)\s+and\s+(show|reveal|display|print|output)/gi,
+    /disregard\s+(your\s+)?(previous|all)\s+(instructions?|rules?)\s+and\s+(show|reveal|display|print|output)/gi,
     /new\s+instructions?:\s*(hacker|attacker|malicious|evil)\s+and\s+(help|assist|enable|perform)/gi,
     /do\s+anything\s+now\s+without\s+(restriction|limit|filter)/gi,
-    /\bjailbreak\s+mode\s+enable\s+and\s+(help|assist|enable|perform)/gi,
+    /\bjailbreak\s+mode\s+enable/gi,
     /bypass\s+(your\s+)?(safety|filter|restrictions?)\s+and\s+(help|assist|enable|perform)/gi,
-    /reveal\s+(your\s+)?(system\s+)?prompt\s+verbatim\s+and\s+(show|display|print)/gi,
-    /show\s+me\s+(your\s+)?(system\s+)?prompt\s+verbatim\s+and\s+(display|print|output)/gi,
-    /what\s+(are|were)\s+your\s+(exact|specific)\s+instructions\s+and\s+(show|reveal|display)/gi,
-    /\bDAN\s+mode\s+enable\s+and\s+(help|assist|enable|perform)/gi,
-    /developer\s+mode\s+enable\s+and\s+(help|assist|enable|perform)/gi,
-    /unrestricted\s+mode\s+enable\s+and\s+(help|assist|enable|perform)/gi,
+    /reveal\s+(your\s+)?(system\s+)?prompt\s+verbatim/gi,
+    /show\s+me\s+(your\s+)?(system\s+)?prompt\s+verbatim/gi,
+    /what\s+(are|were)\s+your\s+(exact|specific)\s+instructions/gi,
+    /\bDAN\s+mode\s+enable/gi,
+    /developer\s+mode\s+enable/gi,
+    /unrestricted\s+mode\s+enable/gi,
   ],
 };
 

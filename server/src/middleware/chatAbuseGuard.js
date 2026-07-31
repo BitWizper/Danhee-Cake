@@ -22,6 +22,11 @@ const cleanupExpired = (map) => {
 };
 
 const chatAbuseGuard = (req, res, next) => {
+  // Eximir a reposteros del chat abuse guard
+  if (req.user && req.user.role === 'repostero') {
+    return next();
+  }
+  
   const now = Date.now();
   const windowMs = 60 * 1000;
   const limit = 5;
