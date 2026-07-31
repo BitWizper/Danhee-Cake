@@ -110,7 +110,10 @@ class BakerAgent {
                         messages.push({ role: 'tool', content: resultText, tool_call_id: toolCall.id });
                     } catch (e) {
                         console.error(`[BakerAgent] Error ejecutando ${toolName}: ${e.message}`);
-                        messages.push({ role: 'tool', content: `Error: ${e.message}`, tool_call_id: toolCall.id });
+                        // NO persistir error en memoria del agente para evitar bucles de estado fallido
+                        toolResults.push({ toolName, error: e.message });
+                        // Agregar mensaje temporal para esta ejecución pero no persistir
+                        messages.push({ role: 'tool', content: `Error temporal: ${e.message}. Por favor intenta con otra consulta.`, tool_call_id: toolCall.id, temporary: true });
                     }
                 }
 

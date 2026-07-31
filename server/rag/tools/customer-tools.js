@@ -157,6 +157,14 @@ function convertToMysqlTime(horaStr) {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:00`;
 }
 
+/**
+ * Consulta el catálogo de pasteles de Danhee Cake, opcionalmente filtrado por categoría.
+ * 
+ * @param {string} categoria - Categoría opcional para filtrar (ej. "Cumpleaños", "Bodas", "XV Años")
+ * @param {string} contextoAnterior - Contexto de conversación previa para mantener coherencia
+ * @returns {Promise<Object>} Objeto con resultados: { mensaje: string, pasteles: Array, total: number }
+ * @throws {Error} Si falla la conexión a la base de datos
+ */
 async function consultarCatalogoPasteles(categoria = '', contextoAnterior = '') {
     const pasteles = await db.getCakes();
     console.error(`[DEBUG] Total pasteles en BD: ${pasteles.length}`);
@@ -204,6 +212,12 @@ async function consultarCatalogoPasteles(categoria = '', contextoAnterior = '') 
     };
 }
 
+/**
+ * Consulta todos los pasteles disponibles en Danhee Cake sin filtros.
+ * 
+ * @param {string} contextoAnterior - Contexto de conversación previa para mantener coherencia
+ * @returns {Promise<Object>} Objeto con resultados: { mensaje: string, pasteles: Array, total: number }
+ */
 async function consultarTodosLosPasteles(contextoAnterior = '') {
     const pasteles = await db.getCakes();
     
@@ -229,6 +243,12 @@ async function consultarTodosLosPasteles(contextoAnterior = '') {
     };
 }
 
+/**
+ * Consulta los pasteles más destacados de Danhee Cake según calificación y reseñas.
+ * 
+ * @param {number} top - Número de pasteles a mostrar (opcional, default 5)
+ * @returns {Promise<Object>} Objeto con resultados: { mensaje: string, destacados: Array, total: number }
+ */
 async function consultarMasDestacados(top = 5) {
     const pasteles = await db.getCakes();
     if (pasteles.length === 0) {
@@ -266,6 +286,12 @@ async function consultarMasDestacados(top = 5) {
     };
 }
 
+/**
+ * Consulta los reposteros disponibles en Danhee Cake.
+ * 
+ * @param {string} contextoAnterior - Contexto de conversación previa para mantener coherencia
+ * @returns {Promise<Object>} Objeto con resultados: { reposteros: Array, total: number }
+ */
 async function consultarReposterosDisponibles(contextoAnterior = '') {
     const reposteros = await db.getBakers();
     
@@ -281,6 +307,13 @@ async function consultarReposterosDisponibles(contextoAnterior = '') {
     return { reposteros: resultado, total: resultado.length };
 }
 
+/**
+ * Verifica la disponibilidad de un repostero específico en una fecha.
+ * 
+ * @param {number} bakerId - ID del repostero
+ * @param {string} fecha - Fecha en formato YYYY-MM-DD
+ * @returns {Promise<Object>} Objeto con disponibilidad: { disponible: boolean, mensaje: string }
+ */
 async function verificarDisponibilidadRepostero(bakerId, fecha) {
     const citas = await db.getAppointmentsByBakerDate(bakerId, fecha);
     const disponible = citas.length < 5;
@@ -294,6 +327,13 @@ async function verificarDisponibilidadRepostero(bakerId, fecha) {
     };
 }
 
+/**
+ * Obtiene los precios de pasteles por categoría específica.
+ * 
+ * @param {string} categoria - Categoría de pasteles
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con precios: { categoria: string, mensaje: string }
+ */
 async function obtenerPreciosPorCategoria(categoria = '', contextoAnterior = '') {
     const todos = await db.getCakes();
     const categoriaBuscar = categoria || contextoAnterior;
@@ -353,6 +393,17 @@ function baseDateFromIso(clientDatetimeStr) {
     }
 }
 
+/**
+ * Registra una solicitud de cita de degustación con un repostero.
+ * 
+ * @param {string} clientName - Nombre del cliente (opcional)
+ * @param {number|null} bakerId - ID del repostero (opcional)
+ * @param {string} fecha - Fecha deseada (puede ser relativa)
+ * @param {string} hora - Hora deseada
+ * @param {string} notas - Notas adicionales
+ * @param {string} clientDatetime - Fecha/hora actual del cliente (opcional)
+ * @returns {Promise<Object>} Objeto con结果: { mensaje: string, cita: Object|null }
+ */
 async function registrarSolicitudCita(clientName = '', bakerId = null, fecha = '', hora = '', notas = '', clientDatetime = '') {
     const baseDate = baseDateFromIso(clientDatetime);
     const fechaConvertida = parseFechaRelativa(fecha, baseDate);
@@ -464,6 +515,12 @@ async function registrarSolicitudCita(clientName = '', bakerId = null, fecha = '
     };
 }
 
+/**
+ * Consulta las categorías de pasteles disponibles en Danhee Cake.
+ * 
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con categorías: { categorias: Array }
+ */
 async function consultarCategorias(contextoAnterior = '') {
     const cats = await db.getCategories();
     if (cats.length === 0) {
@@ -487,6 +544,13 @@ async function consultarCategorias(contextoAnterior = '') {
     return { categorias: cats.map(c => ({ nombre: c.name, icono: c.icon })) };
 }
 
+/**
+ * Busca pasteles por nombre o parte del nombre.
+ * 
+ * @param {string} nombre - Nombre o parte del nombre del pastel
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con resultados: { mensaje: string, pasteles: Array, total: number }
+ */
 async function buscarPastelPorNombre(nombre, contextoAnterior = '') {
     const todos = await db.getCakes();
     const nombreLimpio = quitarAcentos(nombre.toLowerCase());
@@ -536,6 +600,12 @@ async function buscarPastelPorNombre(nombre, contextoAnterior = '') {
     };
 }
 
+/**
+ * Obtiene información detallada de un repostero específico.
+ * 
+ * @param {number} bakerId - ID del repostero
+ * @returns {Promise<Object>} Objeto con información del repostero
+ */
 async function obtenerInfoRepostero(bakerId) {
     const repostero = await db.getBakerById(bakerId);
     if (!repostero) {
@@ -565,6 +635,15 @@ async function obtenerInfoRepostero(bakerId) {
     };
 }
 
+/**
+ * Consulta los horarios de atención de un repostero.
+ * 
+ * @param {number|null} bakerId - ID del repostero (opcional)
+ * @param {string} nombrePastel - Nombre de un pastel para inferir repostero (opcional)
+ * @param {string} nombreEmpresa - Nombre de empresa para inferir repostero (opcional)
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con horarios: { mensaje: string }
+ */
 async function consultarHorariosRepostero(bakerId = null, nombrePastel = '', nombreEmpresa = '', contextoAnterior = '') {
     const allBakers = await db.getBakers();
     if (allBakers.length === 0) {
@@ -632,6 +711,12 @@ function calcularPrecioPersonalizado(tamanio, relleno, decoracion) {
     };
 }
 
+/**
+ * Consulta las políticas de la pastelería (entrega, pago, cancelación, etc.).
+ * 
+ * @param {string} tema - Tema de la política: entrega, pago, cancelacion, personalizacion, general
+ * @returns {Promise<string>} Texto con las políticas solicitadas
+ */
 async function consultarPoliticasPasteleria(tema) {
     const temaKey = tema.toLowerCase().trim();
     if (temaKey === 'danhee') {
@@ -668,6 +753,15 @@ async function consultarPoliticasPasteleria(tema) {
     return politicas[temaKey] || politicas.general;
 }
 
+/**
+ * Recomienda pasteles según ocasión, presupuesto y estilo.
+ * 
+ * @param {string} ocasion - Ocasión del pastel
+ * @param {string} presupuesto - Nivel de presupuesto: bajo, medio, alto (opcional)
+ * @param {string} estilo - Estilo preferido (opcional)
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con recomendaciones: { mensaje: string, recomendaciones: Array }
+ */
 async function recomendarPastel(ocasion, presupuesto = '', estilo = '', contextoAnterior = '') {
     const todosPasteles = await db.getCakes();
     const ocasionBuscar = ocasion || contextoAnterior;
@@ -731,6 +825,13 @@ async function recomendarPastel(ocasion, presupuesto = '', estilo = '', contexto
     };
 }
 
+/**
+ * Obtiene información de origen de un pastel (empresa, repostero, categoría, precio).
+ * 
+ * @param {string} nombrePastel - Nombre del pastel
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con información de origen
+ */
 async function consultarOrigenPastel(nombrePastel, contextoAnterior = '') {
     const todos = await db.getCakes();
     const nombreBuscar = nombrePastel || contextoAnterior;
@@ -795,6 +896,14 @@ async function consultarOrigenPastel(nombrePastel, contextoAnterior = '') {
     };
 }
 
+/**
+ * Busca pasteles por rango de precio (menor o mayor a un valor).
+ * 
+ * @param {number} precio - Precio límite
+ * @param {string} condicion - Condición: menor o mayor
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con resultados: { mensaje: string, pasteles: Array }
+ */
 async function buscarPastelesPorRangoPrecio(precio, condicion, contextoAnterior = '') {
     const todos = await db.getCakes();
     let precioLimite;
@@ -848,6 +957,13 @@ async function buscarPastelesPorRangoPrecio(precio, condicion, contextoAnterior 
     };
 }
 
+/**
+ * Consulta pasteles específicos de una categoría.
+ * 
+ * @param {string} categoria - Categoría de pasteles
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con resultados: { mensaje: string, pasteles: Array, total: number }
+ */
 async function consultarPastelesPorCategoria(categoria = '', contextoAnterior = '') {
     const todos = await db.getCakes();
     const categoriaBuscar = categoria || contextoAnterior;
@@ -906,6 +1022,12 @@ async function consultarPastelesPorCategoria(categoria = '', contextoAnterior = 
     };
 }
 
+/**
+ * Consulta los tamaños de pasteles disponibles en Danhee Cake.
+ * 
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con tamaños: { mensaje: string }
+ */
 async function consultarTamanosPasteles(contextoAnterior = '') {
     const resPdf = extraerTextoPdf('cake_sizes.pdf');
     if (resPdf.contenido || resPdf.mensaje) {
@@ -918,6 +1040,12 @@ async function consultarTamanosPasteles(contextoAnterior = '') {
     };
 }
 
+/**
+ * Recomienda pasteles según el tamaño deseado.
+ * 
+ * @param {string} tamanioDeseado - Tamaño: pequeño, mediano o grande
+ * @returns {Promise<Object>} Objeto con recomendaciones: { tamanio: string, recomendaciones: Array, mensaje: string }
+ */
 async function recomendarPorTamanio(tamanioDeseado) {
     const todos = await db.getCakes();
     const tamanioLower = tamanioDeseado.toLowerCase();
@@ -942,6 +1070,14 @@ async function recomendarPorTamanio(tamanioDeseado) {
     return { tamanio: tamanioDeseado, recomendaciones: resultado, mensaje: `🎂 Para un pastel ${tamanioDeseado}:\n${lista}` };
 }
 
+/**
+ * Consulta el detalle completo de un pastel específico por ID o nombre.
+ * 
+ * @param {number|null} pastelId - ID del pastel (opcional)
+ * @param {string|null} nombrePastel - Nombre del pastel (opcional)
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con detalle del pastel
+ */
 async function consultarDetallePastelPorId(pastelId = null, nombrePastel = null, contextoAnterior = '') {
     const todos = await db.getCakes();
     let pastelEncontrado = null;
@@ -995,6 +1131,13 @@ async function consultarDetallePastelPorId(pastelId = null, nombrePastel = null,
     return { pastel: nombrePastelFinal, empresa: businessName, precio, ubicacion, calificacion: rating, mensaje };
 }
 
+/**
+ * Muestra las opciones disponibles según el contexto de la conversación.
+ * 
+ * @param {string} contexto - Contexto actual
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con opciones disponibles
+ */
 async function mostrarOpciones(contexto = '', contextoAnterior = '') {
     const contextoBuscar = contexto || contextoAnterior;
     
@@ -1020,6 +1163,13 @@ async function mostrarOpciones(contexto = '', contextoAnterior = '') {
     return { mensaje: `Estas son las categorías disponibles en Danhee Cake:\n${listaCats}` };
 }
 
+/**
+ * Consulta empresas de repostería por ubicación.
+ * 
+ * @param {string} ubicacion - Ciudad o región
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con empresas: { ubicacion: string, empresas: Array, mensaje: string }
+ */
 async function consultarEmpresasPorUbicacion(ubicacion, contextoAnterior = '') {
     const reposteros = await db.getBakers();
     const ubicacionBuscar = ubicacion || contextoAnterior;
@@ -1050,6 +1200,13 @@ async function consultarEmpresasPorUbicacion(ubicacion, contextoAnterior = '') {
     return { ubicacion: ubicacionBuscar, empresas: resultado, mensaje: `🏢 Empresas en ${ubicacionBuscar}:\n${lista}` };
 }
 
+/**
+ * Consulta todos los pasteles de una empresa específica.
+ * 
+ * @param {string} empresa - Nombre de la empresa
+ * @param {string} contextoAnterior - Contexto de conversación previa
+ * @returns {Promise<Object>} Objeto con pasteles: { empresa: string, pasteles: Array, mensaje: string }
+ */
 async function consultarPastelesPorEmpresa(empresa, contextoAnterior = '') {
     const todosPasteles = await db.getCakes();
     const empresaBuscar = empresa || contextoAnterior;
@@ -1080,6 +1237,11 @@ async function consultarPastelesPorEmpresa(empresa, contextoAnterior = '') {
     return { empresa: empresaBuscar, pasteles: resultado, mensaje: `🍰 Pasteles de ${empresaBuscar}:\n${lista}` };
 }
 
+/**
+ * Consulta las citas programadas del usuario actual (cliente o repostero).
+ * 
+ * @returns {Promise<Object>} Objeto con citas del usuario
+ */
 async function consultarMisCitas() {
     const clientId = getCurrentClientId();
     if (!clientId) {
@@ -1113,6 +1275,11 @@ async function consultarMisCitas() {
     }
 }
 
+/**
+ * Consulta los diseños de pasteles personalizados del cliente actual.
+ * 
+ * @returns {Promise<Object>} Objeto con diseños del cliente
+ */
 async function consultarMisDisenos() {
     const clientId = getCurrentClientId();
     if (!clientId) {

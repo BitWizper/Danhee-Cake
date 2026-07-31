@@ -6,6 +6,11 @@
 const db = require('../db-config');
 const { getCurrentClientId } = require('./common-tools');
 
+/**
+ * Lista todos los pasteles del repostero actual en su catálogo.
+ * 
+ * @returns {Promise<Object>} Objeto con pasteles: { pasteles: Array, total: number, mensaje: string }
+ */
 async function listarMisPasteles() {
     const clientId = getCurrentClientId();
     if (!clientId) {
@@ -37,6 +42,16 @@ async function listarMisPasteles() {
     };
 }
 
+/**
+ * Agrega un nuevo pastel al catálogo del repostero.
+ * 
+ * @param {string} nombre - Nombre del pastel
+ * @param {string} descripcion - Descripción del pastel
+ * @param {number} precio - Precio del pastel
+ * @param {number} categoriaId - ID de la categoría
+ * @param {boolean} isFeatured - Si es destacado (opcional)
+ * @returns {Promise<Object>} Objeto con resultado: { exito: boolean, cakeId?: number, mensaje: string }
+ */
 async function agregarNuevoPastel(nombre, descripcion, precio, categoriaId, isFeatured = false) {
     const clientId = getCurrentClientId();
     if (!clientId) {
@@ -68,6 +83,17 @@ async function agregarNuevoPastel(nombre, descripcion, precio, categoriaId, isFe
     return { mensaje: 'Hubo un error al agregar el pastel. Por favor intenta de nuevo.' };
 }
 
+/**
+ * Actualiza un pastel existente del repostero.
+ * 
+ * @param {number} cakeId - ID del pastel a actualizar
+ * @param {string} nombre - Nuevo nombre del pastel
+ * @param {string} descripcion - Nueva descripción del pastel
+ * @param {number} precio - Nuevo precio del pastel
+ * @param {number} categoriaId - Nueva categoría del pastel
+ * @param {boolean} isFeatured - Si es destacado (opcional)
+ * @returns {Promise<Object>} Objeto con resultado: { exito: boolean, mensaje: string }
+ */
 async function actualizarMiPastel(cakeId, nombre, descripcion, precio, categoriaId, isFeatured = false) {
     const clientId = getCurrentClientId();
     if (!clientId) {
@@ -98,6 +124,12 @@ async function actualizarMiPastel(cakeId, nombre, descripcion, precio, categoria
     return { mensaje: 'No se pudo actualizar el pastel. Verifica que el ID sea correcto y que el pastel te pertenezca.' };
 }
 
+/**
+ * Elimina un pastel del catálogo del repostero.
+ * 
+ * @param {number} cakeId - ID del pastel a eliminar
+ * @returns {Promise<Object>} Objeto con resultado: { exito: boolean, mensaje: string }
+ */
 async function eliminarMiPastel(cakeId) {
     const clientId = getCurrentClientId();
     if (!clientId) {
@@ -127,6 +159,11 @@ async function eliminarMiPastel(cakeId) {
     return { mensaje: 'No se pudo eliminar el pastel. Verifica que el ID sea correcto y que el pastel te pertenezca.' };
 }
 
+/**
+ * Lista todas las categorías disponibles para asignar a pasteles.
+ * 
+ * @returns {Promise<Object>} Objeto con categorías: { categorias: Array, mensaje: string }
+ */
 async function listarCategoriasDisponibles() {
     const categorias = await db.getCategories();
     
@@ -143,7 +180,12 @@ async function listarCategoriasDisponibles() {
     };
 }
 
-async function consultarMisCitas() {
+/**
+ * Consulta las citas de degustación programadas para el repostero.
+ * 
+ * @returns {Promise<Object>} Objeto con citas: { citas: Array, mensaje: string }
+ */
+async function consultarMisCitasRepostero() {
     const clientId = getCurrentClientId();
     if (!clientId) {
         return { mensaje: 'No has iniciado sesión como repostero. Por favor inicia sesión para ver tus citas.' };
@@ -166,6 +208,11 @@ async function consultarMisCitas() {
     };
 }
 
+/**
+ * Obtiene el contexto actual del repostero (negocio, especialidad, ubicación, etc.).
+ * 
+ * @returns {Promise<Object>} Objeto con contexto del repostero
+ */
 async function obtenerContextoRepostero() {
     const clientId = getCurrentClientId();
     if (!clientId) {
