@@ -81,11 +81,6 @@ const sanitizeValue = (value) => {
  * Rechaza requestos con patrones sospechosos
  */
 const validateAllParameters = (req, res, next) => {
-  // Excluir rutas de chat (tienen su propia validación específica)
-  if (req.originalUrl.startsWith('/api/chat/')) {
-    return next();
-  }
-  
   const mutatingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
   const isMutatingRequest = mutatingMethods.includes(req.method?.toUpperCase());
 

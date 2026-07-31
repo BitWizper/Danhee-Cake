@@ -172,11 +172,6 @@ const inputSanitizer = (options = {}) => {
   const { strict = true, logSuspicious = true } = options;
   
   return (req, res, next) => {
-    // Excluir rutas de chat (tienen su propia validación específica)
-    if (req.originalUrl.startsWith('/api/chat/')) {
-      return next();
-    }
-    
     // Validar y sanitizar query params
     if (req.query && Object.keys(req.query).length > 0) {
       const queryResult = validateAndSanitizeObject(req.query, req);
