@@ -141,15 +141,24 @@ const getChatHistory = async (req, res) => {
 
 const streamChatbot = async (req, res) => {
   const { message, conversation_id } = req.body;
+  console.log('[Chat Stream] Message received:', message);
+  console.log('[Chat Stream] Conversation ID:', conversation_id);
+  
   const messageValidation = validateChatText(message, 5000, 'El mensaje');
   const conversationValidation = validateChatText(conversation_id, 100, 'conversation_id');
 
+  console.log('[Chat Stream] Message validation:', messageValidation);
+  console.log('[Chat Stream] Conversation validation:', conversationValidation);
+
   if (!messageValidation.ok) {
+    console.log('[Chat Stream] Message validation failed:', messageValidation.reason);
     return res.status(400).json({ error: messageValidation.reason });
   }
 
   const sanitizedMessage = messageValidation.sanitized;
   const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
+  
+  console.log('[Chat Stream] Sanitized message:', sanitizedMessage);
 
   let client_id = null;
   let role = null;

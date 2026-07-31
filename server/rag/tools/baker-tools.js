@@ -246,6 +246,6 @@ module.exports = {
     actualizarMiPastel,
     eliminarMiPastel,
     listarCategoriasDisponibles,
-    consultarMisCitas,
+    consultarMisCitasRepostero,
     obtenerContextoRepostero
 };

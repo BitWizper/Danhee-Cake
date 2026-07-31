@@ -37,7 +37,7 @@ const FUNCTIONS_MAP = {
     'actualizar_mi_pastel': bakerTools.actualizarMiPastel,
     'eliminar_mi_pastel': bakerTools.eliminarMiPastel,
     'listar_categorias_disponibles': bakerTools.listarCategoriasDisponibles,
-    'consultar_mis_citas_repostero': bakerTools.consultarMisCitas,
+    'consultar_mis_citas_repostero': bakerTools.consultarMisCitasRepostero,
     'obtener_contexto_repostero': bakerTools.obtenerContextoRepostero
 };
 
