@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { FaPaperPlane, FaRobot, FaTimes, FaMicrophone, FaMicrophoneSlash, FaEllipsisV, FaShieldAlt } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
+import { getApiUrl } from "../../config/api";
 import {
   CHAT_SECURITY_CONFIG,
   validateMessage,
@@ -139,7 +140,7 @@ function ChatBot() {
       const headers = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
 
-      await fetch("/api/chat/history", {
+      await fetch(getApiUrl("/api/chat/history"), {
         method: "DELETE",
         headers,
         body: JSON.stringify({
@@ -270,7 +271,7 @@ function ChatBot() {
       if (token) headers.Authorization = `Bearer ${token}`;
 
       const response = await fetch(
-        `/api/chat/history?client_id=${encodeURIComponent(storedUser.id)}`,
+        getApiUrl(`/api/chat/history?client_id=${encodeURIComponent(storedUser.id)}`),
         { headers }
       );
       const welcomeMsg = storedUser?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
@@ -393,7 +394,7 @@ function ChatBot() {
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch("/api/chat/stream", {
+      const res = await fetch(getApiUrl("/api/chat/stream"), {
         method: "POST",
         headers,
         body: JSON.stringify({

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import StarRating from '../components/ui/StarRating';
 import Button from '../components/ui/Button';
+import { getApiUrl } from '../config/api';
 import { useCart } from '../context/CartContext';
 import './CakeDetailPage.css';
 
@@ -18,7 +19,7 @@ const CakeDetailPage = () => {
   useEffect(() => {
     const fetchCake = async () => {
       try {
-        const response = await fetch(`/api/cakes/${id}`);
+        const response = await fetch(getApiUrl(`/api/cakes/${id}`));
         const data = await response.json();
         
         if (data.success) {

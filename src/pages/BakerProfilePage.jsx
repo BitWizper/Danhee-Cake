@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getApiUrl } from '../config/api';
 import StarRating from '../components/ui/StarRating';
 import Button from '../components/ui/Button';
 import './BakerProfilePage.css';
@@ -19,8 +20,8 @@ const BakerProfilePage = () => {
     const fetchBakerData = async () => {
       try {
         const [profileRes, cakesRes] = await Promise.all([
-          fetch(`/api/bakers/${id}`),
-          fetch(`/api/cakes?baker=${id}`)
+          fetch(getApiUrl(`/api/bakers/${id}`)),
+          fetch(getApiUrl(`/api/cakes?baker=${id}`))
         ]);
 
         const profileData = await profileRes.json();
