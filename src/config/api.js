@@ -21,3 +21,21 @@ export const getApiUrl = (endpoint) => {
   // Si no empieza con /api/, agregarlo
   return `${API_BASE_URL}/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 };
+
+// Función específica para URLs de imágenes que deben apuntar al backend
+export const getImageUrl = (imageUrl) => {
+  if (!imageUrl) return imageUrl;
+  
+  // Si ya es una URL completa, retornarla tal cual
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl;
+  }
+  
+  // Si es una ruta de /api/images/, usar la URL base del backend
+  if (imageUrl.startsWith('/api/images/')) {
+    return `${API_BASE_URL}${imageUrl}`;
+  }
+  
+  // Para otras rutas relativas, usar getApiUrl
+  return getApiUrl(imageUrl);
+};
