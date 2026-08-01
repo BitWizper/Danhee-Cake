@@ -517,6 +517,21 @@ function ChatBot() {
                 }
                 return updated;
               });
+            } else if (typeof data.response === "string" || typeof data.content === "string") {
+              const responseText = typeof data.response === "string" ? data.response : data.content;
+              setLoadingState({ status: "", message: "" });
+              fullBotResponse += responseText;
+              setChat((prev) => {
+                const updated = [...prev];
+                const index = updated.findIndex((msg) => msg.id === botMessageId);
+                if (index !== -1) {
+                  updated[index] = {
+                    ...updated[index],
+                    text: sanitizeMessageAdvanced(fullBotResponse),
+                  };
+                }
+                return updated;
+              });
             }
           } catch (e) {
             console.error("Error al parsear stream token:", e);
