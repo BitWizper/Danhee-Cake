@@ -164,12 +164,9 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://danhee-cake.vercel.app',
-  'https://redeem-bundle-distinction-advertisement.trycloudflare.com',
-  'https://spirits-palmer-daughter-adventures.trycloudflare.com',
-  'https://ppm-harrison-liability-affordable.trycloudflare.com',
-  'https://smoke-kitty-carefully-arabia.trycloudflare.com',
-  // En desarrollo, permitir cualquier subdominio de trycloudflare.com
-  ...(process.env.NODE_ENV !== 'production' ? ['https://*.trycloudflare.com'] : []),
+  'https://danhee-cake-sage.vercel.app',
+  // Permitir cualquier subdominio de trycloudflare.com (para túneles temporales)
+  'https://*.trycloudflare.com',
   // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
 ];
