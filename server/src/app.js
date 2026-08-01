@@ -34,10 +34,13 @@ const requireEnv = (name, fallback = undefined) => {
 const JWT_SECRET = requireEnv('JWT_SECRET', 'change-me-in-production');
 const REFRESH_TOKEN_SECRET = requireEnv('REFRESH_TOKEN_SECRET', '');
 if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'change-me-in-production') {
-  console.error('[ENV] CRITICAL: JWT_SECRET is using a placeholder value in production. Please set a strong secret immediately.');
+  console.error('[ENV] JWT_SECRET is using a placeholder value. Set a strong secret in your deployment environment.');
 }
 if (process.env.NODE_ENV === 'production' && !REFRESH_TOKEN_SECRET) {
-  console.error('[ENV] CRITICAL: REFRESH_TOKEN_SECRET is missing in production. Please set a strong secret immediately.');
+  console.error('[ENV] REFRESH_TOKEN_SECRET is missing. Set a strong refresh token secret in production or configure a secret manager.');
+}
+if (process.env.NODE_ENV === 'production' && REFRESH_TOKEN_SECRET === JWT_SECRET) {
+  console.error('[ENV] REFRESH_TOKEN_SECRET must be different from JWT_SECRET in production.');
 }
 process.env.JWT_SECRET = JWT_SECRET;
 process.env.REFRESH_TOKEN_SECRET = REFRESH_TOKEN_SECRET || JWT_SECRET;
@@ -108,7 +111,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       scriptSrcAttr: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://danhee-cake.vercel.app", "https://research-throughout-approach-historical.trycloudflare.com", "https://holders-alternative-after-org.trycloudflare.com", "https://bikini-screensaver-responding-attending.trycloudflare.com", "https://punk-actually-corners-twiki.trycloudflare.com", "https://redeem-bundle-distinction-advertisement.trycloudflare.com", "https://spirits-palmer-daughter-adventures.trycloudflare.com", "https://*.trycloudflare.com"],
+      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://danhee-cake.vercel.app", ...(process.env.NODE_ENV !== 'production' ? ["https://*.trycloudflare.com"] : [])],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -518,22 +521,24 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/robots.txt', (req, res) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'https://danhee-cake.vercel.app';
   res.type('text/plain').send([
     'User-agent: *',
     'Disallow: /api/',
     'Disallow: /server/',
     'Allow: /',
     '',
-    'Sitemap: https://snitch-wing-riddance.ngrok-free.dev/sitemap.xml'
+    `Sitemap: ${frontendUrl}/sitemap.xml`
   ].join('\n'));
 });
 
 app.get('/.well-known/security.txt', (req, res) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'https://danhee-cake.vercel.app';
   res.type('text/plain').send([
     'Contact: mailto:security@danhee.com',
     'Preferred-Languages: es, en',
-    'Canonical: https://snitch-wing-riddance.ngrok-free.dev/.well-known/security.txt',
-    'Policy: https://snitch-wing-riddance.ngrok-free.dev/security-policy.html'
+    `Canonical: ${frontendUrl}/.well-known/security.txt`,
+    `Policy: ${frontendUrl}/security-policy.html`
   ].join('\n'));
 });
 

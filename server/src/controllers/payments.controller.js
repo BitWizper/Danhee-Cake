@@ -1,7 +1,8 @@
 // Controlador sencillo para generar comprobantes OXXO mock
 const { sanitizeString, validateNumber } = require('../middleware/inputValidator');
+const pool = require('../config/db').pool;
 
-const generateOxxoTicket = (req, res) => {
+const generateOxxoTicket = async (req, res) => {
   try {
     const { orderId, amount } = req.body;
     
@@ -21,6 +22,7 @@ const generateOxxoTicket = (req, res) => {
     // Generar referencia simulada (12 dígitos)
     const reference = Math.floor(100000000000 + Math.random() * 899999999999).toString();
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(); // 48 horas
+    const createdAt = new Date().toISOString();
 
     const ticket = {
       reference,
@@ -30,7 +32,18 @@ const generateOxxoTicket = (req, res) => {
       printUrl: `https://example.com/print/oxxo/${reference}`,
     };
 
-    // En un sistema real guardaríamos en la base de datos con estado 'pending'
+    // Guardar en base de datos (tabla payments si existe, sino log)
+    try {
+      await pool.query(
+        'INSERT INTO payments (order_id, reference, amount, status, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [sanitizedOrderId, reference, parseFloat(sanitizedAmount), 'pending', expiresAt, createdAt]
+      );
+      console.log(`[Payments] Ticket OXXO guardado: reference=${reference}, orderId=${sanitizedOrderId}`);
+    } catch (dbError) {
+      // Si la tabla no existe, solo loggear el error pero continuar
+      console.warn('[Payments] No se pudo guardar en BD (tabla payments puede no existir):', dbError.message);
+    }
+
     return res.json({ success: true, data: ticket });
   } catch (err) {
     console.error('Error generando ticket OXXO:', err);
