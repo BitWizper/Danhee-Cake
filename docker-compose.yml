@@ -112,6 +112,16 @@ services:
       - app-network
     entrypoint: ["/bin/sh", "-c", "chmod +x /backup-database.sh && /backup-database.sh"]
 
+  frontend:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      - BACKEND_URL=http://backend:5000
+    restart: always
+    networks:
+      - app-network
+
 # Volumen definido para la persistencia de datos
 volumes:
   db_data:

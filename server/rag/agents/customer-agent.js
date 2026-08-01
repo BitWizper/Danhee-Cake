@@ -84,6 +84,7 @@ class CustomerAgent {
 
         // Verificar autenticación antes de dar información sensible (solo para consultas específicas)
         const needsAuth = requiresAuthCheck(userMessage);
+        console.log(`[CustomerAgent] Auth check - userMessage: "${userMessage}", needsAuth: ${needsAuth}, clientId: ${clientId}`);
         if (needsAuth && !clientId) {
             await db.addChatMessage(conversationId, 'user', userMessage);
             const authMsg = 'Para ver tu información personal, necesitas estar registrado e iniciar sesión. ¿Te gustaría registrarte como cliente o como repostero?';

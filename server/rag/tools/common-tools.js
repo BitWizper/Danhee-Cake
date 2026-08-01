@@ -105,7 +105,12 @@ function requiresAuthCheck(question) {
         'ver reposteros', 'ver repostero', 'ver a los reposteros', 'ver los reposteros',
         'conocer reposteros', 'conocer a los reposteros', 'reposteros porfis',
         'ver catalogo', 'ver catálogo', 'ver el catalogo', 'ver el catálogo',
-        'catalogo porfi', 'catálogo porfi', 'quiero ver el catalogo', 'quiero ver el catálogo'
+        'catalogo porfi', 'catálogo porfi', 'quiero ver el catalogo', 'quiero ver el catálogo',
+        'si quiero ver el catalogo', 'si quiero ver el catálogo', 'sí quiero ver el catalogo',
+        'quiero catalogo', 'quiero catálogo', 'ver catalogo porfi', 'ver catálogo porfi',
+        'quiero un pastel', 'quiero pastel', 'quiero pedir un pastel', 'quiero pedir pastel',
+        'comprar pastel', 'comprar pasteles', 'quiero comprar pastel', 'quiero comprar pasteles',
+        'necesito un pastel', 'necesito pastel', 'quiero un cake', 'quiero cake'
     ];
     
     // Palabras individuales que requieren contexto PERSONAL explícito

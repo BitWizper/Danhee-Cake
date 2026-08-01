@@ -51,6 +51,7 @@ app.post('/chat', async (req, res) => {
     
     try {
         const { conversation_id, user_message, user_role, user_id } = req.body;
+        console.log(`[RAG] POST /chat - conversation_id: ${conversation_id}, user_message: "${user_message}", user_role: ${user_role}, user_id: ${user_id}`);
         
         if (!conversation_id || !user_message) {
             return res.status(400).json({
@@ -191,6 +192,8 @@ app.get('/chat/stream', async (req, res) => {
 
 app.post('/chat/stream', async (req, res) => {
     const { conversation_id, user_message, user_role, user_id } = req.body;
+    
+    console.log(`[RAG] POST /chat/stream - conversation_id: ${conversation_id}, user_message: "${user_message}", user_role: ${user_role}, user_id: ${user_id}`);
     
     console.error('[app] /chat/stream request body:', {
         conversation_id,
