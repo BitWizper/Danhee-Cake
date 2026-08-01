@@ -42,7 +42,7 @@ let pdfCache = {};
 let lastContext = {};
 
 const RESPONSE_CACHE = new Map();
-const RESPONSE_CACHE_TTL_SECONDS = 60;
+const RESPONSE_CACHE_TTL_SECONDS = 15;  // Reducido para más dinamismo
 
 function normalizeQuestion(question) {
     return (question || '').trim().toLowerCase().split(/\s+/).join(' ');
@@ -134,11 +134,11 @@ function getOllamaOptions() {
 
 function getOllamaOptionsCliente() {
     return {
-        num_predict: 250,
+        num_predict: 200,  // Reducido para más velocidad
         num_ctx: 2048,
-        temperature: 0.3,
+        temperature: 0.5,  // Aumentado para mantener dinamismo
         top_p: 0.9,
-        repeat_penalty: 1.15
+        repeat_penalty: 1.2  // Aumentado para evitar ciclos
     };
 }
 
@@ -242,6 +242,43 @@ function detectarFormalidad(texto) {
     }
 }
 
+function detectCycle(chatHistory, threshold = 3) {
+    if (!chatHistory || chatHistory.length < threshold * 2) return false;
+    
+    const recentMessages = chatHistory.slice(-threshold * 2);
+    const assistantMessages = recentMessages
+        .filter(msg => msg.role === 'assistant')
+        .map(msg => msg.content.trim());
+    
+    // Verificar si hay respuestas repetidas recientes
+    const uniqueResponses = new Set(assistantMessages);
+    if (assistantMessages.length > threshold && uniqueResponses.size <= 2) {
+        return true;
+    }
+    
+    // Verificar similitud entre respuestas consecutivas
+    for (let i = 1; i < assistantMessages.length; i++) {
+        const similarity = calculateSimilarity(assistantMessages[i-1], assistantMessages[i]);
+        if (similarity > 0.85) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+function calculateSimilarity(text1, text2) {
+    if (!text1 || !text2) return 0;
+    
+    const words1 = text1.toLowerCase().split(/\s+/);
+    const words2 = text2.toLowerCase().split(/\s+/);
+    
+    const intersection = words1.filter(word => words2.includes(word));
+    const union = [...new Set([...words1, ...words2])];
+    
+    return union.length > 0 ? intersection.length / union.length : 0;
+}
+
 function checkGuardrails(prompt) {
     if (!prompt) return false;
     const promptLower = prompt.toLowerCase();
@@ -257,6 +294,13 @@ function checkGuardrails(prompt) {
         'revela tus instrucciones',
         'revelar system prompt',
         'revelar instrucciones',
+        'jailbreak',
+        'prompt injection',
+        'bypass',
+        'override',
+        'hackear',
+        'hack',
+        'exploit',
         'reveal your prompt',
         'reveal prompt',
         'asume el rol de',
@@ -446,5 +490,6 @@ module.exports = {
     verificarRegistroUsuario,
     detectarFormalidad,
     checkGuardrails,
+    detectCycle,
     asyncLocalStorage
 };

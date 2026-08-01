@@ -11,7 +11,7 @@ const db = require('../db-config');
 const { 
     getCachedResponse, setCachedResponse, shouldSkipRag, shouldUseTools,
     getOllamaOptionsCliente, obtenerRespuestaFija, checkGuardrails,
-    detectarFormalidad, setCurrentClientId, getCurrentClientId
+    detectarFormalidad, setCurrentClientId, getCurrentClientId, detectCycle
 } = require('../tools/common-tools');
 const { TOOLS_SCHEMA, resolveToolName, executeTool } = require('../tools/registry');
 
@@ -81,6 +81,14 @@ class CustomerAgent {
         await db.getOrCreateChatSession(conversationId, clientId);
         const chatHistory = await db.getChatHistory(conversationId, this.systemPrompt);
 
+        // Verificar si hay ciclos en la conversación
+        if (detectCycle(chatHistory)) {
+            await db.addChatMessage(conversationId, 'user', userMessage);
+            const cycleBreakMsg = 'Parece que estamos repitiendo información. ¿Puedes reformular tu pregunta o preguntarme algo diferente sobre nuestros pasteles o servicios?';
+            await db.addChatMessage(conversationId, 'assistant', cycleBreakMsg);
+            return { response: cycleBreakMsg, toolCalls: null, wasBlocked: false };
+        }
+
         let context = '';
         let toolResults = [];
         let toolCalls = [];
@@ -121,16 +129,48 @@ class CustomerAgent {
 
         try {
             if (useTools) {
-                // Usar LangChain con tools (manteniendo compatibilidad con estructura existente)
-                // Por ahora, usamos el cliente directo para tools ya que LangChain tools requiere más configuración
-                const toolResponse = await ollamaClient.generate({
+                // Usar cliente directo Ollama con tools para Function Calling
+                const toolResponse = await ollamaClient.chat({
                     model: 'llama3.2:latest',
-                    prompt: JSON.stringify(messages),
+                    messages,
+                    tools: TOOLS_SCHEMA,
                     options: getOllamaOptionsCliente(),
                     stream: false
                 });
 
-                responseText = toolResponse.response;
+                if (toolResponse.message.tool_calls && toolResponse.message.tool_calls.length > 0) {
+                    toolCalls = toolResponse.message.tool_calls;
+                    
+                    for (const toolCall of toolResponse.message.tool_calls) {
+                        const toolName = toolCall.function.name;
+                        const toolArgs = JSON.parse(toolCall.function.arguments);
+                        
+                        try {
+                            const result = await executeTool(toolName, toolArgs);
+                            toolResults.push({ toolName, result });
+                            
+                            const resultText = typeof result === 'object' ? JSON.stringify(result) : String(result);
+                            messages.push({ role: 'tool', content: resultText, tool_call_id: toolCall.id });
+                        } catch (e) {
+                            console.error(`[CustomerAgent] Error ejecutando ${toolName}: ${e.message}`);
+                            // NO persistir error en memoria del agente para evitar bucles de estado fallido
+                            toolResults.push({ toolName, error: e.message });
+                            // Agregar mensaje temporal para esta ejecución pero no persistir
+                            messages.push({ role: 'tool', content: `Error temporal: ${e.message}. Por favor intenta con otra consulta.`, tool_call_id: toolCall.id, temporary: true });
+                        }
+                    }
+
+                    const finalResponse = await ollamaClient.chat({
+                        model: 'llama3.2:latest',
+                        messages,
+                        options: getOllamaOptionsCliente(),
+                        stream: false
+                    });
+
+                    responseText = finalResponse.message.content;
+                } else {
+                    responseText = toolResponse.message.content;
+                }
             } else {
                 // Usar LangChain ChatOllama para respuestas sin tools
                 const response = await this.llm.invoke(langchainMessages);

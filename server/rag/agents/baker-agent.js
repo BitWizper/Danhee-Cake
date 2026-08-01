@@ -10,7 +10,7 @@ const { Ollama } = require('ollama');
 const db = require('../db-config');
 const { 
     getOllamaOptions, checkGuardrails, detectarFormalidad,
-    setCurrentClientId, getCurrentClientId
+    setCurrentClientId, getCurrentClientId, detectCycle
 } = require('../tools/common-tools');
 const { BAKER_TOOLS_SCHEMA, resolveToolName, executeTool } = require('../tools/registry');
 
@@ -65,6 +65,14 @@ class BakerAgent {
         await db.getOrCreateChatSession(conversationId, bakerUserId);
         const chatHistory = await db.getChatHistory(conversationId, this.systemPrompt);
 
+        // Verificar si hay ciclos en la conversación
+        if (detectCycle(chatHistory)) {
+            await db.addChatMessage(conversationId, 'user', userMessage);
+            const cycleBreakMsg = 'Parece que estamos repitiendo información. ¿Puedes reformular tu solicitud o preguntarme algo diferente sobre tu catálogo o citas?';
+            await db.addChatMessage(conversationId, 'assistant', cycleBreakMsg);
+            return { response: cycleBreakMsg, toolCalls: null, wasBlocked: false };
+        }
+
         const formality = detectarFormalidad(userMessage);
         const adaptedPrompt = this.adaptPromptByFormality(this.systemPrompt, formality);
 
@@ -86,14 +94,50 @@ class BakerAgent {
         let toolCalls = [];
 
         try {
-            // Para tools, usamos cliente directo Ollama (LangChain tools requiere más configuración)
-                const toolResponse = await ollamaClient.generate({
-                prompt: JSON.stringify(messages),
+            // Para tools, usamos cliente directo Ollama con tools para Function Calling
+            const toolResponse = await ollamaClient.chat({
+                model: 'llama3.2:latest',
+                messages,
+                tools: BAKER_TOOLS_SCHEMA,
                 options,
                 stream: false
             });
 
-            let responseText = toolResponse.response;
+            let responseText = '';
+
+            if (toolResponse.message.tool_calls && toolResponse.message.tool_calls.length > 0) {
+                toolCalls = toolResponse.message.tool_calls;
+                
+                for (const toolCall of toolResponse.message.tool_calls) {
+                    const toolName = toolCall.function.name;
+                    const toolArgs = JSON.parse(toolCall.function.arguments);
+                    
+                    try {
+                        const result = await executeTool(toolName, toolArgs);
+                        toolResults.push({ toolName, result });
+                        
+                        const resultText = typeof result === 'object' ? JSON.stringify(result) : String(result);
+                        messages.push({ role: 'tool', content: resultText, tool_call_id: toolCall.id });
+                    } catch (e) {
+                        console.error(`[BakerAgent] Error ejecutando ${toolName}: ${e.message}`);
+                        // NO persistir error en memoria del agente para evitar bucles de estado fallido
+                        toolResults.push({ toolName, error: e.message });
+                        // Agregar mensaje temporal para esta ejecución pero no persistir
+                        messages.push({ role: 'tool', content: `Error temporal: ${e.message}. Por favor intenta con otra consulta.`, tool_call_id: toolCall.id, temporary: true });
+                    }
+                }
+
+                const finalResponse = await ollamaClient.chat({
+                    model: 'llama3.2:latest',
+                    messages,
+                    options,
+                    stream: false
+                });
+
+                responseText = finalResponse.message.content;
+            } else {
+                responseText = toolResponse.message.content;
+            }
 
             const filteredResponse = this.filterResponse(responseText, userMessage);
             
@@ -110,10 +154,15 @@ class BakerAgent {
             console.error(`[BakerAgent] Error en LangChain/Ollama: ${e.message}`);
             // Fallback a cliente directo completo
             try {
-                const toolResponse = await ollamaClient.generate({
+                const toolResponse = await ollamaClient.chat({
+                    model: 'llama3.2:latest',
+                    messages,
+                    tools: BAKER_TOOLS_SCHEMA,
+                    options,
+                    stream: false
                 });
 
-                let responseText = toolResponse.response;
+                let responseText = toolResponse.message.content;
 
                 const filteredResponse = this.filterResponse(responseText, userMessage);
                 
