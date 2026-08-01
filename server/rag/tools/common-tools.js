@@ -94,8 +94,8 @@ function requiresAuthCheck(question) {
     const q = normalizeQuestion(question);
     
     // Solo requiere autenticación para consultas específicas que necesitan datos PERSONALES
-    // Información general (pasteles, catálogo) NO requiere auth
-    // PERO ver reposteros SÍ requiere auth para proteger información de reposteros
+    // Información general (pasteles) NO requiere auth
+    // PERO ver catálogo y reposteros SÍ requiere auth
     const authKeywords = [
         'mis pasteles', 'mis citas', 'mi pedido', 'mi perfil', 'mis datos',
         'agendar cita', 'reservar cita', 'programar cita',
@@ -103,13 +103,15 @@ function requiresAuthCheck(question) {
         'ver mis', 'consultar mis', 'mis favoritos',
         'mi repostero', 'mis reposteros', 'mi catalogo', 'mi catálogo',
         'ver reposteros', 'ver repostero', 'ver a los reposteros', 'ver los reposteros',
-        'conocer reposteros', 'conocer a los reposteros', 'reposteros porfis'
+        'conocer reposteros', 'conocer a los reposteros', 'reposteros porfis',
+        'ver catalogo', 'ver catálogo', 'ver el catalogo', 'ver el catálogo',
+        'catalogo porfi', 'catálogo porfi', 'quiero ver el catalogo', 'quiero ver el catálogo'
     ];
     
     // Palabras individuales que requieren contexto PERSONAL explícito
-    const individualKeywords = ['perfil', 'pasteles', 'pastel', 'catalogo', 'catálogo'];
+    const individualKeywords = ['perfil', 'pasteles', 'pastel'];
     
-    // Primero verificamos frases completas (incluyendo ver reposteros)
+    // Primero verificamos frases completas (incluyendo ver catálogo y reposteros)
     if (authKeywords.some(keyword => q.includes(keyword))) {
         return true;
     }

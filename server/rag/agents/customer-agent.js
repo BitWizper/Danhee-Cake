@@ -49,7 +49,8 @@ class CustomerAgent {
             '• Si el usuario pregunta algo fuera de contexto, redirige amablemente a temas de Danhee Cake\n' +
             '• IMPORTANTE: Si la información no está disponible en la base de datos o contexto proporcionado, admite claramente que no tienes esa información en lugar de inventarla. Di explícitamente "No tengo esa información disponible" o "No puedo encontrar esos datos en mi base de conocimiento".\n' +
             '• NUNCA generes enlaces en corchetes como [enlace] o [URL]. Si necesitas mencionar una sección, describe su ubicación sin inventar enlaces.\n' +
-            '• NUNCA inventes URLs o enlaces web. Solo menciona funcionalidades existentes sin especificar enlaces.\n\n' +
+            '• NUNCA inventes URLs o enlaces web. Solo menciona funcionalidades existentes sin especificar enlaces.\n' +
+            '• IMPORTANTE: NO repitas saludos (hola, buenos días, etc.) si ya has saludado previamente en la conversación. Ve directamente al tema.\n\n' +
             'Tienes acceso a herramientas que puedes invocar cuando sea necesario para obtener información actualizada.'
         );
     }
