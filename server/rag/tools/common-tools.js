@@ -199,6 +199,28 @@ function obtenerRespuestaFija(pregunta) {
         return responses[Math.floor(Math.random() * responses.length)];
     }
 
+    // Detectar si el usuario pregunta cómo registrarse o iniciar sesión
+    const authInstructions = [
+        'como me registro', 'como registrarme', 'como me logueo', 'como loguearme',
+        'como iniciar sesion', 'como iniciar sesión', 'como hago login', 'como hacer login',
+        'registrarme', 'loguearme', 'iniciar sesion', 'iniciar sesión', 'hacer login'
+    ];
+    
+    if (authInstructions.some(pattern => originalLower.includes(pattern))) {
+        return (
+            'Para registrarte en Danhee Cake:\n\n' +
+            '1. Ve a la sección de registro en la plataforma\n' +
+            '2. Elige si quieres registrarte como cliente o como repostero\n' +
+            '3. Completa tus datos personales (nombre, email, contraseña)\n' +
+            '4. Si eres repostero, agrega información de tu negocio\n\n' +
+            'Para iniciar sesión:\n\n' +
+            '1. Usa tu email o nombre de usuario\n' +
+            '2. Ingresa tu contraseña\n' +
+            '3. ¡Listo! Podrás acceder a tu perfil y funcionalidades\n\n' +
+            '¿Necesitas ayuda con algo más? 😊'
+        );
+    }
+
     const txt = quitarAcentos(pregunta.toLowerCase().trim())
         .replace(/[^\w\s]/g, ' ')
         .replace(/\s+/g, ' ')

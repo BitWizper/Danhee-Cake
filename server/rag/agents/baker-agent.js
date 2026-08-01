@@ -66,7 +66,7 @@ class BakerAgent {
         const needsAuth = requiresAuthCheck(userMessage);
         if (needsAuth && !bakerUserId) {
             await db.addChatMessage(conversationId, 'user', userMessage);
-            const authMsg = 'Para gestionar tu catálogo de pasteles, ver citas o administrar tu perfil de repostero, necesitas estar registrado. ¿Te gustaría registrarte como repostero para gestionar tu negocio de pasteles, o como cliente para explorar nuestros servicios?';
+            const authMsg = 'Para ver tu información personal, necesitas estar registrado e iniciar sesión. ¿Te gustaría registrarte como repostero o como cliente?';
             await db.addChatMessage(conversationId, 'assistant', authMsg);
             return { response: authMsg, toolCalls: null, wasBlocked: false };
         }

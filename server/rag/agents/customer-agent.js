@@ -84,7 +84,7 @@ class CustomerAgent {
         const needsAuth = requiresAuthCheck(userMessage);
         if (needsAuth && !clientId) {
             await db.addChatMessage(conversationId, 'user', userMessage);
-            const authMsg = 'Para ver información detallada de pasteles, catálogos o agendar citas, necesitas estar registrado. ¿Te gustaría registrarte como cliente para explorar nuestros pasteles y servicios, o como repostero para gestionar tu propio catálogo?';
+            const authMsg = 'Para ver tu información personal, necesitas estar registrado e iniciar sesión. ¿Te gustaría registrarte como cliente o como repostero?';
             await db.addChatMessage(conversationId, 'assistant', authMsg);
             return { response: authMsg, toolCalls: null, wasBlocked: false };
         }
