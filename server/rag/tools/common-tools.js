@@ -178,20 +178,15 @@ function getOllamaOptionsCliente() {
 function obtenerRespuestaFija(pregunta) {
     if (!pregunta) return null;
 
-    const txt = quitarAcentos(pregunta.toLowerCase().trim())
-        .replace(/[^\w\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    // Detectar cualquier variación de saludo de forma muy simple y robusta
-    // Si contiene "hol" o "buen" o "que tal" o "como estas", es un saludo
-    const isGreeting = txt.includes('hol') || 
-                       txt.includes('buen') || 
-                       txt.includes('que tal') || 
-                       txt.includes('como estas') ||
-                       txt === 'hola' ||
-                       txt === 'holis' ||
-                       txt === 'hol';
+    // Detección ultra-simple de saludos - verificar directamente el input original
+    const originalLower = pregunta.toLowerCase().trim();
+    
+    // Lista de patrones de saludo muy simples
+    const saludoPatterns = [
+        'hol', 'buen', 'que tal', 'como estas', 'hola', 'holis'
+    ];
+    
+    const isGreeting = saludoPatterns.some(pattern => originalLower.includes(pattern));
     
     if (isGreeting) {
         const responses = [
@@ -203,6 +198,11 @@ function obtenerRespuestaFija(pregunta) {
         ];
         return responses[Math.floor(Math.random() * responses.length)];
     }
+
+    const txt = quitarAcentos(pregunta.toLowerCase().trim())
+        .replace(/[^\w\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
     const patronesAyuda = [
         'ayuda', 'ayudar', 'ayudarme', 'ayudas', 'ayudame',
