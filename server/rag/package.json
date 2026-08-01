@@ -6,7 +6,9 @@
   "type": "commonjs",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "ingest": "node ingest-documents.js",
+    "verify": "node verify-chroma.js"
   },
   "keywords": ["rag", "chatbot", "danhee", "cake"],
   "author": "Danhee",

@@ -239,20 +239,8 @@ app.post('/chat/stream', async (req, res) => {
     }
 });
 
-app.get('/observability/logs/:sessionId', async (req, res) => {
-    try {
-        const { sessionId } = req.params;
-        
-        res.json({
-            message: 'Observability logs endpoint - implement query logic as needed',
-            session_id: sessionId
-        });
-        
-    } catch (e) {
-        console.error(`[app] Error en /observability/logs: ${e.message}`);
-        res.status(500).json({ error: 'Internal server error', message: e.message });
-    }
-});
+// Endpoint de observability eliminado por seguridad - no tenía funcionalidad real
+// app.get('/observability/logs/:sessionId', async (req, res) => {
 
 app.use((req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
