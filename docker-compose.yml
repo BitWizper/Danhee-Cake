@@ -76,11 +76,6 @@ services:
       - PORT=5001
       - CHROMA_HOST=http://chromadb:8000
       - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
-      - DB_HOST=bvtdjsmypbwpngczasgf-mysql.services.clever-cloud.com
-      - DB_PORT=3306
-      - DB_NAME=bvtdjsmypbwpngczasgf
-      - DB_USER=ueixm6eypteu4pjt
-      - DB_PASSWORD=DGGMpjQiBBVppc0YwEE9
     volumes:
       - ./server/rag:/app/rag
       - /app/rag/node_modules

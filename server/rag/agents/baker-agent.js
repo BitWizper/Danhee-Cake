@@ -210,6 +210,10 @@ class BakerAgent {
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
                 const options = getOllamaOptions();
                 const response = await ollamaClient.generate({
+                    model: 'llama3.2:latest',
+                    prompt: JSON.stringify(messages),
+                    options: options,
+                    stream: false
                 });
 
                 const fullResponse = response.response;
