@@ -119,6 +119,29 @@ const getChatHistory = async (req, res) => {
     return res.status(400).json({ error: "Se requiere conversation_id o client_id" });
   }
 
+  // Validar ownership: si se solicita por client_id, verificar que pertenezca al usuario autenticado
+  if (sanitizedClientId) {
+    let authenticatedUserId = null;
+    const authHeader = req.headers['authorization'];
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.slice(7);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        authenticatedUserId = decoded.id || decoded.userId || null;
+      } catch (error) {
+        console.log(`[Chat History] Token inválido o expirado`);
+        return res.status(401).json({ error: "No autorizado" });
+      }
+    }
+
+    // Si hay un client_id en la solicitud, verificar que coincida con el usuario autenticado
+    if (authenticatedUserId && sanitizedClientId !== authenticatedUserId.toString()) {
+      console.log(`[Chat History] Intento de acceso no autorizado: user ${authenticatedUserId} intentando acceder a client_id ${sanitizedClientId}`);
+      return res.status(403).json({ error: "No tienes permiso para ver este historial" });
+    }
+  }
+
   try {
     const ragUrl = process.env.RAG_SERVICE_URL;
     let response;
@@ -274,6 +297,27 @@ const deleteChatHistory = async (req, res) => {
 
   const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
   const sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
+
+  // Validar ownership: verificar que el client_id pertenezca al usuario autenticado
+  let authenticatedUserId = null;
+  const authHeader = req.headers['authorization'];
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.slice(7);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      authenticatedUserId = decoded.id || decoded.userId || null;
+    } catch (error) {
+      console.log(`[Chat Delete] Token inválido o expirado`);
+      return res.status(401).json({ error: "No autorizado" });
+    }
+  }
+
+  // Si hay un client_id en la solicitud, verificar que coincida con el usuario autenticado
+  if (sanitizedClientId && authenticatedUserId && sanitizedClientId !== authenticatedUserId.toString()) {
+    console.log(`[Chat Delete] Intento de acceso no autorizado: user ${authenticatedUserId} intentando eliminar client_id ${sanitizedClientId}`);
+    return res.status(403).json({ error: "No tienes permiso para eliminar este historial" });
+  }
 
   try {
     const ragUrl = process.env.RAG_SERVICE_URL;

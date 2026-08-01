@@ -34,10 +34,10 @@ const requireEnv = (name, fallback = undefined) => {
 const JWT_SECRET = requireEnv('JWT_SECRET', 'change-me-in-production');
 const REFRESH_TOKEN_SECRET = requireEnv('REFRESH_TOKEN_SECRET', '');
 if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'change-me-in-production') {
-  console.warn('[ENV] JWT_SECRET is using a placeholder value. Set a strong secret in your deployment environment.');
+  console.error('[ENV] CRITICAL: JWT_SECRET is using a placeholder value in production. Please set a strong secret immediately.');
 }
 if (process.env.NODE_ENV === 'production' && !REFRESH_TOKEN_SECRET) {
-  console.warn('[ENV] REFRESH_TOKEN_SECRET is missing. Set a strong refresh token secret in production or configure a secret manager.');
+  console.error('[ENV] CRITICAL: REFRESH_TOKEN_SECRET is missing in production. Please set a strong secret immediately.');
 }
 process.env.JWT_SECRET = JWT_SECRET;
 process.env.REFRESH_TOKEN_SECRET = REFRESH_TOKEN_SECRET || JWT_SECRET;
@@ -82,11 +82,11 @@ app.use(httpsEnforcer);
 // Logging de seguridad
 app.use(securityLogger);
 
-// Rate limiting por IP (global) - DESACTIVADO TEMPORALMENTE PARA DESARROLLO
-// app.use(ipRateLimiter({
-//   windowMs: 60 * 1000, // 1 minuto
-//   maxRequests: 100 // 100 solicitudes por minuto
-// }));
+// Rate limiting por IP (global) - Reactivado con límites conservadores
+app.use(ipRateLimiter({
+  windowMs: 60 * 1000, // 1 minuto
+  maxRequests: 200 // 200 solicitudes por minuto (límite generoso)
+}));
 
 // Sanitización de inputs
 app.use(inputSanitizer({ strict: true }));
@@ -139,8 +139,8 @@ const disablePoweredBy = (req, res, next) => {
 app.use(disablePoweredBy);
 
 // Seguridad avanzada con detección de VPN, fingerprinting y WAF
-// Temporalmente desactivado debido a falsos positivos que bloquean peticiones legítimas
-// app.use(advancedSecurity);
+// Reactivado con configuración conservadora para reducir falsos positivos
+app.use(advancedSecurity);
 
 // Bloqueo de rutas sensibles y archivos de configuración
 app.use((req, res, next) => {
@@ -174,8 +174,8 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // Permitir solicitudes sin origin (como mobile apps, curl, postman)
-    if (!origin) return callback(null, true);
+    // En producción, NO permitir solicitudes sin origin (previene requests de herramientas)
+    if (!origin) return callback(new Error('Origin required in production'));
     
     // Verificar si el origen está en la lista permitida o si coincide con un patrón
     const isAllowed = allowedOrigins.some(allowedOrigin => {
@@ -472,8 +472,8 @@ app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
 app.use('/api/payments', require('./routes/payments.routes'));
-// Endpoint de streaming específico para chat (sin rate limiting temporalmente)
-app.post('/api/chat/stream', clientChatGuard, streamChatbot);
+// Endpoint de streaming específico para chat con rate limiting
+app.post('/api/chat/stream', chatLimiter, clientChatGuard, streamChatbot);
 // Aplicar guardrail específico para clientes (no afecta a reposteros)
 app.use('/api/chat', clientChatGuard, chatRoutes);
 
