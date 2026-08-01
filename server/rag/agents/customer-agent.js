@@ -11,7 +11,7 @@ const db = require('../db-config');
 const { 
     getCachedResponse, setCachedResponse, shouldSkipRag, shouldUseTools,
     getOllamaOptionsCliente, obtenerRespuestaFija, checkGuardrails,
-    detectarFormalidad, setCurrentClientId, getCurrentClientId, detectCycle, requiresAuthCheck
+    detectarFormalidad, setCurrentClientId, getCurrentClientId, detectCycle, requiresAuthCheck, removeRepeatedGreetings
 } = require('../tools/common-tools');
 const { TOOLS_SCHEMA, resolveToolName, executeTool } = require('../tools/registry');
 
@@ -208,6 +208,9 @@ class CustomerAgent {
                 responseText = 'Lo siento, hubo un error al procesar tu mensaje. Por favor intenta de nuevo.';
             }
         }
+
+        // Remover saludos repetidos de la respuesta
+        responseText = removeRepeatedGreetings(responseText);
 
         const filteredResponse = this.filterAlucinatoryResponse(responseText, userMessage);
         

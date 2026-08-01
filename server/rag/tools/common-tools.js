@@ -180,6 +180,40 @@ function getOllamaOptionsCliente() {
     };
 }
 
+function removeRepeatedGreetings(response) {
+    if (!response) return response;
+    
+    // Lista de saludos comunes
+    const greetings = [
+        '¡hola!', 'hola', '¡buenos días!', 'buenos días', '¡buen día!', 'buen día',
+        '¡buenas tardes!', 'buenas tardes', '¡buenas noches!', 'buenas noches',
+        '¡qué tal!', 'qué tal', '¡buenas!', 'buenas'
+    ];
+    
+    const lowerResponse = response.toLowerCase();
+    
+    // Verificar si hay saludo al inicio
+    for (const greeting of greetings) {
+        if (lowerResponse.startsWith(greeting)) {
+            // Encontrar el índice donde termina el saludo
+            const greetingEnd = response.indexOf(greeting) + greeting.length;
+            // Remover el saludo y cualquier espacio/coma después
+            let cleaned = response.substring(greetingEnd).trim();
+            // Remover coma inicial si existe
+            if (cleaned.startsWith(',')) {
+                cleaned = cleaned.substring(1).trim();
+            }
+            // Capitalizar primera letra
+            if (cleaned.length > 0) {
+                cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+            }
+            return cleaned || response;
+        }
+    }
+    
+    return response;
+}
+
 function obtenerRespuestaFija(pregunta) {
     if (!pregunta) return null;
 
@@ -549,14 +583,17 @@ function checkGuardrails(prompt) {
         if (pattern.test(promptLower)) return true;
     }
     
-    return false;
+for (const pattern of codePatterns) {
+    if (pattern.test(promptLower)) return true;
+}
+    
+return false;
 }
 
 module.exports = {
-    getCurrentClientId,
     setCurrentClientId,
+    getCurrentClientId,
     quitarAcentos,
-    jsonSerial,
     normalizeQuestion,
     getCachedResponse,
     setCachedResponse,
@@ -566,10 +603,8 @@ module.exports = {
     getOllamaOptions,
     getOllamaOptionsCliente,
     obtenerRespuestaFija,
-    extraerTextoPdf,
-    verificarRegistroUsuario,
-    detectarFormalidad,
     checkGuardrails,
+    detectarFormalidad,
     detectCycle,
-    asyncLocalStorage
+    removeRepeatedGreetings
 };

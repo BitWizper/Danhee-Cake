@@ -8,9 +8,9 @@ const { ChatOllama } = require("@langchain/community/chat_models/ollama");
 const { HumanMessage, SystemMessage, AIMessage } = require("@langchain/core/messages");
 const { Ollama } = require('ollama');
 const db = require('../db-config');
-const { 
+const {
     getOllamaOptions, checkGuardrails, detectarFormalidad,
-    setCurrentClientId, getCurrentClientId, detectCycle, requiresAuthCheck
+    setCurrentClientId, getCurrentClientId, detectCycle, requiresAuthCheck, removeRepeatedGreetings
 } = require('../tools/common-tools');
 const { BAKER_TOOLS_SCHEMA, resolveToolName, executeTool } = require('../tools/registry');
 
@@ -172,6 +172,9 @@ class BakerAgent {
                 });
 
                 let responseText = toolResponse.message.content;
+
+                // Remover saludos repetidos de la respuesta
+                responseText = removeRepeatedGreetings(responseText);
 
                 const filteredResponse = this.filterResponse(responseText, userMessage);
                 
