@@ -262,14 +262,14 @@ class CustomerAgent {
             try {
                 const ollama = require('ollama');
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
-                const response = await ollama.chat({
+                const response = await ollama.generate({
                     model: 'llama3.2:latest',
-                    messages,
+                    prompt: JSON.stringify(messages),
                     options: getOllamaOptionsCliente(),
                     stream: false
                 });
 
-                const fullResponse = response.message.content;
+                const fullResponse = response.response;
 
                 await db.addChatMessage(conversationId, 'user', userMessage);
                 await db.addChatMessage(conversationId, 'assistant', fullResponse);
