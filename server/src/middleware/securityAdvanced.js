@@ -18,9 +18,9 @@ const SECURITY_CONFIG = {
   maxFailedAttempts: 10,
   blockDuration: 15 * 60 * 1000, // 15 minutos
   
-  // Detección de VPN/proxy
+  // Detección de VPN/proxy (desactivado por defecto para evitar falsos positivos)
   vpnDetection: {
-    enabled: true,
+    enabled: process.env.ENABLE_VPN_DETECTION === 'true',
     checkDatacenters: true,
     checkHostingProviders: true,
     checkTorNodes: true
@@ -34,13 +34,16 @@ const SECURITY_CONFIG = {
     trackAcceptEncoding: true
   },
   
-  // Rate limiting avanzado
+  // Rate limiting avanzado (desactivado por defecto, usar rateLimiter.js en su lugar)
   rateLimiting: {
-    enabled: true,
+    enabled: process.env.ENABLE_ADVANCED_RATE_LIMIT === 'true',
     windowMs: 60 * 1000, // 1 minuto
     maxRequests: 100,
     burstRequests: 20
-  }
+  },
+  
+  // Modo de bloqueo: 'log' (solo loggear), 'block' (bloquear)
+  blockMode: process.env.SECURITY_BLOCK_MODE || 'log'
 };
 
 // Lista de rangos de IP conocidos de datacenters/VPN (simplificada)
@@ -90,7 +93,7 @@ const SUSPICIOUS_UA_PATTERNS = [
   /selenium/i
 ];
 
-// Patrones de ataque SQLi
+// Patrones de ataque SQLi (más específicos para evitar falsos positivos)
 const SQLI_PATTERNS = [
   /(\%27)|(\')|(\-\-)|(\%23)|(#)/i,
   /(\%3D)|(=)[^\n]*((\%27)|(\')|(\-\-)|(\%3B)|(;))/i,
@@ -101,7 +104,10 @@ const SQLI_PATTERNS = [
   /insert(\s|\+)+into/i,
   /delete(\s|\+)+from/i,
   /drop(\s|\+)*(table|database)/i
-];
+].filter((pattern, index) => {
+  // Excluir el patrón demasiado agresivo (índice 1) que causa falsos positivos
+  return index !== 1;
+});
 
 // Patrones de ataque XSS
 const XSS_PATTERNS = [
@@ -115,17 +121,19 @@ const XSS_PATTERNS = [
   /expression\s*\(/gi
 ];
 
-// Patrones de ataque RCE
+// Patrones de ataque RCE (más específicos para evitar falsos positivos)
 const RCE_PATTERNS = [
   /\|\s*\w+/i,
-  /;\s*\w+/i,
   /&&\s*\w+/i,
   /\$\([^)]+\)/i,
   /`[^`]+`/i,
   /\$\{[^}]+\}/i,
   /<\?php/i,
   /<\?=/i
-];
+].filter((pattern, index) => {
+  // Excluir patrón ;\s*\w+ que causa falsos positivos en URLs con query params
+  return true;
+});
 
 // Función para generar fingerprint del dispositivo
 function generateDeviceFingerprint(req) {
@@ -234,7 +242,7 @@ function blockIP(ip, duration = SECURITY_CONFIG.blockDuration) {
 }
 
 // Función para registrar historial de IP
-function trackIPHistory(ip, fingerprint) {
+function trackIPHistory(ip, fingerprint, userAgent) {
   if (!ipHistory.has(ip)) {
     ipHistory.set(ip, []);
   }
@@ -243,7 +251,8 @@ function trackIPHistory(ip, fingerprint) {
   history.push({
     timestamp: Date.now(),
     fingerprint,
-    userAgent: req.headers['user-agent']
+    userAgent,
+    ip
   });
   
   // Mantener solo las últimas 50 entradas
@@ -327,8 +336,6 @@ const advancedSecurity = (req, res, next) => {
   // 4. Detectar patrones de ataque (WAF)
   const attackPattern = detectAttackPatterns(req);
   if (attackPattern) {
-    blockIP(normalizedIP);
-    
     logSecurityEvent('ATTACK_PATTERN_DETECTED', {
       ip: normalizedIP,
       attackType: attackPattern.type,
@@ -337,10 +344,15 @@ const advancedSecurity = (req, res, next) => {
       userAgent
     });
     
-    return res.status(403).json({
-      error: 'Attack detected',
-      message: 'Your request was blocked due to suspicious patterns'
-    });
+    // Solo bloquear si está en modo 'block'
+    if (SECURITY_CONFIG.blockMode === 'block') {
+      blockIP(normalizedIP);
+      return res.status(403).json({
+        error: 'Attack detected',
+        message: 'Your request was blocked due to suspicious patterns'
+      });
+    }
+    // En modo 'log', solo registrar y continuar
   }
   
   // 5. Rate limiting con fingerprinting
@@ -385,7 +397,7 @@ const advancedSecurity = (req, res, next) => {
   }
   
   // 6. Rastrear historial de IP para detectar cambios
-  const ipChange = trackIPHistory(normalizedIP, fingerprint);
+  const ipChange = trackIPHistory(normalizedIP, fingerprint, userAgent);
   if (ipChange.detected) {
     logSecurityEvent('IP_CHANGE_DETECTED', {
       currentIP: normalizedIP,
