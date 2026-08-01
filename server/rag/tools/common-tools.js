@@ -93,28 +93,31 @@ function requiresAuthCheck(question) {
     
     const q = normalizeQuestion(question);
     
-    // Solo requiere autenticación para consultas específicas que necesitan datos personales
-    // Priorizamos frases completas sobre palabras individuales para mantener dinamismo
+    // Solo requiere autenticación para consultas específicas que necesitan datos PERSONALES
+    // Información general (pasteles, catálogo) NO requiere auth
+    // PERO ver reposteros SÍ requiere auth para proteger información de reposteros
     const authKeywords = [
         'mis pasteles', 'mis citas', 'mi pedido', 'mi perfil', 'mis datos',
         'agendar cita', 'reservar cita', 'programar cita',
         'mi historial', 'mis compras', 'mis reservas',
         'ver mis', 'consultar mis', 'mis favoritos',
-        'mi repostero', 'mis reposteros', 'mi catalogo', 'mi catálogo'
+        'mi repostero', 'mis reposteros', 'mi catalogo', 'mi catálogo',
+        'ver reposteros', 'ver repostero', 'ver a los reposteros', 'ver los reposteros',
+        'conocer reposteros', 'conocer a los reposteros', 'reposteros porfis'
     ];
     
-    // Palabras individuales que requieren contexto adicional
-    const individualKeywords = ['perfil', 'repostero', 'reposteros', 'pasteles', 'pastel', 'catalogo', 'catálogo'];
+    // Palabras individuales que requieren contexto PERSONAL explícito
+    const individualKeywords = ['perfil', 'pasteles', 'pastel', 'catalogo', 'catálogo'];
     
-    // Primero verificamos frases completas (prioridad)
+    // Primero verificamos frases completas (incluyendo ver reposteros)
     if (authKeywords.some(keyword => q.includes(keyword))) {
         return true;
     }
     
-    // Para palabras individuales, solo pedimos auth si están en contexto personal
-    // (ej: "ver perfil" vs "perfil de repostero")
+    // Para palabras individuales, solo pedimos auth si están en contexto PERSONAL explícito
+    // (ej: "mi perfil", "mis pasteles" vs "perfil de repostERO", "ver pasteles")
     if (individualKeywords.some(keyword => q.includes(keyword))) {
-        const personalContext = ['mi', 'ver', 'consultar', 'mis', 'editar', 'modificar', 'actualizar'];
+        const personalContext = ['mi ', 'mis ', 'ver mi', 'consultar mi', 'editar mi', 'modificar mi'];
         return personalContext.some(ctx => q.includes(ctx));
     }
     
