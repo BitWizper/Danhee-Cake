@@ -536,7 +536,7 @@ function ChatBot() {
         }
       }
 
-      if (storedUser?.role === "repostero") {
+      if (user?.role === "repostero") {
         window.dispatchEvent(new CustomEvent("baker-catalog-updated"));
       }
     } catch (error) {
