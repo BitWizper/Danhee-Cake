@@ -193,6 +193,13 @@ app.get('/chat/stream', async (req, res) => {
 app.post('/chat/stream', async (req, res) => {
     const { conversation_id, user_message, user_role, user_id } = req.body;
     
+    console.error('[app] /chat/stream request body:', {
+        conversation_id,
+        user_message: user_message ? user_message.slice(0, 200) : user_message,
+        user_role,
+        user_id
+    });
+    
     if (!conversation_id || !user_message) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -214,12 +221,17 @@ app.post('/chat/stream', async (req, res) => {
             user_role || 'cliente',
             user_id || null
         );
+
+        console.error('[app] /chat/stream result:', {
+            responseSnippet: result.response ? result.response.slice(0, 200) : null,
+            wasBlocked: result.wasBlocked
+        });
         
         res.write(`data: ${JSON.stringify({ response: result.response, was_blocked: result.wasBlocked })}\n\n`);
         res.end();
         
     } catch (e) {
-        console.error(`[app] Error en POST /chat/stream: ${e.message}`);
+        console.error(`[app] Error en POST /chat/stream: ${e.stack || e.message}`);
         res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
         res.end();
     }

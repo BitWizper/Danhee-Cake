@@ -138,7 +138,7 @@ class CustomerAgent {
             ttftMs = Date.now() - startTime;
 
         } catch (e) {
-            console.error(`[CustomerAgent] Error en LangChain/Ollama: ${e.message}`);
+            console.error(`[CustomerAgent] Error en LangChain/Ollama: ${e.stack || e.message}`);
             // Fallback a cliente directo
             try {
                 const ollama = require('ollama');
@@ -150,7 +150,7 @@ class CustomerAgent {
                 });
                 responseText = response.response;
             } catch (fallbackError) {
-                console.error(`[CustomerAgent] Error en fallback: ${fallbackError.message}`);
+                console.error(`[CustomerAgent] Error en fallback: ${fallbackError.stack || fallbackError.message}`);
                 responseText = 'Lo siento, hubo un error al procesar tu mensaje. Por favor intenta de nuevo.';
             }
         }
