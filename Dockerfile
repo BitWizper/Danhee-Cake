@@ -7,6 +7,9 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+# Build with VITE_BASE_URL empty to use relative paths
+ARG VITE_BASE_URL=
+ENV VITE_BASE_URL=$VITE_BASE_URL
 RUN npm run build
 
 # Production image

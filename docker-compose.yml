@@ -118,6 +118,7 @@ services:
       - "3000:80"
     environment:
       - BACKEND_URL=http://backend:5000
+      - VITE_BASE_URL=
     restart: always
     networks:
       - app-network
