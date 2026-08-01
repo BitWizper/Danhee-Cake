@@ -34,4 +34,5 @@ server/.env
 .env.*
 !.env.example
 docker.env
+NEW_SECRETS.txt
 
