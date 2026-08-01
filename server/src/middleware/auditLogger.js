@@ -23,17 +23,8 @@ const logAudit = (level, message, meta = {}) => {
   const logLine = JSON.stringify(logEntry) + '\n';
   fs.appendFileSync(auditLogFile, logLine, { flag: 'a' });
   
-  // Mostrar logs detallados si está en desarrollo o si ENABLE_DETAILED_LOGS=true
-  const showDetailedLogs = process.env.NODE_ENV !== 'production' || process.env.ENABLE_DETAILED_LOGS === 'true';
-  
-  if (showDetailedLogs) {
-    console.log(`[AUDIT ${level}] ${message}`, meta);
-  } else {
-    // En producción sin ENABLE_DETAILED_LOGS, solo loggear nivel SECURITY/ALERT sin detalles
-    if (level === 'SECURITY' || level === 'ALERT') {
-      console.log(`[AUDIT ${level}] ${message}`);
-    }
-  }
+  // También imprimir en consola para desarrollo
+  console.log(`[AUDIT ${level}] ${message}`, meta);
 };
 
 const { getClientIP } = require('./clientIp');
