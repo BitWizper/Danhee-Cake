@@ -172,7 +172,7 @@ function getOllamaOptions() {
 
 function getOllamaOptionsCliente() {
     return {
-        num_predict: 200,  // Reducido para más velocidad
+        num_predict: 150,  // Reducido para respuestas más cortas
         num_ctx: 2048,
         temperature: 0.5,  // Aumentado para mantener dinamismo
         top_p: 0.9,
