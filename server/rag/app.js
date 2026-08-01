@@ -8,7 +8,6 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const ollama = require('ollama');
 const { ChromaClient } = require('chromadb');
 const TaskRouter = require('./agents/router');
 const db = require('./db-config');

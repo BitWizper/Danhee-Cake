@@ -6,12 +6,15 @@
 
 const { ChatOllama } = require("@langchain/community/chat_models/ollama");
 const { HumanMessage, SystemMessage, AIMessage } = require("@langchain/core/messages");
+const { Ollama } = require('ollama');
 const db = require('../db-config');
 const { 
     getOllamaOptions, checkGuardrails, detectarFormalidad,
     setCurrentClientId, getCurrentClientId
 } = require('../tools/common-tools');
 const { BAKER_TOOLS_SCHEMA, resolveToolName, executeTool } = require('../tools/registry');
+
+const ollamaClient = new Ollama({ host: process.env.OLLAMA_HOST });
 
 class BakerAgent {
     constructor() {
@@ -84,9 +87,7 @@ class BakerAgent {
 
         try {
             // Para tools, usamos cliente directo Ollama (LangChain tools requiere más configuración)
-            const ollama = require('ollama');
-            const toolResponse = await ollama.generate({
-                model: 'llama3.2:latest',
+                const toolResponse = await ollamaClient.generate({
                 prompt: JSON.stringify(messages),
                 options,
                 stream: false
@@ -109,12 +110,7 @@ class BakerAgent {
             console.error(`[BakerAgent] Error en LangChain/Ollama: ${e.message}`);
             // Fallback a cliente directo completo
             try {
-                const ollama = require('ollama');
-                const toolResponse = await ollama.generate({
-                    model: 'llama3.2:latest',
-                    prompt: JSON.stringify(messages),
-                    options,
-                    stream: false
+                const toolResponse = await ollamaClient.generate({
                 });
 
                 let responseText = toolResponse.response;
@@ -211,14 +207,9 @@ class BakerAgent {
             console.error(`[BakerAgent] Error en streaming LangChain: ${e.message}`);
             // Fallback a cliente directo
             try {
-                const ollama = require('ollama');
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
                 const options = getOllamaOptions();
-                const response = await ollama.generate({
-                    model: 'llama3.2:latest',
-                    prompt: JSON.stringify(messages),
-                    options,
-                    stream: false
+                const response = await ollamaClient.generate({
                 });
 
                 const fullResponse = response.response;

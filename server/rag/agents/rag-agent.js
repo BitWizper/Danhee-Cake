@@ -7,6 +7,9 @@
 const { Chroma } = require("@langchain/community/vectorstores/chroma");
 const { OllamaEmbeddings } = require("@langchain/community/embeddings/ollama");
 const { Document } = require("@langchain/core/documents");
+const { Ollama } = require('ollama');
+
+const ollamaClient = new Ollama({ host: process.env.OLLAMA_HOST });
 
 class AdvancedRAGAgent {
     constructor(chromaClient, embeddingModel = 'nomic-embed-text') {
@@ -57,8 +60,7 @@ class AdvancedRAGAgent {
                 return embedding;
             } else {
                 // Fallback a cliente directo Ollama
-                const ollama = require('ollama');
-                const response = await ollama.embeddings({
+                const response = await ollamaClient.embeddings({
                     model: this.embeddingModel,
                     prompt: text
                 });

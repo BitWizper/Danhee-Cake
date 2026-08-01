@@ -6,6 +6,7 @@
 
 const { ChatOllama } = require("@langchain/community/chat_models/ollama");
 const { HumanMessage, SystemMessage, AIMessage } = require("@langchain/core/messages");
+const { Ollama } = require('ollama');
 const db = require('../db-config');
 const { 
     getCachedResponse, setCachedResponse, shouldSkipRag, shouldUseTools,
@@ -13,6 +14,8 @@ const {
     detectarFormalidad, setCurrentClientId, getCurrentClientId
 } = require('../tools/common-tools');
 const { TOOLS_SCHEMA, resolveToolName, executeTool } = require('../tools/registry');
+
+const ollamaClient = new Ollama({ host: process.env.OLLAMA_HOST });
 
 class CustomerAgent {
     constructor(ragAgent = null) {
@@ -120,8 +123,7 @@ class CustomerAgent {
             if (useTools) {
                 // Usar LangChain con tools (manteniendo compatibilidad con estructura existente)
                 // Por ahora, usamos el cliente directo para tools ya que LangChain tools requiere más configuración
-                const ollama = require('ollama');
-                const toolResponse = await ollama.generate({
+                const toolResponse = await ollamaClient.generate({
                     model: 'llama3.2:latest',
                     prompt: JSON.stringify(messages),
                     options: getOllamaOptionsCliente(),
@@ -141,8 +143,7 @@ class CustomerAgent {
             console.error(`[CustomerAgent] Error en LangChain/Ollama: ${e.stack || e.message}`);
             // Fallback a cliente directo
             try {
-                const ollama = require('ollama');
-                const response = await ollama.generate({
+                const response = await ollamaClient.generate({
                     model: 'llama3.2:latest',
                     prompt: userMessage,
                     options: getOllamaOptionsCliente(),
@@ -260,9 +261,8 @@ class CustomerAgent {
             console.error(`[CustomerAgent] Error en streaming LangChain: ${e.message}`);
             // Fallback a cliente directo
             try {
-                const ollama = require('ollama');
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
-                const response = await ollama.generate({
+                const response = await ollamaClient.generate({
                     model: 'llama3.2:latest',
                     prompt: JSON.stringify(messages),
                     options: getOllamaOptionsCliente(),
