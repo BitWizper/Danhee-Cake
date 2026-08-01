@@ -183,13 +183,23 @@ function obtenerRespuestaFija(pregunta) {
         .replace(/\s+/g, ' ')
         .trim();
 
-    // Respuestas para saludos informales
-    const greetings = ['hola', 'holis', 'hol', 'hols', 'buen dia', 'buenas', 'que tal', 'como estas'];
-    if (greetings.some(g => txt.includes(g)) || txt === 'hola' || txt === 'holis' || txt === 'hol' || txt === 'hols') {
+    // Detectar cualquier variación de saludo de forma muy simple y robusta
+    // Si contiene "hol" o "buen" o "que tal" o "como estas", es un saludo
+    const isGreeting = txt.includes('hol') || 
+                       txt.includes('buen') || 
+                       txt.includes('que tal') || 
+                       txt.includes('como estas') ||
+                       txt === 'hola' ||
+                       txt === 'holis' ||
+                       txt === 'hol';
+    
+    if (isGreeting) {
         const responses = [
             '¡Hola! ¿En qué te puedo ayudar hoy con nuestros pasteles y servicios? 😊',
             '¡Hola! Bienvenido a Danhee Cake. ¿Qué tipo de pastel estás buscando? 🎂',
-            '¡Hola! Me alegra verte. ¿Te gustaría ver nuestro catálogo de pasteles o agendar una cita? 🍰'
+            '¡Hola! Me alegra verte. ¿Te gustaría ver nuestro catálogo de pasteles o agendar una cita? 🍰',
+            '¡Qué tal! ¿En qué puedo ayudarte con nuestros pasteles? 🎂',
+            '¡Buen día! ¿Qué te gustaría saber sobre nuestros pasteles y servicios? 😊'
         ];
         return responses[Math.floor(Math.random() * responses.length)];
     }
