@@ -111,9 +111,13 @@ exports.getAll = async (req, res, next) => {
   try {
     query += ' LIMIT ? OFFSET ?';
     params.push(limit, offset);
-    console.log('[Cakes] Ejecutando query:', query, 'con params:', params);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Cakes] Ejecutando query:', query, 'con params:', params);
+    }
     const [cakes] = await db.execute(query, params);
-    console.log('[Cakes] Query exitoso, pasteles encontrados:', cakes.length);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Cakes] Query exitoso, pasteles encontrados:', cakes.length);
+    }
     const normalizedCakes = cakes.map((cake) => buildCakeResponse(cake, req.user?.role));
     res.json({
       success: true,
@@ -121,7 +125,9 @@ exports.getAll = async (req, res, next) => {
     });
   } catch (err) {
     console.error('[Cakes] Error en getAll:', err && err.message ? err.message : err);
-    console.error('[Cakes] Stack:', err.stack);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[Cakes] Stack:', err.stack);
+    }
     // Responder amigablemente para evitar que el frontend reciba un 500 HTML
     return res.status(503).json({ success: false, message: 'No se pudieron obtener los pasteles. Intenta de nuevo más tarde.' });
   }

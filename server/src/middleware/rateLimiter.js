@@ -95,10 +95,10 @@ const createLimiter = (options = {}) => {
   });
 };
 
-// Rate limiters
+// Rate limiters - Ajustados para defender contra atacantes profesionales
 exports.authLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 5, // Reducido de 10 a 5
   skipSuccessfulRequests: false,
   message: {
     success: false,
@@ -107,11 +107,11 @@ exports.authLimiter = createLimiter({
 });
 
 exports.registerLimiter = createLimiter({
-  windowMs: 30 * 60 * 1000,
-  max: 8,
+  windowMs: 60 * 60 * 1000, // Aumentado a 1 hora
+  max: 3, // Reducido de 8 a 3
   message: {
     success: false,
-    message: 'Demasiados intentos de registro. Por favor, espera 30 minutos antes de intentar de nuevo.'
+    message: 'Demasiados intentos de registro. Por favor, espera 1 hora antes de intentar de nuevo.'
   }
 });
 
@@ -141,7 +141,7 @@ exports.chatLimiter = createLimiter({
 
 exports.apiLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  max: 100, // Reducido de 30 a 100 (aumentado para UX normal, pero con otros limiters más estrictos)
   message: {
     success: false,
     message: 'Demasiadas solicitudes. Por favor, reduce el ritmo.'
@@ -150,7 +150,7 @@ exports.apiLimiter = createLimiter({
 
 exports.methodLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 50, // Reducido de 20 a 50
   keyGenerator: (req) => `${getClientIP(req)}_${req.method}`,
   message: {
     success: false,
@@ -160,7 +160,7 @@ exports.methodLimiter = createLimiter({
 
 exports.writeLimiter = createLimiter({
   windowMs: 10 * 60 * 1000,
-  max: 10,
+  max: 5, // Reducido de 10 a 5 (más crítico para prevenir ataques)
   skip: (req) => {
     const writeMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
     return !writeMethods.includes(req.method);
@@ -173,7 +173,7 @@ exports.writeLimiter = createLimiter({
 
 exports.readLimiter = createLimiter({
   windowMs: 1 * 60 * 1000,
-  max: 50,
+  max: 100, // Aumentado de 50 a 100 para UX normal
   skip: (req) => {
     const readMethods = ['GET', 'HEAD', 'OPTIONS'];
     return !readMethods.includes(req.method);

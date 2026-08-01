@@ -23,8 +23,15 @@ const logAudit = (level, message, meta = {}) => {
   const logLine = JSON.stringify(logEntry) + '\n';
   fs.appendFileSync(auditLogFile, logLine, { flag: 'a' });
   
-  // También imprimir en consola para desarrollo
-  console.log(`[AUDIT ${level}] ${message}`, meta);
+  // Solo imprimir en consola en desarrollo para no exponer info sensible en producción
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[AUDIT ${level}] ${message}`, meta);
+  } else {
+    // En producción, solo loggear nivel SECURITY sin detalles
+    if (level === 'SECURITY' || level === 'ALERT') {
+      console.log(`[AUDIT ${level}] ${message}`);
+    }
+  }
 };
 
 const { getClientIP } = require('./clientIp');
