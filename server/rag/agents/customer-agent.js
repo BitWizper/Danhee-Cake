@@ -11,7 +11,7 @@ const db = require('../db-config');
 const { 
     getCachedResponse, setCachedResponse, shouldSkipRag, shouldUseTools,
     getOllamaOptionsCliente, obtenerRespuestaFija, checkGuardrails,
-    detectarFormalidad, setCurrentClientId, getCurrentClientId, detectCycle
+    detectarFormalidad, setCurrentClientId, getCurrentClientId, detectCycle, requiresAuthCheck
 } = require('../tools/common-tools');
 const { TOOLS_SCHEMA, resolveToolName, executeTool } = require('../tools/registry');
 
@@ -78,8 +78,8 @@ class CustomerAgent {
             return { response: cached, toolCalls: null, wasBlocked: false };
         }
 
-        // Verificar autenticación antes de dar información sensible
-        const needsAuth = shouldUseTools(userMessage, 'cliente');
+        // Verificar autenticación antes de dar información sensible (solo para consultas específicas)
+        const needsAuth = requiresAuthCheck(userMessage);
         if (needsAuth && !clientId) {
             await db.addChatMessage(conversationId, 'user', userMessage);
             const authMsg = 'Para ver información detallada de pasteles, catálogos o agendar citas, necesitas estar registrado. ¿Te gustaría registrarte como cliente para explorar nuestros pasteles y servicios, o como repostero para gestionar tu propio catálogo?';

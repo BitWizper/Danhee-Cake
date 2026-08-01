@@ -10,7 +10,7 @@ const { Ollama } = require('ollama');
 const db = require('../db-config');
 const { 
     getOllamaOptions, checkGuardrails, detectarFormalidad,
-    setCurrentClientId, getCurrentClientId, detectCycle
+    setCurrentClientId, getCurrentClientId, detectCycle, requiresAuthCheck
 } = require('../tools/common-tools');
 const { BAKER_TOOLS_SCHEMA, resolveToolName, executeTool } = require('../tools/registry');
 
@@ -62,8 +62,9 @@ class BakerAgent {
             return { response: blockedMsg, toolCalls: null, wasBlocked: true };
         }
 
-        // Verificar autenticación antes de dar información sensible
-        if (!bakerUserId) {
+        // Verificar autenticación antes de dar información sensible (solo para consultas específicas)
+        const needsAuth = requiresAuthCheck(userMessage);
+        if (needsAuth && !bakerUserId) {
             await db.addChatMessage(conversationId, 'user', userMessage);
             const authMsg = 'Para gestionar tu catálogo de pasteles, ver citas o administrar tu perfil de repostero, necesitas estar registrado. ¿Te gustaría registrarte como repostero para gestionar tu negocio de pasteles, o como cliente para explorar nuestros servicios?';
             await db.addChatMessage(conversationId, 'assistant', authMsg);

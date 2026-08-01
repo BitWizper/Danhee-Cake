@@ -88,6 +88,22 @@ function shouldSkipRag(question) {
     return false;
 }
 
+function requiresAuthCheck(question) {
+    if (!question) return false;
+    
+    const q = normalizeQuestion(question);
+    
+    // Solo requiere autenticación para consultas específicas que necesitan datos personales
+    const authKeywords = [
+        'mis citas', 'mi pedido', 'mis pasteles', 'mi perfil', 'mis datos',
+        'agendar cita', 'reservar cita', 'programar cita',
+        'mi historial', 'mis compras', 'mis reservas',
+        'ver mis', 'consultar mis', 'mis favoritos'
+    ];
+    
+    return authKeywords.some(keyword => q.includes(keyword));
+}
+
 function shouldUseTools(question, role = 'cliente') {
     if (role === 'repostero') return true;
     
@@ -476,12 +492,11 @@ module.exports = {
     setCurrentClientId,
     quitarAcentos,
     jsonSerial,
-    lastSearchResult,
-    pdfCache,
-    lastContext,
+    normalizeQuestion,
     getCachedResponse,
     setCachedResponse,
     shouldSkipRag,
+    requiresAuthCheck,
     shouldUseTools,
     getOllamaOptions,
     getOllamaOptionsCliente,
