@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -77,6 +78,9 @@ app.disable('x-powered-by');
 app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 
 // Bloquear accesos sensibles y manejar OPTIONS de forma temprana
+// Cookie parser para leer cookies httpOnly
+app.use(cookieParser());
+
 app.use(requestGuard);
 
 // Forzar HTTPS en producción
@@ -204,9 +208,9 @@ const corsOptions = {
     return callback(new Error('CORS no permitido para este origen'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS', 'HEAD'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Content-Length', 'Content-Type'],
+  methods: ['GET', 'POST', 'OPTIONS', 'HEAD', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'Content-Type', 'Set-Cookie'],
   maxAge: 86400, // 24 horas de caché para preflight requests
   optionsSuccessStatus: 204 // Responder con 204 para OPTIONS exitosos
 };

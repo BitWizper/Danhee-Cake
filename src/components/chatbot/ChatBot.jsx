@@ -263,13 +263,17 @@ function ChatBot() {
     try {
       if (!user?.id) return;
 
+      // Usar localStorage como fallback porque las cookies httpOnly no pueden ser leídas por JS
       const token = localStorage.getItem("token");
       const headers = {};
       if (token) headers.Authorization = `Bearer ${token}`;
 
       const response = await fetch(
         getApiUrl(`/api/chat/history?client_id=${encodeURIComponent(user.id)}`),
-        { headers }
+        { 
+          headers,
+          credentials: 'include' // Las cookies httpOnly se envían automáticamente
+        }
       );
       const welcomeMsg = user?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
 
