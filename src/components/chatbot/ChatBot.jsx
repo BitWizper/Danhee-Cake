@@ -95,8 +95,7 @@ function ChatBot() {
   }, []);
 
   const getWelcomeMessage = () => {
-    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-    return storedUser?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
+    return user?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
   };
 
   const startNewChat = () => {
@@ -128,8 +127,7 @@ function ChatBot() {
     }
 
     const conversation_id = localStorage.getItem("conversation_id");
-    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-    const clientId = storedUser?.id != null ? storedUser.id : null;
+    const clientId = user?.id != null ? user.id : null;
     const token = localStorage.getItem("token");
 
     if (conversation_id && !isValidConversationId(conversation_id)) {
@@ -263,18 +261,17 @@ function ChatBot() {
 
   const loadConversationHistory = async () => {
     try {
-      const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-      if (!storedUser?.id) return;
+      if (!user?.id) return;
 
       const token = localStorage.getItem("token");
       const headers = {};
       if (token) headers.Authorization = `Bearer ${token}`;
 
       const response = await fetch(
-        getApiUrl(`/api/chat/history?client_id=${encodeURIComponent(storedUser.id)}`),
+        getApiUrl(`/api/chat/history?client_id=${encodeURIComponent(user.id)}`),
         { headers }
       );
-      const welcomeMsg = storedUser?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
+      const welcomeMsg = user?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
 
       if (response.ok) {
         const data = await response.json();
@@ -304,8 +301,7 @@ function ChatBot() {
       }
     } catch (error) {
       console.error("Error cargando historial:", error);
-      const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-      const welcomeMsg = storedUser?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
+      const welcomeMsg = user?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
       setChat([welcomeMsg]);
     }
   };
@@ -388,14 +384,13 @@ function ChatBot() {
         localStorage.removeItem("conversation_id");
       }
 
-      const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-      const clientId = storedUser?.id != null ? storedUser.id : null;
+      const clientId = user?.id != null ? user.id : null;
 
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const fetchUrl = getApiUrl("/api/chat/stream");
-      console.log("[ChatBot] Enviando stream a:", fetchUrl, "client_id:", clientId, "role:", storedUser?.role);
+      console.log("[ChatBot] Enviando stream a:", fetchUrl, "client_id:", clientId, "role:", user?.role);
       const res = await fetch(fetchUrl, {
         method: "POST",
         headers,
@@ -403,7 +398,7 @@ function ChatBot() {
           message: trimmedMessage,
           conversation_id,
           client_id: clientId,
-          role: storedUser?.role || null,
+          role: user?.role || null,
           client_datetime: new Date().toISOString(),
         }),
       });
@@ -600,9 +595,8 @@ function ChatBot() {
     }
 
     // Solo aplicar validación de seguridad para usuarios que no son reposteros
-    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-    console.log('[ChatBot] User role:', storedUser?.role, 'User:', storedUser);
-    if (storedUser?.role !== "repostero") {
+    console.log('[ChatBot] User role:', user?.role, 'User:', user);
+    if (user?.role !== "repostero") {
       const validation = validateMessage(trimmedMessage);
       if (!validation.valid) {
         showValidationError(validation.error);

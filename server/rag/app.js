@@ -25,6 +25,12 @@ const authenticateRAGRequest = (req, res, next) => {
     // Verificamos un header secreto compartido
     const ragSecret = req.headers['x-rag-secret'];
     
+    // En desarrollo, si no hay secreto configurado, permitir todas las solicitudes
+    if (!process.env.RAG_SERVICE_SECRET) {
+        console.warn('[RAG Auth] RAG_SERVICE_SECRET not configured - allowing all requests (DEVELOPMENT MODE)');
+        return next();
+    }
+    
     if (ragSecret !== process.env.RAG_SERVICE_SECRET) {
         console.warn('[RAG Auth] Unauthorized access attempt - missing or invalid secret');
         return res.status(403).json({ error: 'Unauthorized' });
