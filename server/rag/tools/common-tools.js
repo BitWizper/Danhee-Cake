@@ -274,7 +274,7 @@ function obtenerRespuestaFija(pregunta) {
     ];
     if (patronesAyuda.some(p => txt.includes(p))) {
         return (
-            '¡Hola! Puedo ayudarte con lo siguiente en Danhee Cake:\n\n' +
+            'Puedo ayudarte con lo siguiente en Danhee Cake:\n\n' +
             '• Ver el catálogo de pasteles y filtrar por categoría o nombre\n' +
             '• Consultar precios y tamaños disponibles\n' +
             '• Conocer el perfil de reposteros y buscar por ciudad\n' +
@@ -334,7 +334,7 @@ function detectarFormalidad(texto) {
         'tú', 'tu', 'te', 'vos', 'che', 'wey', 'güey', 'amigo', 'amiga',
         'carnal', 'bro', 'compa', 'primo', 'holis', 'qué onda', 'qué tal',
         'qué pasa', 'qué hubo', 'hey', 'oye', 'ps', 'pues', 'ok', 'vale',
-        'claro', 'seguro', 'dale', 'va', 'sale', 'chévere'
+        'claro', 'seguro', 'dale', 'va', 'sale', 'chévere','bestie','amiga','guapa','sister','oki','claro loba','loba'
     ];
     
     let formalCount = formalIndicators.filter(indicator => textoLower.includes(indicator)).length;
