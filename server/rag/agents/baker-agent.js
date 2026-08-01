@@ -62,6 +62,14 @@ class BakerAgent {
             return { response: blockedMsg, toolCalls: null, wasBlocked: true };
         }
 
+        // Verificar autenticación antes de dar información sensible
+        if (!bakerUserId) {
+            await db.addChatMessage(conversationId, 'user', userMessage);
+            const authMsg = 'Para gestionar tu catálogo de pasteles, ver citas o administrar tu perfil de repostero, necesitas estar registrado. ¿Te gustaría registrarte como repostero para gestionar tu negocio de pasteles, o como cliente para explorar nuestros servicios?';
+            await db.addChatMessage(conversationId, 'assistant', authMsg);
+            return { response: authMsg, toolCalls: null, wasBlocked: false };
+        }
+
         await db.getOrCreateChatSession(conversationId, bakerUserId);
         const chatHistory = await db.getChatHistory(conversationId, this.systemPrompt);
 

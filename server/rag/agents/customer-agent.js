@@ -78,6 +78,15 @@ class CustomerAgent {
             return { response: cached, toolCalls: null, wasBlocked: false };
         }
 
+        // Verificar autenticación antes de dar información sensible
+        const needsAuth = shouldUseTools(userMessage, 'cliente');
+        if (needsAuth && !clientId) {
+            await db.addChatMessage(conversationId, 'user', userMessage);
+            const authMsg = 'Para ver información detallada de pasteles, catálogos o agendar citas, necesitas estar registrado. ¿Te gustaría registrarte como cliente para explorar nuestros pasteles y servicios, o como repostero para gestionar tu propio catálogo?';
+            await db.addChatMessage(conversationId, 'assistant', authMsg);
+            return { response: authMsg, toolCalls: null, wasBlocked: false };
+        }
+
         await db.getOrCreateChatSession(conversationId, clientId);
         const chatHistory = await db.getChatHistory(conversationId, this.systemPrompt);
 
