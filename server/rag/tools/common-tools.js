@@ -94,14 +94,31 @@ function requiresAuthCheck(question) {
     const q = normalizeQuestion(question);
     
     // Solo requiere autenticación para consultas específicas que necesitan datos personales
+    // Priorizamos frases completas sobre palabras individuales para mantener dinamismo
     const authKeywords = [
-        'mis citas', 'mi pedido', 'mis pasteles', 'mi perfil', 'mis datos',
+        'mis pasteles', 'mis citas', 'mi pedido', 'mi perfil', 'mis datos',
         'agendar cita', 'reservar cita', 'programar cita',
         'mi historial', 'mis compras', 'mis reservas',
-        'ver mis', 'consultar mis', 'mis favoritos'
+        'ver mis', 'consultar mis', 'mis favoritos',
+        'mi repostero', 'mis reposteros', 'mi catalogo', 'mi catálogo'
     ];
     
-    return authKeywords.some(keyword => q.includes(keyword));
+    // Palabras individuales que requieren contexto adicional
+    const individualKeywords = ['perfil', 'repostero', 'reposteros', 'pasteles', 'pastel', 'catalogo', 'catálogo'];
+    
+    // Primero verificamos frases completas (prioridad)
+    if (authKeywords.some(keyword => q.includes(keyword))) {
+        return true;
+    }
+    
+    // Para palabras individuales, solo pedimos auth si están en contexto personal
+    // (ej: "ver perfil" vs "perfil de repostero")
+    if (individualKeywords.some(keyword => q.includes(keyword))) {
+        const personalContext = ['mi', 'ver', 'consultar', 'mis', 'editar', 'modificar', 'actualizar'];
+        return personalContext.some(ctx => q.includes(ctx));
+    }
+    
+    return false;
 }
 
 function shouldUseTools(question, role = 'cliente') {
