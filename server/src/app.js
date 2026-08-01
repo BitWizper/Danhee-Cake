@@ -177,8 +177,13 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // En producción, NO permitir solicitudes sin origin (previene requests de herramientas)
-    if (!origin) return callback(new Error('Origin required in production'));
+    // En producción, permitir solicitudes sin origin (para peticiones directas o debug)
+    // pero verificar origin si está presente
+    if (!origin) {
+      // Permitir peticiones sin origin pero loggear para monitoreo
+      console.warn('[CORS] Petición sin origin header en producción');
+      return callback(null, true);
+    }
     
     // Verificar si el origen está en la lista permitida o si coincide con un patrón
     const isAllowed = allowedOrigins.some(allowedOrigin => {
