@@ -394,7 +394,9 @@ function ChatBot() {
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(getApiUrl("/api/chat/stream"), {
+      const fetchUrl = getApiUrl("/api/chat/stream");
+      console.log("[ChatBot] Enviando stream a:", fetchUrl, "client_id:", clientId, "role:", storedUser?.role);
+      const res = await fetch(fetchUrl, {
         method: "POST",
         headers,
         body: JSON.stringify({
