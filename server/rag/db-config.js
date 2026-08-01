@@ -246,15 +246,27 @@ async function getOrCreateChatSession(conversationId, clientId = null) {
     
     try {
         const [rows] = await conn.execute(
-            'SELECT conversation_id FROM chat_sessions WHERE conversation_id = ?',
+            'SELECT conversation_id, client_id FROM chat_sessions WHERE conversation_id = ?',
             [conversationId]
         );
-        if (rows.length > 0) return true;
+        
+        if (rows.length > 0) {
+            // Si la sesión ya existe y tiene un client_id null pero ahora tenemos uno, actualizarlo
+            if (clientId && rows[0].client_id === null) {
+                await conn.execute(
+                    'UPDATE chat_sessions SET client_id = ? WHERE conversation_id = ?',
+                    [clientId, conversationId]
+                );
+                console.log(`[db-config] Actualizado client_id ${clientId} para sesión existente ${conversationId}`);
+            }
+            return true;
+        }
         
         await conn.execute(
             'INSERT INTO chat_sessions (conversation_id, client_id) VALUES (?, ?)',
             [conversationId, clientId]
         );
+        console.log(`[db-config] Creada nueva sesión ${conversationId} con client_id ${clientId}`);
         return true;
     } catch (e) {
         console.error(`[db-config] Error en getOrCreateChatSession: ${e.message}`);
@@ -370,13 +382,16 @@ async function getConversationsByClientId(clientId) {
     }
 }
 
-async function addChatMessage(conversationId, role, content, toolCalls = null) {
+async function addChatMessage(conversationId, role, content, toolCalls = null, clientId = null) {
     if (!conversationId) return false;
     
     const conn = await getConnection();
     if (!conn) return false;
     
     try {
+        // Asegurar que la sesión existe con el client_id correcto
+        await getOrCreateChatSession(conversationId, clientId);
+        
         const toolCallsJson = toolCalls ? JSON.stringify(toolCalls) : null;
         await conn.execute(`
             INSERT INTO chat_messages (conversation_id, role, content, tool_calls)
@@ -384,19 +399,7 @@ async function addChatMessage(conversationId, role, content, toolCalls = null) {
         `, [conversationId, role, content, toolCallsJson]);
         return true;
     } catch (e) {
-        // Fallback si la sesión aún no existe en chat_sessions
-        if (e.message.includes('foreign key constraint')) {
-            await getOrCreateChatSession(conversationId);
-            try {
-                await conn.execute(`
-                    INSERT INTO chat_messages (conversation_id, role, content, tool_calls)
-                    VALUES (?, ?, ?, ?)
-                `, [conversationId, role, content, toolCallsJson]);
-                return true;
-            } catch (e2) {
-                return false;
-            }
-        }
+        console.error(`[db-config] Error en addChatMessage: ${e.message}`);
         return false;
     } finally {
         conn.release();

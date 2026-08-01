@@ -63,22 +63,22 @@ class CustomerAgent {
 
         const fixedResponse = obtenerRespuestaFija(userMessage);
         if (fixedResponse) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
-            await db.addChatMessage(conversationId, 'assistant', fixedResponse);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
+            await db.addChatMessage(conversationId, 'assistant', fixedResponse, null, clientId);
             return { response: fixedResponse, toolCalls: null, wasBlocked: false };
         }
 
         if (checkGuardrails(userMessage)) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
             const blockedMsg = 'Lo siento, no puedo procesar esa solicitud. ¿En qué más te puedo ayudar con pasteles o citas?';
-            await db.addChatMessage(conversationId, 'assistant', blockedMsg);
+            await db.addChatMessage(conversationId, 'assistant', blockedMsg, null, clientId);
             return { response: blockedMsg, toolCalls: null, wasBlocked: true };
         }
 
         const cached = getCachedResponse(userMessage, 'cliente', conversationId);
         if (cached) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
-            await db.addChatMessage(conversationId, 'assistant', cached);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
+            await db.addChatMessage(conversationId, 'assistant', cached, null, clientId);
             return { response: cached, toolCalls: null, wasBlocked: false };
         }
 
@@ -86,9 +86,9 @@ class CustomerAgent {
         const needsAuth = requiresAuthCheck(userMessage);
         console.log(`[CustomerAgent] Auth check - userMessage: "${userMessage}", needsAuth: ${needsAuth}, clientId: ${clientId}`);
         if (needsAuth && !clientId) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
             const authMsg = 'Para ver tu información personal, necesitas estar registrado e iniciar sesión. ¿Te gustaría registrarte como cliente o como repostero?';
-            await db.addChatMessage(conversationId, 'assistant', authMsg);
+            await db.addChatMessage(conversationId, 'assistant', authMsg, null, clientId);
             return { response: authMsg, toolCalls: null, wasBlocked: false };
         }
 
@@ -97,9 +97,9 @@ class CustomerAgent {
 
         // Verificar si hay ciclos en la conversación
         if (detectCycle(chatHistory)) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
             const cycleBreakMsg = 'Parece que estamos repitiendo información. ¿Puedes reformular tu pregunta o preguntarme algo diferente sobre nuestros pasteles o servicios?';
-            await db.addChatMessage(conversationId, 'assistant', cycleBreakMsg);
+            await db.addChatMessage(conversationId, 'assistant', cycleBreakMsg, null, clientId);
             return { response: cycleBreakMsg, toolCalls: null, wasBlocked: false };
         }
 
@@ -215,8 +215,8 @@ class CustomerAgent {
 
         const filteredResponse = this.filterAlucinatoryResponse(responseText, userMessage);
         
-        await db.addChatMessage(conversationId, 'user', userMessage);
-        await db.addChatMessage(conversationId, 'assistant', filteredResponse, toolCalls.length > 0 ? toolCalls : null);
+        await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
+        await db.addChatMessage(conversationId, 'assistant', filteredResponse, toolCalls.length > 0 ? toolCalls : null, clientId);
         
         setCachedResponse(userMessage, 'cliente', filteredResponse, conversationId);
 
@@ -272,15 +272,15 @@ class CustomerAgent {
 
         const fixedResponse = obtenerRespuestaFija(userMessage);
         if (fixedResponse) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
-            await db.addChatMessage(conversationId, 'assistant', fixedResponse);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
+            await db.addChatMessage(conversationId, 'assistant', fixedResponse, null, clientId);
             return { response: fixedResponse, wasBlocked: false };
         }
 
         if (checkGuardrails(userMessage)) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
             const blockedMsg = 'Lo siento, no puedo procesar esa solicitud.';
-            await db.addChatMessage(conversationId, 'assistant', blockedMsg);
+            await db.addChatMessage(conversationId, 'assistant', blockedMsg, null, clientId);
             return { response: blockedMsg, wasBlocked: true };
         }
 
@@ -310,8 +310,8 @@ class CustomerAgent {
                 }
             }
 
-            await db.addChatMessage(conversationId, 'user', userMessage);
-            await db.addChatMessage(conversationId, 'assistant', fullResponse);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
+            await db.addChatMessage(conversationId, 'assistant', fullResponse, null, clientId);
 
             return { response: fullResponse, wasBlocked: false };
         } catch (e) {
@@ -328,8 +328,8 @@ class CustomerAgent {
 
                 const fullResponse = response.response;
 
-                await db.addChatMessage(conversationId, 'user', userMessage);
-                await db.addChatMessage(conversationId, 'assistant', fullResponse);
+                await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
+                await db.addChatMessage(conversationId, 'assistant', fullResponse, null, clientId);
 
                 return { response: fullResponse, wasBlocked: false };
             } catch (fallbackError) {

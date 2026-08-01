@@ -6,6 +6,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const { ChromaClient } = require('chromadb');
@@ -17,6 +18,20 @@ const PORT = process.env.RAG_PORT || 5001;
 
 app.use(cors());
 app.use(express.json());
+
+// Middleware de autenticación para el RAG service
+const authenticateRAGRequest = (req, res, next) => {
+    // El RAG service solo acepta solicitudes del Node server principal
+    // Verificamos un header secreto compartido
+    const ragSecret = req.headers['x-rag-secret'];
+    
+    if (ragSecret !== process.env.RAG_SERVICE_SECRET) {
+        console.warn('[RAG Auth] Unauthorized access attempt - missing or invalid secret');
+        return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    next();
+};
 
 let chromaClient = null;
 let taskRouter = null;
@@ -46,7 +61,8 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'danhee-cake-rag-js', timestamp: new Date().toISOString() });
 });
 
-app.post('/chat', async (req, res) => {
+// Aplicar autenticación a todos los endpoints de chat
+app.post('/chat', authenticateRAGRequest, async (req, res) => {
     const startTime = Date.now();
     
     try {
@@ -86,7 +102,7 @@ app.post('/chat', async (req, res) => {
     }
 });
 
-app.get('/chat/history/:conversationId', async (req, res) => {
+app.get('/chat/history/:conversationId', authenticateRAGRequest, async (req, res) => {
     try {
         const { conversationId } = req.params;
         
@@ -104,7 +120,7 @@ app.get('/chat/history/:conversationId', async (req, res) => {
     }
 });
 
-app.get('/chat/history', async (req, res) => {
+app.get('/chat/history', authenticateRAGRequest, async (req, res) => {
     try {
         const { client_id } = req.query;
         
@@ -136,7 +152,7 @@ app.get('/chat/history', async (req, res) => {
     }
 });
 
-app.delete('/chat/:conversationId', async (req, res) => {
+app.delete('/chat/:conversationId', authenticateRAGRequest, async (req, res) => {
     try {
         const { conversationId } = req.params;
         const { client_id } = req.query;
@@ -155,7 +171,7 @@ app.delete('/chat/:conversationId', async (req, res) => {
     }
 });
 
-app.get('/chat/stream', async (req, res) => {
+app.get('/chat/stream', authenticateRAGRequest, async (req, res) => {
     const { conversation_id, user_message, user_role, user_id } = req.query;
     
     if (!conversation_id || !user_message) {
@@ -190,7 +206,7 @@ app.get('/chat/stream', async (req, res) => {
     }
 });
 
-app.post('/chat/stream', async (req, res) => {
+app.post('/chat/stream', authenticateRAGRequest, async (req, res) => {
     const { conversation_id, user_message, user_role, user_id } = req.body;
     
     console.log(`[RAG] POST /chat/stream - conversation_id: ${conversation_id}, user_message: "${user_message}", user_role: ${user_role}, user_id: ${user_id}`);

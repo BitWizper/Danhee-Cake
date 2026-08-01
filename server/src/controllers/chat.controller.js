@@ -74,7 +74,10 @@ const askChatbot = async (req, res) => {
     console.log(`[Chat DEBUG] Conectando a RAG service: ${ragUrl}/chat`);
     const response = await fetch(`${ragUrl}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "X-RAG-Secret": process.env.RAG_SERVICE_SECRET
+      },
       body: JSON.stringify({ 
         conversation_id: conversationId,
         user_message: sanitizedMessage, 
@@ -113,30 +116,37 @@ const getChatHistory = async (req, res) => {
   const clientValidation = validateChatText(client_id, 100, 'client_id');
 
   const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
-  const sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
+  let sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
+
+  // Extraer client_id del token si el usuario está autenticado
+  let authenticatedUserId = null;
+  const authHeader = req.headers['authorization'];
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.slice(7);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      authenticatedUserId = decoded.id || decoded.userId || null;
+    } catch (error) {
+      console.log(`[Chat History] Token inválido o expirado`);
+      return res.status(401).json({ error: "No autorizado" });
+    }
+  }
+
+  // Si no se proporcionó client_id pero el usuario está autenticado, usar su ID
+  if (!sanitizedClientId && authenticatedUserId) {
+    sanitizedClientId = authenticatedUserId.toString();
+    console.log(`[Chat History] Usando client_id del usuario autenticado: ${sanitizedClientId}`);
+  }
 
   if (!sanitizedConversationId && !sanitizedClientId) {
     return res.status(400).json({ error: "Se requiere conversation_id o client_id" });
   }
 
   // Validar ownership: si se solicita por client_id, verificar que pertenezca al usuario autenticado
-  if (sanitizedClientId) {
-    let authenticatedUserId = null;
-    const authHeader = req.headers['authorization'];
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.slice(7);
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        authenticatedUserId = decoded.id || decoded.userId || null;
-      } catch (error) {
-        console.log(`[Chat History] Token inválido o expirado`);
-        return res.status(401).json({ error: "No autorizado" });
-      }
-    }
-
+  if (sanitizedClientId && authenticatedUserId) {
     // Si hay un client_id en la solicitud, verificar que coincida con el usuario autenticado
-    if (authenticatedUserId && sanitizedClientId !== authenticatedUserId.toString()) {
+    if (sanitizedClientId !== authenticatedUserId.toString()) {
       console.log(`[Chat History] Intento de acceso no autorizado: user ${authenticatedUserId} intentando acceder a client_id ${sanitizedClientId}`);
       return res.status(403).json({ error: "No tienes permiso para ver este historial" });
     }
@@ -147,9 +157,13 @@ const getChatHistory = async (req, res) => {
     let response;
     
     if (sanitizedConversationId) {
-      response = await fetch(`${ragUrl}/chat/history/${sanitizedConversationId}`);
+      response = await fetch(`${ragUrl}/chat/history/${sanitizedConversationId}`, {
+        headers: { "X-RAG-Secret": process.env.RAG_SERVICE_SECRET }
+      });
     } else {
-      response = await fetch(`${ragUrl}/chat/history?client_id=${encodeURIComponent(sanitizedClientId)}`);
+      response = await fetch(`${ragUrl}/chat/history?client_id=${encodeURIComponent(sanitizedClientId)}`, {
+        headers: { "X-RAG-Secret": process.env.RAG_SERVICE_SECRET }
+      });
     }
 
     if (!response.ok) {
@@ -232,7 +246,10 @@ const streamChatbot = async (req, res) => {
     // Llamar al endpoint de stream del RAG service
     const ragRes = await fetch(`${ragUrl}/chat/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "X-RAG-Secret": process.env.RAG_SERVICE_SECRET
+      },
       body: JSON.stringify({ 
         conversation_id: conversationId,
         user_message: sanitizedMessage, 
@@ -323,7 +340,10 @@ const deleteChatHistory = async (req, res) => {
     const ragUrl = process.env.RAG_SERVICE_URL;
     const response = await fetch(`${ragUrl}/chat/${sanitizedConversationId}?client_id=${sanitizedClientId}`, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "X-RAG-Secret": process.env.RAG_SERVICE_SECRET
+      },
     });
 
     if (!response.ok) {

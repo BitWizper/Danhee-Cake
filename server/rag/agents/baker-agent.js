@@ -56,18 +56,18 @@ class BakerAgent {
         }
 
         if (checkGuardrails(userMessage)) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, bakerUserId);
             const blockedMsg = 'Lo siento, no puedo procesar esa solicitud.';
-            await db.addChatMessage(conversationId, 'assistant', blockedMsg);
+            await db.addChatMessage(conversationId, 'assistant', blockedMsg, null, bakerUserId);
             return { response: blockedMsg, toolCalls: null, wasBlocked: true };
         }
 
         // Verificar autenticación antes de dar información sensible (solo para consultas específicas)
         const needsAuth = requiresAuthCheck(userMessage);
         if (needsAuth && !bakerUserId) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, bakerUserId);
             const authMsg = 'Para ver tu información personal, necesitas estar registrado e iniciar sesión. ¿Te gustaría registrarte como repostero o como cliente?';
-            await db.addChatMessage(conversationId, 'assistant', authMsg);
+            await db.addChatMessage(conversationId, 'assistant', authMsg, null, bakerUserId);
             return { response: authMsg, toolCalls: null, wasBlocked: false };
         }
 
@@ -76,9 +76,9 @@ class BakerAgent {
 
         // Verificar si hay ciclos en la conversación
         if (detectCycle(chatHistory)) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, bakerUserId);
             const cycleBreakMsg = 'Parece que estamos repitiendo información. ¿Puedes reformular tu solicitud o preguntarme algo diferente sobre tu catálogo o citas?';
-            await db.addChatMessage(conversationId, 'assistant', cycleBreakMsg);
+            await db.addChatMessage(conversationId, 'assistant', cycleBreakMsg, null, bakerUserId);
             return { response: cycleBreakMsg, toolCalls: null, wasBlocked: false };
         }
 
@@ -150,8 +150,8 @@ class BakerAgent {
 
             const filteredResponse = this.filterResponse(responseText, userMessage);
             
-            await db.addChatMessage(conversationId, 'user', userMessage);
-            await db.addChatMessage(conversationId, 'assistant', filteredResponse, toolCalls.length > 0 ? toolCalls : null);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, bakerUserId);
+            await db.addChatMessage(conversationId, 'assistant', filteredResponse, toolCalls.length > 0 ? toolCalls : null, bakerUserId);
 
             return {
                 response: filteredResponse,
@@ -178,8 +178,8 @@ class BakerAgent {
 
                 const filteredResponse = this.filterResponse(responseText, userMessage);
                 
-                await db.addChatMessage(conversationId, 'user', userMessage);
-                await db.addChatMessage(conversationId, 'assistant', filteredResponse, toolCalls.length > 0 ? toolCalls : null);
+                await db.addChatMessage(conversationId, 'user', userMessage, null, bakerUserId);
+                await db.addChatMessage(conversationId, 'assistant', filteredResponse, toolCalls.length > 0 ? toolCalls : null, bakerUserId);
 
                 return {
                     response: filteredResponse,
@@ -189,8 +189,8 @@ class BakerAgent {
             } catch (fallbackError) {
                 console.error(`[BakerAgent] Error en fallback: ${fallbackError.message}`);
                 const errorMsg = 'Lo siento, hubo un error al procesar tu mensaje. Por favor intenta de nuevo.';
-                await db.addChatMessage(conversationId, 'user', userMessage);
-                await db.addChatMessage(conversationId, 'assistant', errorMsg);
+                await db.addChatMessage(conversationId, 'user', userMessage, null, bakerUserId);
+                await db.addChatMessage(conversationId, 'assistant', errorMsg, null, bakerUserId);
                 return { response: errorMsg, toolCalls: null, wasBlocked: false };
             }
         }
@@ -228,9 +228,9 @@ class BakerAgent {
         }
 
         if (checkGuardrails(userMessage)) {
-            await db.addChatMessage(conversationId, 'user', userMessage);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, bakerUserId);
             const blockedMsg = 'Lo siento, no puedo procesar esa solicitud.';
-            await db.addChatMessage(conversationId, 'assistant', blockedMsg);
+            await db.addChatMessage(conversationId, 'assistant', blockedMsg, null, bakerUserId);
             return { response: blockedMsg, wasBlocked: true };
         }
 
@@ -260,8 +260,8 @@ class BakerAgent {
                 }
             }
 
-            await db.addChatMessage(conversationId, 'user', userMessage);
-            await db.addChatMessage(conversationId, 'assistant', fullResponse);
+            await db.addChatMessage(conversationId, 'user', userMessage, null, bakerUserId);
+            await db.addChatMessage(conversationId, 'assistant', fullResponse, null, bakerUserId);
 
             return { response: fullResponse, wasBlocked: false };
         } catch (e) {
@@ -279,8 +279,8 @@ class BakerAgent {
 
                 const fullResponse = response.response;
 
-                await db.addChatMessage(conversationId, 'user', userMessage);
-                await db.addChatMessage(conversationId, 'assistant', fullResponse);
+                await db.addChatMessage(conversationId, 'user', userMessage, null, bakerUserId);
+                await db.addChatMessage(conversationId, 'assistant', fullResponse, null, bakerUserId);
 
                 return { response: fullResponse, wasBlocked: false };
             } catch (fallbackError) {
