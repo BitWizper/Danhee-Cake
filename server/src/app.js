@@ -142,15 +142,15 @@ app.use(disablePoweredBy);
 // Temporalmente desactivado debido a falsos positivos que bloquean peticiones legítimas
 // app.use(advancedSecurity);
 
-// Bloqueo de rutas sensibles y archivos de configuración - DESACTIVADO TEMPORALMENTE
-// app.use((req, res, next) => {
-//   const suspiciousPath = req.originalUrl || req.url || '';
-//   const sensitivePatterns = [/\/\.env/i, /\/\.git/i, /\/phpmyadmin/i, /\/wp-admin/i, /\/config\.(php|json|js)/i, /\/backup/i, /\/logs/i, /\\/i];
-//   if (sensitivePatterns.some((pattern) => pattern.test(suspiciousPath))) {
-//     return res.status(404).json({ success: false, error_code: 'NOT_FOUND', message: 'Recurso no encontrado' });
-//   }
-//   next();
-// });
+// Bloqueo de rutas sensibles y archivos de configuración
+app.use((req, res, next) => {
+  const suspiciousPath = req.originalUrl || req.url || '';
+  const sensitivePatterns = [/\/\.env/i, /\/\.git/i, /\/phpmyadmin/i, /\/wp-admin/i, /\/config\.(php|json|js)/i, /\/backup/i, /\/logs/i, /\\/i];
+  if (sensitivePatterns.some((pattern) => pattern.test(suspiciousPath))) {
+    return res.status(404).json({ success: false, error_code: 'NOT_FOUND', message: 'Recurso no encontrado' });
+  }
+  next();
+});
 
 // CORS restrictivo - solo permitir orígenes específicos
 const allowedOrigins = [
@@ -169,9 +169,6 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function(origin, callback) {
-    // TEMPORALMENTE: Permitir cualquier origen para resolver el problema
-    return callback(null, true);
-    
     // En desarrollo, permitir cualquier origen
     if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
@@ -450,24 +447,23 @@ app.use(sanitizeMiddleware);
 // Logging de auditoría para seguridad
 app.use(auditLogger);
 
-// Rate limiting general para API - DESACTIVADO TEMPORALMENTE PARA DEBUG DEL CHAT
-// app.use('/api/', apiLimiter);
-// app.use('/api/', methodLimiter);
-// app.use('/api/', writeLimiter);
-// app.use('/api/', readLimiter);
+// Rate limiting general para API (excluyendo chat que tiene su propio limiter)
+app.use('/api/', apiLimiter);
+app.use('/api/', methodLimiter);
+app.use('/api/', writeLimiter);
+app.use('/api/', readLimiter);
 
-// Middleware de bloqueo por IP para todas las rutas de API públicas - DESACTIVADO TEMPORALMENTE
+// Middleware de validación de host (menos agresivo que ipBlocker/attackDetector)
+app.use('/api', validateHostHeader);
+app.use('/chat', validateHostHeader);
+app.use('/admin', validateHostHeader);
+
+// Middleware de bloqueo por IP y detección de ataques - DESACTIVADO TEMPORALMENTE
+// (pueden causar falsos positivos en el chat IA)
 // app.use('/api', validateHostHeader, browserOriginGuard, ipBlocker);
-// app.use('/api', validateHostHeader); // Solo validación de host por ahora - DESACTIVADO
-
-// Middleware de detección de ataques para todas las rutas de API - DESACTIVADO TEMPORALMENTE
 // app.use('/api', attackDetector);
-
-// También proteger rutas top-level adicionales si existen - DESACTIVADO TEMPORALMENTE
 // app.use('/chat', validateHostHeader, browserOriginGuard, ipBlocker, attackDetector);
 // app.use('/admin', validateHostHeader, browserOriginGuard, ipBlocker, attackDetector);
-// app.use('/chat', validateHostHeader); // Solo validación de host por ahora - DESACTIVADO
-// app.use('/admin', validateHostHeader); // Solo validación de host por ahora - DESACTIVADO
 
 // Rutas (rate limiting específico aplicado en archivos de rutas)
 app.use('/api/auth', require('./routes/auth.routes'));

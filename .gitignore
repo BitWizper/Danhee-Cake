@@ -33,4 +33,5 @@ server/.env
 .env
 .env.*
 !.env.example
+docker.env
 
