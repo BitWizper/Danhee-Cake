@@ -80,7 +80,7 @@ function shouldSkipRag(question) {
         return false;
     }
 
-    const greetings = ['hola', 'buenos dias', 'buenas tardes', 'buenas noches', 'gracias', 'adios', 'bye', 'holis', 'que tal', 'como estas'];
+    const greetings = ['hola', 'buenos dias', 'buenas tardes', 'buenas noches', 'gracias', 'adios', 'bye', 'holis', 'que tal', 'como estas', 'hols', 'hol', 'buen dia', 'buenas'];
     if (words.length <= 3 && (greetings.includes(q) || greetings.some(g => words.includes(g)))) {
         return true;
     }
@@ -182,6 +182,17 @@ function obtenerRespuestaFija(pregunta) {
         .replace(/[^\w\s]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+
+    // Respuestas para saludos informales
+    const greetings = ['hola', 'holis', 'hol', 'hols', 'buen dia', 'buenas', 'que tal', 'como estas'];
+    if (greetings.some(g => txt.includes(g)) || txt === 'hola' || txt === 'holis' || txt === 'hol' || txt === 'hols') {
+        const responses = [
+            '¡Hola! ¿En qué te puedo ayudar hoy con nuestros pasteles y servicios? 😊',
+            '¡Hola! Bienvenido a Danhee Cake. ¿Qué tipo de pastel estás buscando? 🎂',
+            '¡Hola! Me alegra verte. ¿Te gustaría ver nuestro catálogo de pasteles o agendar una cita? 🍰'
+        ];
+        return responses[Math.floor(Math.random() * responses.length)];
+    }
 
     const patronesAyuda = [
         'ayuda', 'ayudar', 'ayudarme', 'ayudas', 'ayudame',
