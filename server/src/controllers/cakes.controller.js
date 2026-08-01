@@ -111,11 +111,12 @@ exports.getAll = async (req, res, next) => {
   try {
     query += ' LIMIT ? OFFSET ?';
     params.push(limit, offset);
-    if (process.env.NODE_ENV !== 'production') {
+    const showDetailedLogs = process.env.NODE_ENV !== 'production' || process.env.ENABLE_DETAILED_LOGS === 'true';
+    if (showDetailedLogs) {
       console.log('[Cakes] Ejecutando query:', query, 'con params:', params);
     }
     const [cakes] = await db.execute(query, params);
-    if (process.env.NODE_ENV !== 'production') {
+    if (showDetailedLogs) {
       console.log('[Cakes] Query exitoso, pasteles encontrados:', cakes.length);
     }
     const normalizedCakes = cakes.map((cake) => buildCakeResponse(cake, req.user?.role));
@@ -125,7 +126,8 @@ exports.getAll = async (req, res, next) => {
     });
   } catch (err) {
     console.error('[Cakes] Error en getAll:', err && err.message ? err.message : err);
-    if (process.env.NODE_ENV !== 'production') {
+    const showDetailedLogs = process.env.NODE_ENV !== 'production' || process.env.ENABLE_DETAILED_LOGS === 'true';
+    if (showDetailedLogs) {
       console.error('[Cakes] Stack:', err.stack);
     }
     // Responder amigablemente para evitar que el frontend reciba un 500 HTML

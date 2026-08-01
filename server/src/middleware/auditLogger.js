@@ -23,11 +23,13 @@ const logAudit = (level, message, meta = {}) => {
   const logLine = JSON.stringify(logEntry) + '\n';
   fs.appendFileSync(auditLogFile, logLine, { flag: 'a' });
   
-  // Solo imprimir en consola en desarrollo para no exponer info sensible en producción
-  if (process.env.NODE_ENV !== 'production') {
+  // Mostrar logs detallados si está en desarrollo o si ENABLE_DETAILED_LOGS=true
+  const showDetailedLogs = process.env.NODE_ENV !== 'production' || process.env.ENABLE_DETAILED_LOGS === 'true';
+  
+  if (showDetailedLogs) {
     console.log(`[AUDIT ${level}] ${message}`, meta);
   } else {
-    // En producción, solo loggear nivel SECURITY sin detalles
+    // En producción sin ENABLE_DETAILED_LOGS, solo loggear nivel SECURITY/ALERT sin detalles
     if (level === 'SECURITY' || level === 'ALERT') {
       console.log(`[AUDIT ${level}] ${message}`);
     }

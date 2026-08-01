@@ -16,11 +16,12 @@ exports.getAll = async (req, res, next) => {
     if (limit > 200) limit = 200;
     if (!offset || offset < 0) offset = 0;
 
-    if (process.env.NODE_ENV !== 'production') {
+    const showDetailedLogs = process.env.NODE_ENV !== 'production' || process.env.ENABLE_DETAILED_LOGS === 'true';
+    if (showDetailedLogs) {
       console.log('[Categories] Ejecutando query con limit:', limit, 'offset:', offset);
     }
     const [categories] = await db.execute(`SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order ASC LIMIT ? OFFSET ?`, [limit, offset]);
-    if (process.env.NODE_ENV !== 'production') {
+    if (showDetailedLogs) {
       console.log('[Categories] Query exitoso, categorías encontradas:', categories.length);
     }
     
