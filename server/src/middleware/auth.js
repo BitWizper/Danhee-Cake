@@ -13,11 +13,21 @@ const jwt = require('jsonwebtoken');
  */
 const authMiddleware = (req, res, next) => {
   try {
-    // Obtener el header de autorización
+    // Obtener token de header Authorization o cookie
     const authHeader = req.headers['authorization'];
+    const cookieToken = req.cookies?.access_token;
+    
+    let token = null;
 
-    // Verificar que existe y tiene formato Bearer
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Prioridad: header Authorization > cookie
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (cookieToken) {
+      token = cookieToken;
+    }
+
+    // Verificar que existe un token
+    if (!token) {
       return res.status(401).json({
         success: false,
         message: 'Acceso denegado. Token requerido.',
@@ -25,11 +35,10 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
-    // Extraer el token (eliminar 'Bearer ' del inicio)
-    const token = authHeader.split(' ')[1];
-
-    // Verificar y decodificar el token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Verificar y decodificar el token con algoritmo explícito
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ['HS256'] // Solo permitir HS256, prevenir alg=none attacks
+    });
 
     // Adjuntar el usuario decodificado a la request
     req.user = {
@@ -55,6 +64,14 @@ const authMiddleware = (req, res, next) => {
         success: false,
         message: 'Token inválido. Por favor, inicia sesión nuevamente.',
         error: 'INVALID_TOKEN'
+      });
+    }
+
+    if (err.name === 'NotBeforeError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token no válido aún.',
+        error: 'TOKEN_NOT_ACTIVE'
       });
     }
 

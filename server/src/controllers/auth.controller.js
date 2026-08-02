@@ -132,7 +132,11 @@ exports.login = async (req, res, next) => {
     );
 
     if (users.length === 0) {
-      return res.status(401).json({ success: false, message: 'Credenciales inválidas. Verifica tus datos e intenta de nuevo.' });
+      // Mensaje genérico para prevenir enumeración de usuarios
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Credenciales inválidas. Verifica tus datos e intenta de nuevo.' 
+      });
     }
 
     const user = users[0];
@@ -140,7 +144,11 @@ exports.login = async (req, res, next) => {
     // Verificar contraseña
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Credenciales inválidas. Verifica tus datos e intenta de nuevo.' });
+      // Mensaje genérico idéntico al de usuario no encontrado para prevenir enumeración
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Credenciales inválidas. Verifica tus datos e intenta de nuevo.' 
+      });
     }
 
     // Generar tokens
@@ -164,10 +172,43 @@ exports.login = async (req, res, next) => {
       [user.id, refreshToken, expiresAt]
     );
 
+    // Enviar tokens como cookies httpOnly para mayor seguridad
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieDomain = process.env.COOKIE_DOMAIN || undefined; // Configurable por entorno
+    
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60 * 1000, // 15 minutos para access token
+      domain: cookieDomain, // Restringir a dominio específico si está configurado
+      // Additional security flags
+      ...(isProduction && {
+        // En producción, agregar flags adicionales
+        priority: 'high', // Prioridad alta para cookies importantes
+      })
+    };
+
+    const refreshCookieOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: refreshTokenExpiryMs,
+      domain: cookieDomain,
+      ...(isProduction && {
+        priority: 'high',
+      })
+    };
+
+    res.cookie('access_token', token, cookieOptions);
+    res.cookie('refresh_token', refreshToken, refreshCookieOptions);
+
     res.json({
       success: true,
-      token,
-      refresh_token: refreshToken,
+      token, // Mantener por compatibilidad temporal
+      refresh_token: refreshToken, // Mantener por compatibilidad temporal
       user: {
         id: user.id,
         name: user.name,
@@ -233,10 +274,31 @@ exports.refreshToken = async (req, res, next) => {
       [decoded.id, newRefreshToken, newExpiresAt]
     );
 
+    // Actualizar cookies con nuevos tokens
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60 * 1000 // 15 minutos
+    };
+
+    const refreshCookieOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: refreshTokenExpiryMs
+    };
+
+    res.cookie('access_token', token, cookieOptions);
+    res.cookie('refresh_token', newRefreshToken, refreshCookieOptions);
+
     res.json({
       success: true,
-      token,
-      refresh_token: newRefreshToken
+      token, // Mantener por compatibilidad temporal
+      refresh_token: newRefreshToken // Mantener por compatibilidad temporal
     });
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
@@ -256,7 +318,56 @@ exports.logout = async (req, res, next) => {
 
   try {
     await db.execute('UPDATE refresh_tokens SET revoked = 1 WHERE token = ?', [refreshToken]);
+    
+    // Limpiar cookies
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+    
     res.json({ success: true, message: 'Sesión cerrada correctamente.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Endpoint para obtener el usuario actual (verificar sesión)
+exports.getMe = async (req, res, next) => {
+  try {
+    // Este endpoint requiere authMiddleware que adjunta req.user
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'No autenticado' });
+    }
+
+    // Obtener datos actualizados del usuario
+    const [users] = await db.execute(
+      'SELECT id, name, email, role, address FROM users WHERE id = ?',
+      [req.user.id]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    const user = users[0];
+
+    // Si es repostero, obtener perfil adicional
+    let bakerProfile = null;
+    if (user.role === 'repostero') {
+      const [bakers] = await db.execute(
+        'SELECT business_name, location, specialty, bio FROM baker_profiles WHERE user_id = ?',
+        [user.id]
+      );
+      if (bakers.length > 0) {
+        bakerProfile = bakers[0];
+      }
+    }
+
+    res.json({
+      success: true,
+      user: {
+        ...user,
+        ...(bakerProfile || {})
+      }
+    });
   } catch (err) {
     next(err);
   }

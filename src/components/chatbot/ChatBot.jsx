@@ -140,6 +140,7 @@ function ChatBot() {
       await fetch(getApiUrl("/api/chat/history"), {
         method: "DELETE",
         headers,
+        credentials: 'include', // Importante para enviar cookies httpOnly
         body: JSON.stringify({
           conversation_id: isValidConversationId(conversation_id) ? conversation_id : null,
           client_id: clientId,
@@ -269,7 +270,7 @@ function ChatBot() {
         getApiUrl(`/api/chat/history?client_id=${encodeURIComponent(user.id)}`),
         { 
           headers,
-          credentials: 'include' // Las cookies httpOnly se envían automáticamente
+          credentials: 'include' // Importante para enviar cookies httpOnly
         }
       );
       const welcomeMsg = user?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
@@ -403,6 +404,7 @@ function ChatBot() {
       const res = await fetch(fetchUrl, {
         method: "POST",
         headers,
+        credentials: 'include', // Importante para enviar cookies httpOnly
         body: JSON.stringify({
           message: trimmedMessage,
           conversation_id,

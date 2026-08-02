@@ -88,6 +88,8 @@ const { validateHostHeader } = require('./middleware/hostValidator');
 const browserOriginGuard = require('./middleware/browserOriginGuard');
 const requestGuard = require('./middleware/requestGuard');
 const { authMiddleware, authorize } = require('./middleware/auth');
+const { csrfProtection, csrfTokenGenerator } = require('./middleware/csrfProtection');
+const { validateCookieFingerprint, detectCookieTampering } = require('./middleware/cookieSecurity');
 
 
 const app = express();
@@ -102,6 +104,12 @@ app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 // Bloquear accesos sensibles y manejar OPTIONS de forma temprana
 // Cookie parser para leer cookies httpOnly
 app.use(cookieParser());
+
+// Detectar manipulación de cookies antes de procesar cualquier request
+app.use(detectCookieTampering);
+
+// Validar fingerprint del cliente para prevenir robo de sesiones
+app.use(validateCookieFingerprint);
 
 app.use(requestGuard);
 
@@ -499,12 +507,13 @@ app.use('/api', validateHostHeader);
 app.use('/chat', validateHostHeader);
 app.use('/admin', validateHostHeader);
 
-// Middleware de bloqueo por IP y detección de ataques - DESACTIVADO TEMPORALMENTE
-// (pueden causar falsos positivos en el chat IA)
-// app.use('/api', validateHostHeader, browserOriginGuard, ipBlocker);
-// app.use('/api', attackDetector);
-// app.use('/chat', validateHostHeader, browserOriginGuard, ipBlocker, attackDetector);
-// app.use('/admin', validateHostHeader, browserOriginGuard, ipBlocker, attackDetector);
+// Middleware de bloqueo por IP y detección de ataques - REACTIVADO con configuración conservadora
+// Aplicado con configuración ajustada para reducir falsos positivos en el chat IA
+app.use('/api', validateHostHeader, ipBlocker);
+app.use('/api', attackDetector);
+app.use('/chat', validateHostHeader, ipBlocker);
+app.use('/chat', attackDetector);
+app.use('/admin', validateHostHeader, ipBlocker, attackDetector);
 
 // Rutas (rate limiting específico aplicado en archivos de rutas)
 app.use('/api/auth', require('./routes/auth.routes'));
@@ -519,7 +528,7 @@ app.post('/api/chat/stream', chatLimiter, clientChatGuard, streamChatbot);
 app.use('/api/chat', clientChatGuard, chatRoutes);
 
 // Ruta base
-app.get('/', (req, res) => {
+app.get('/', csrfTokenGenerator, (req, res) => {
   res.json({ message: 'Bienvenido a la API de Danhee' });
 });
 
@@ -595,6 +604,37 @@ app.get('/api/security/alerts', authMiddleware, authorize('admin'), (req, res) =
     success: true,
     data: getSecuritySummary()
   });
+});
+
+// Endpoint para gestionar IPs bloqueadas (solo admin)
+app.get('/api/admin/blocked-ips', authMiddleware, authorize('admin'), (req, res) => {
+  try {
+    const { getIPStats, isIPBlocked, IP_BLOCKER_CONFIG } = require('./middleware/ipBlocker');
+    const stats = {
+      config: IP_BLOCKER_CONFIG,
+      // Nota: getIPStats requiere una IP específica, así que devolvemos la configuración
+      message: 'Use POST /api/admin/unblock-ip con { ip: "x.x.x.x" } para desbloquear una IP específica'
+    };
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error obteniendo estadísticas de IPs' });
+  }
+});
+
+app.post('/api/admin/unblock-ip', authMiddleware, authorize('admin'), (req, res) => {
+  try {
+    const { unblockIP } = require('./middleware/ipBlocker');
+    const { ip } = req.body;
+    
+    if (!ip) {
+      return res.status(400).json({ success: false, message: 'IP es requerida' });
+    }
+    
+    unblockIP(ip);
+    res.json({ success: true, message: `IP ${ip} desbloqueada correctamente` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error desbloqueando IP' });
+  }
 });
 
 // Manejo de errores

@@ -9,9 +9,6 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// Limpiar entradas expiradas al iniciar el servidor
-clearExpiredBlocks();
-
 const readJsonFile = (filePath, fallback) => {
   try {
     if (!fs.existsSync(filePath)) {
@@ -117,3 +114,6 @@ module.exports = {
   getSecuritySummary,
   getBlockedIPs
 };
+
+// Limpiar entradas expiradas al iniciar el servidor (después de que todas las funciones estén definidas)
+clearExpiredBlocks();
