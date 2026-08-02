@@ -91,10 +91,22 @@ const validateProfileBody = [
 const validateQueryParams = [
   query('limit')
     .optional()
+    .custom((value, { req }) => {
+      if (Array.isArray(value)) {
+        throw new Error('limit no puede ser un array');
+      }
+      return true;
+    })
     .isInt({ min: 1, max: 500 }).withMessage('limit entre 1-500')
     .toInt(),
   query('offset')
     .optional()
+    .custom((value, { req }) => {
+      if (Array.isArray(value)) {
+        throw new Error('offset no puede ser un array');
+      }
+      return true;
+    })
     .isInt({ min: 0 }).withMessage('offset debe ser positivo')
     .toInt(),
 ];

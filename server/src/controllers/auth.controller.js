@@ -74,6 +74,17 @@ exports.register = async (req, res, next) => {
     const sanitizedSpecialty = specialty ? sanitizeInput(specialty) : null;
     const sanitizedBio = bio ? sanitizeInput(bio) : null;
 
+    // Validar nombre antes de sanitización
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ success: false, message: 'El nombre es requerido.' });
+    }
+
+    // Validar caracteres permitidos en nombre (whitelist)
+    const validNamePattern = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s'-]+$/;
+    if (!validNamePattern.test(name.trim())) {
+      return res.status(400).json({ success: false, message: 'El nombre contiene caracteres inválidos. Solo se permiten letras, espacios, apóstrofes y guiones.' });
+    }
+
     // Validar que el nombre no esté vacío después de sanitización
     if (!sanitizedName) {
       return res.status(400).json({ success: false, message: 'El nombre no puede estar vacío.' });

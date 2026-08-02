@@ -223,9 +223,14 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // Permitir cualquier subdominio de trycloudflare.com (Quick Tunnels)
-    if (origin.includes('.trycloudflare.com')) {
-      console.log(`[CORS] Allowing trycloudflare.com origin: ${origin}`);
+    // Allowlist explícita de subdominios trycloudflare.com (solo túneles específicos)
+    const ALLOWED_CLOUDFLARE_TUNNELS = [
+      ...(process.env.CLOUDFLARE_TUNNEL ? [process.env.CLOUDFLARE_TUNNEL] : []),
+      'broken-defined-physiology-pirates.trycloudflare.com', // fallback
+    ];
+    
+    if (ALLOWED_CLOUDFLARE_TUNNELS.some(tunnel => origin.includes(tunnel))) {
+      console.log(`[CORS] Allowing specific Cloudflare tunnel: ${origin}`);
       return callback(null, true);
     }
     
