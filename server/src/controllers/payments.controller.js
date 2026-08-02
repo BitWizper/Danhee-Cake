@@ -1,6 +1,7 @@
 // Controlador sencillo para generar comprobantes OXXO mock
 const { sanitizeString, validateNumber } = require('../middleware/inputValidator');
 const pool = require('../config/db').pool;
+const crypto = require('crypto');
 
 const generateOxxoTicket = async (req, res) => {
   try {
@@ -19,8 +20,8 @@ const generateOxxoTicket = async (req, res) => {
       return res.status(400).json({ success: false, message: 'amount debe ser un número positivo válido' });
     }
 
-    // Generar referencia simulada (12 dígitos)
-    const reference = Math.floor(100000000000 + Math.random() * 899999999999).toString();
+    // Generar referencia simulada (12 dígitos) usando crypto.randomBytes para seguridad
+    const reference = crypto.randomBytes(6).toString('hex').toUpperCase();
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(); // 48 horas
     const createdAt = new Date().toISOString();
 
