@@ -83,11 +83,10 @@ const validateRefreshToken = [
 
 // Rate limiters de auth aplicados en app.js antes del body parser
 // CSRF protection aplicado a endpoints que modifican estado
-// TEMPORALMENTE DESACTIVADO EN DESARROLLO para problemas de cross-origin
-router.post('/register', ipBlocker, publicLimiter, registerLimiter, validateAllParameters, validateRegister, handleValidationErrors, authController.register);
-router.post('/login', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateLogin, handleValidationErrors, authController.login);
-router.post('/refresh', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateRefreshToken, handleValidationErrors, authController.refreshToken);
-router.post('/logout', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateRefreshToken, handleValidationErrors, authController.logout);
+router.post('/register', ipBlocker, publicLimiter, registerLimiter, validateAllParameters, validateRegister, handleValidationErrors, csrfProtection, authController.register);
+router.post('/login', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateLogin, handleValidationErrors, csrfProtection, authController.login);
+router.post('/refresh', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateRefreshToken, handleValidationErrors, csrfProtection, authController.refreshToken);
+router.post('/logout', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateRefreshToken, handleValidationErrors, csrfProtection, authController.logout);
 router.get('/me', ipBlocker, publicLimiter, authMiddleware, authController.getMe);
 router.get('/csrf-token', csrfTokenGenerator, (req, res) => {
   res.json({ csrf_token: req.cookies?.csrf_token || res.getHeader('X-CSRF-Token') });
