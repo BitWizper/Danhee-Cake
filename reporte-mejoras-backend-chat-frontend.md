@@ -1,9 +1,9 @@
 # Reporte de Mejoras — Backend, Chat y Frontend de Danhee
 
-**Fecha:** 2026-08-01
-**Base:** Revisión de código del proyecto completo (`server/`, `src/`, `server/rag/`, `docker-compose.yml`, config Vercel) + validación contra el despliegue vivo.
+**Fecha:** 2026-08-02
+**Base:** Revisión de código del proyecto completo (`server/`, `src/`, `server/rag/`, `docker-compose.yml`, config Vercel) + validación contra el despliegue vivo (túnel `navigation-rivers-naval-excellence.trycloudflare.com`).
 
-> 📌 Nota importante: durante la revisión, el repositorio **cambió en vivo** (commits nuevos: "eliminar fallback secrets", "mejorar chat SSE", "persistir rate-limit"). Este reporte refleja **tanto** el estado del deploy como el del código local, marcando lo que ya está corregido en el código pero **aún no desplegado**.
+> 📌 Nota importante: a diferencia de la ronda anterior, **el deploy ahora SÍ corre el código de seguridad corregido**: JWT con secret rotado (el placeholder `change-me-in-production` ya no funciona), CORS con allowlist, IPs enmascaradas en el log, `roles.flat()` en `authorize()`. Sin embargo, la migración a auth por cookie introdujo una **regresión funcional grave** (sesión rota cross-origin) y el CORS estricto **rompe `/health` y todo request sin `Origin`** en producción.
 
 ---
 
@@ -11,25 +11,23 @@
 
 | Módulo | Funciona | Madurez |
 |---|---|---|
-| Frontend (Vercel SPA) | ✅ Estático OK | 🟡 Deuda de auth |
-| Backend (Node/Express + MySQL) | ⚠️ Intermitente (túnel caído) | 🟠 Crítico en infra |
-| Chat (Node server + RAG + Ollama + ChromaDB) | ❌ Caído en producción (timeout) | 🟠 |
+| Frontend (Vercel SPA) | ✅ Estático OK | 🟠 Auth rota en navegador |
+| Backend (Node/Express + MySQL) | ⚠️ Solo con navegador/origen permitido; 500 sin `Origin` | 🟠 Infra frágil |
+| Chat (Node server + RAG + Ollama + ChromaDB) | ❌ `Error en el servicio RAG` | 🟠 |
 | Pagos (OXXO) | ⚠️ Mock sin persistencia | 🟠 |
-| Citas | ✅ Con JWT válido (y con JWT forjado) | 🟡 |
+| Citas | ✅ Con JWT válido (Bearer) | 🟡 |
+| Seguridad (dashboard, IPs, WAF) | ✅ Activo | 🟢 |
 
 ---
 
-## B. Correcciones ya hechas en el código (pero NO en el deploy)
+## B. Correcciones ya desplegadas (verificadas en vivo)
 
-1. **JWT crash-on-invalid en producción** (`app.js`): si `JWT_SECRET` es placeholder/corto → `process.exit(1)`. ✅
-2. **CORS con allowlist real** (`app.js`): rechaza orígenes no permitidos; wildcard trycloudflare solo en dev. ✅
-3. **Auth por cookie** (`auth.js`): lee `access_token` de cookie o Bearer; whitelist `algorithms:['HS256']`. ✅
-4. **CSRF en rutas de auth** (`csrfProtection`, `csrfTokenGenerator`). ✅
-5. **PII masking** en citas del frontend (`maskEmail`, `maskPhone`, `maskName`). ✅
-6. **Ownership en historial de chat** (`getChatHistory`/`deleteChatHistory`). ✅
-7. **Rate limiters reactivados** (429 observados en vivo). ✅
-
-> ⚠️ **Problema de raíz para TODO lo anterior:** el deploy no corre este código. La app viva sigue con fallback `change-me-in-production`, CORS abierto y sin CSRF.
+1. **JWT con secret real rotado**: el deploy rechaza tokens firmados con `change-me-in-production` (`INVALID_TOKEN`). ✅
+2. **CORS restrictivo**: `Origin: https://evil.com` → rechazado; `https://danhee-cake.vercel.app` → 200. ✅
+3. **IPs enmascaradas en el dashboard de seguridad** (`172.18.***.***`). ✅
+4. **`authorize()` sin bug de doble array**: `roles.flat()` en `auth.js:105`. ✅
+5. **CSRF tokens + CSP dinámico + `crypto.randomBytes`** en el código (commits `a9005e1`, `b36d9ab`, `60b0415`). ✅
+6. **Rate limiters / IP Blocker activos** (403/503 en el histórico del log de seguridad). ✅
 
 ---
 
@@ -37,78 +35,51 @@
 
 ### C1. Backend (`server/`)
 
-**Crítico — Despliegue e infraestructura**
-- [ ] **Host estable**: reemplazar el túnel trycloudflare (efímero y caído con frecuencia) por un servicio con dominio fijo (Railway, Render, Fly.io, o Clever Cloud App). Fijar `FRONTEND_URL` y `VITE_BASE_URL` al dominio estable en Vercel.
-- [ ] **`docker-compose.yml`**: cambiar `JWT_SECRET=${JWT_SECRET}` por `${JWT_SECRET:?error}` para que falle si la variable no está definida en el shell host (evita el fallback silencioso al placeholder). Aplicar lo mismo a `REFRESH_TOKEN_SECRET`, `DB_PASSWORD`.
-- [ ] **Rotar `DB_PASSWORD`** (sigue siendo la misma credencial histórica) y **cerrar 3306** (firewall/whitelist en Clever Cloud).
-- [ ] **Configurar `RAG_SERVICE_SECRET`** en `server/.env` y `docker.env` (hoy solo existe en `.env.example`). Quitar la exposición del puerto `5001` en compose (red interna).
+**Crítico — Seguridad**
+- [x] ~~Rotar `JWT_SECRET`/`REFRESH_TOKEN_SECRET`~~ (hecho en deploy, pero ver abajo el punto de secretos en repo).
+- [ ] **🔴 Sacar secretos del repositorio**: `docker.env` (raíz) está commiteado con `DB_PASSWORD`, `JWT_SECRET` y `REFRESH_TOKEN_SECRET` reales. Mover a secrets del proveedor, añadir `*.env` al `.gitignore` y purgar el historial de git que los contenga.
+- [ ] **🔴 Rotar `DB_PASSWORD`** (sigue igual desde la ronda inicial) y **cerrar el MySQL público 3306** (allowlist de IPs del deploy en Clever Cloud).
+- [ ] **`RAG_SERVICE_SECRET`**: configurarlo en `server/.env` y `docker.env`; hoy `docker-compose.yml:83` usa el default inseguro `${RAG_SERVICE_SECRET:-change-me-in-production}` y el servicio de chat falla (`Error en el servicio RAG`).
+- [ ] Eliminar fallbacks tipo `default-secret`/`change-me-in-production` de `createHmac(...)` y `requireEnv` — usar clave dedicada `IMAGE_TOKEN_SECRET` (no reutilizar el JWT).
+- [ ] **No confiar en `body.role`** en registro; asignar `cliente` por defecto.
 
-**Seguridad**
-- [ ] Eliminar el fallback `change-me-in-production` de `requireEnv('JWT_SECRET', ...)` — dejar sin fallback (el crash en producción ya cubre el caso, pero el fallback es innecesario y peligroso).
-- [ ] **Separar el secreto HMAC de imágenes**: `createHmac('sha256', process.env.JWT_SECRET || 'default-secret')` debe usar una clave dedicada `IMAGE_TOKEN_SECRET`, no el JWT.
-- [ ] **Validar `role` en registro**: nunca confiar en `body.role` sin verificación; idealmente no permitir `role` en el body (asignar `cliente` por defecto y crear reposteros vía flujo admin).
-- [ ] **Corregir `authorize(['admin'])`**: `required_roles: [["admin"]]` — el doble array rompe la comparación para admins legítimos (falso 403). Usar `authorize('admin')`.
-- [ ] **Endpoint de citas "invitado"**: validar ownership del `client_id` del body (hoy se persiste el que mande el cliente).
-- [ ] **Constraint único** en `appointments (baker_id, date, time_slot)` para evitar doble reserva (race condition).
-- [ ] **chatLimiter**: no eximir por `role` de un JWT verificable-cliente (hoy `skip` si role==repostero; con JWT forjable se evita el límite). Limitar por sesión/ID también.
+**Crítico — Funcionalidad (regresiones del deploy nuevo)**
+- [ ] **CORS en producción**: los requests sin `Origin` (curl, `/health`, healthchecks, cron) devuelven **500**. El `errorHandler` debe mapear los errores CORS a 403 (busca `'CORS no permitido'` pero el error real es `'Not allowed by CORS'`), o permitir sin origen desde hosts confiables. Corregir `app.js:231`.
+- [ ] **Autenticación cross-origin rota**: cookies `SameSite=Strict` en `trycloudflare.com` nunca llegan desde `vercel.app`. Definir un único dominio para la API (subdominio del mismo sitio) o usar `SameSite=Lax` con dominio explícito; o volver a Bearer con `localStorage`. Hoy el navegador recibe **401 en `/api/auth/me`** (confirmado en el log de seguridad).
+- [ ] **Host estable**: el túnel efímero cambia de URL en cada reinicio y rompe todo (CORS, cookies, integraciones). Desplegar en Railway/Fly/Clever Cloud App con dominio propio.
 
-**Funcional / datos**
-- [ ] **Pagos reales**: crear tablas `orders`/`payments`, persistir el ticket OXXO con estado `pending`, y un endpoint de consulta de estado. Hoy el ticket se genera y se pierde.
-- [ ] **No duplicar PII en notas de citas**: el frontend arma `notes: "Cliente: Mily. ..."` y el backend la guarda — ofuscar o usar campos dedicados `client_name`/`client_phone` (ya existen) y dejar `notes` solo como texto libre.
-- [ ] **Verificación de email + 2FA/TOTP** opcional.
-- [ ] **Revisar `/api/security/alerts`**: expone IPs completas de clientes — enmascarar IPs de usuarios finales (solo staff/admin).
+### C2. Chat / RAG (`server/rag/`)
 
-### C2. Chat (Node server + RAG)
-
-**Roto en producción**
-- [ ] **RAG/Ollama caído**: `/api/chat` y `/api/chat/stream` dan timeout en vivo. Revisar el arranque de Ollama + ChromaDB + el `TaskRouter`. Agregar healthcheck en el `rag-service` y mensajes de fallback inmediato en el Node server (hoy espera a que el fetch falle → timeout).
-- [ ] **`RAG_SERVICE_SECRET` sin configurar** → el RAG corre en "modo inseguro" y acepta cualquier request. Configurarlo en ambos lados y bloquear el puerto 5001 del host.
-
-**Funcional**
-- [ ] **Asociación `client_id` real**: la mayoría de `chat_sessions` tiene `client_id=null` (invitado). Cuando el usuario está autenticado, el Node server envía `user_id`, pero las sesiones viejas quedaron con null → `/api/chat/history` devuelve vacío. Hacer backfill/migración por `conversation_id`.
-- [ ] **SSE**: el frontend parsea chunks `data:` y tipos `token`/`error` — asegurar `keep-alive`, `retry`, y manejo de desconexión (cleanup del `AbortController`).
-- [ ] **Validación del mensaje**: el `validateChatText` bloquea `--`, `/*`, `..`, `sleep(`, `benchmark(`. Revisar falsos positivos con números telefónicos/emails legítimos (p.ej. `+52-999...`).
-
-**Seguridad**
-- [ ] **Rate limit del chat sin bypass por rol forjable** (ver C1).
-- [ ] **Ownership en RAG directo**: `/chat/history/:conversationId` y `DELETE /chat/*` deben validar que `user_id` coincida con el dueño (hoy el Node server lo valida, pero el RAG directo no).
-- [ ] **No exponer `conversation_id` en URLs de logs** en el RAG.
+- [ ] **Reparar el servicio RAG**: `POST /api/chat/stream` → `{"type":"error","content":"Error en el servicio RAG"}` en vivo. Verificar contenedor RAG (Ollama/ChromaDB), `RAG_SERVICE_SECRET` y conectividad de red.
+- [ ] Configurar `RAG_SERVICE_SECRET` con valor fuerte y quitar el fallback.
+- [ ] No exponer el puerto `5001` en `docker-compose.yml` (red interna); el frontend no debe alcanzar RAG directamente.
 
 ### C3. Frontend (`src/`)
 
-**Auth — resolver la contradicción (bloqueante)**
-- [ ] **Unificar**: `main.jsx` interceptor (localStorage + solo URLs relativas `/api`) vs `AuthContext` (cookies + `credentials:'include'`) vs backend (cookie o Bearer).
-  - Opción A (recomendada): volver a **Bearer en memoria** (sin localStorage) + `getApiUrl` absoluto, con el token en estado React y refresh vía `/api/auth/refresh`. Mover el Bearer al interceptor pero con URL absoluta (chequear `getApiUrl`).
-  - Opción B: cookies httpOnly con `SameSite=lax` + `COOKIE_DOMAIN` correcto + CSRF en todos los mutating. (⚠️ Con backend en `trycloudflare.com` y app en `vercel.app`, las cookies **no viajan** — requiere el host estable del C1.)
-- [ ] **Sacar `token` de localStorage** (hoy `main.jsx` lee `localStorage.getItem('token')`; exfiltrable por XSS).
-- [ ] **`apiHelper.js`**: adjuntar el Bearer automáticamente (hoy las páginas lo repiten manualmente y el interceptor global casi nunca aplica porque las URLs son absolutas).
-
-**Checkout**
-- [ ] Reemplazar `setTimeout` + `alert` en `UI_checkout_process.jsx` por consulta real al estado de la orden (requiere C1 pagos).
-- [ ] Validar precios/cantidades en el backend, no solo en el carrito.
-
-**PII / UX**
-- [ ] Ofuscar `notes` en la vista de repostero (o eliminar la duplicación de nombre/teléfono).
-- [ ] `robots.txt` / `security.txt`: el SPA no los sirve en Vercel — generar con un endpoint serverless o añadirlos a `public/`.
-
-**Calidad**
-- [ ] Tests: existe `src/test/AuthContext.test.jsx` y `setup.js` — ampliar cobertura (login flow, chat, checkout, citas). Verificar si hay script `test` en `package.json`.
-- [ ] `npm audit fix` (react-router high).
+- [ ] **Unificar la autenticación**: `AuthContext` usa cookies (`credentials: 'include'`), pero `main.jsx` sigue inyectando `Authorization: Bearer` solo para URLs relativas `/api`. Decidir UN mecanismo:
+  - Si es Bearer: volver a guardar `token` en `localStorage` y que el interceptor lo aplique a la URL absoluta del backend.
+  - Si es cookie: eliminar el interceptor y arreglar dominio/SameSite del backend.
+- [ ] **Ofuscar `notes`** en `MyAppointmentsPage.jsx` (email/teléfono/nombre ya están enmascarados, pero el campo de notas no).
+- [ ] Revisar `VITE_BASE_URL`/URL del backend: apuntar a un host estable, no al túnel efímero.
 
 ---
 
 ## D. Checkpoint del despliegue (Vercel)
 
-1. Frontend: `VITE_BASE_URL=https://<backend-estable>` como variable de entorno (NO hardcodear el túnel en el bundle).
-2. Backend: correr con `NODE_ENV=production` + secrets fuertes en el entorno del proveedor.
-3. BD: cerrar 3306, rotar password, conectar solo desde el host del backend.
-4. RAG: `RAG_SERVICE_SECRET` + red interna.
-5. Verificar en vivo: `curl -I https://<backend>/health`, `GET /api/cakes`, `POST /api/auth/login` (200/401), `POST /api/chat/stream` (SSE), `OPTIONS` con `Origin: evil.com` → **debe** devolver 403.
+| Elemento | Estado |
+|---|---|
+| SPA estática | ✅ Funciona, HTTPS + HSTS |
+| Bundle actual | `index-C87BJ8H4.js` (177 KB) |
+| Backend en bundle | `https://navigation-rivers-naval-excellence.trycloudflare.com` (efímero) |
+| `vercel.json` | Solo rewrites SPA; no proxya `/api/*` |
+| Login real (navegador) | ❌ 401 en `/api/auth/me` (cookie no viaja) |
+| Chat (navegador) | ❌ Error RAG |
+| `/health` (curl) | ❌ 500 (sin `Origin`) |
+| `/api/security/alerts` (Bearer admin) | ✅ 200 |
 
 ---
 
 ## E. Notas finales
 
-- El **deploy actual y el código local están desincronizados**: las correcciones de seguridad existen en el repo pero el servidor vivo ejecuta una versión anterior. **Primera acción: desplegar el código actual.**
-- La **prioridad #1 es el host estable**; sin él, ninguna mejora de seguridad es sostenible (el túnel se cae y la URL cambia, rompiendo todo).
-- Puntaje sugerido de madurez actual: **~35/100**; con las acciones de la sección C1-C3 completas, objetivo: **70+/100**.
+- El avance de seguridad es real y medible (CORS cerrado, JWT placeholder inválido, IPs enmascaradas, WAF activo), pero la configuración de despliegue **no es estable**: túnel efímero + auth por cookie cross-origin + 500 sin `Origin` dejan la app funcionalmente inoperante para usuarios reales.
+- **Prioridad absoluta**: (1) sacar secretos del repo y rotar DB/refrescar historial; (2) host estable con dominio propio; (3) arreglar autenticación cross-origin; (4) reparar RAG/chat; (5) corregir el 500 de CORS sin `Origin`.
