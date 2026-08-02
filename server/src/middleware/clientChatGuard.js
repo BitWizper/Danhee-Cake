@@ -258,7 +258,7 @@ const clientChatGuard = (req, res, next) => {
     return next();
   }
   
-  // Para clientes y no autenticados: validación mínima
+  // Para clientes y no autenticados: validación completa de seguridad
   if (!message || typeof message !== 'string') {
     return res.status(400).json({
       error: 'Invalid message',
@@ -266,11 +266,54 @@ const clientChatGuard = (req, res, next) => {
     });
   }
   
-  // Validación básica de longitud
-  if (message.length > 5000) {
+  // Validación de longitud
+  const lengthValidation = validateMessageLength(message);
+  if (!lengthValidation.valid) {
     return res.status(400).json({
-      error: 'Message too long',
-      message: 'El mensaje no puede exceder 5000 caracteres'
+      error: lengthValidation.reason,
+      message: lengthValidation.message
+    });
+  }
+  
+  // Verificar cooldown entre mensajes
+  const cooldownCheck = checkCooldown(identifier);
+  if (!cooldownCheck.valid) {
+    return res.status(429).json({
+      error: cooldownCheck.reason,
+      message: cooldownCheck.message
+    });
+  }
+  
+  // Verificar mensajes repetidos
+  const repeatCheck = checkRepeatMessages(identifier, message);
+  if (!repeatCheck.valid) {
+    return res.status(400).json({
+      error: repeatCheck.reason,
+      message: repeatCheck.message
+    });
+  }
+  
+  // Verificar rate limiting por usuario
+  const rateLimitCheck = checkUserRateLimit(identifier);
+  if (!rateLimitCheck.valid) {
+    return res.status(429).json({
+      error: rateLimitCheck.reason,
+      message: rateLimitCheck.message
+    });
+  }
+  
+  // Detección de patrones de ataque (prompt injection, jailbreak, etc.)
+  const attackPattern = detectChatAttackPatterns(message);
+  if (attackPattern) {
+    console.log('[clientChatGuard] Attack pattern detected:', attackPattern);
+    logSecurityEvent(req, 'CHAT_ATTACK_PATTERN', 'HIGH', {
+      message: 'Patrón de ataque detectado en mensaje de chat',
+      pattern: attackPattern.pattern,
+      userId: identifier
+    });
+    return res.status(400).json({
+      error: 'CHAT_ATTACK_PATTERN',
+      message: 'Tu mensaje contiene patrones que no están permitidos. Por favor, reformula tu consulta.'
     });
   }
   
@@ -281,8 +324,7 @@ const clientChatGuard = (req, res, next) => {
   
   req.body.message = sanitizedMessage;
   
-  // Continuar sin validaciones complejas de seguridad temporalmente
-  console.log('[clientChatGuard] Validación básica completada para:', role || 'no autenticado');
+  console.log('[clientChatGuard] Validación de seguridad completada para:', role || 'no autenticado');
   next();
 };
 

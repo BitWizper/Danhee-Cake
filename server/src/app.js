@@ -34,15 +34,37 @@ const requireEnv = (name, fallback = undefined) => {
 
 const JWT_SECRET = requireEnv('JWT_SECRET', 'change-me-in-production');
 const REFRESH_TOKEN_SECRET = requireEnv('REFRESH_TOKEN_SECRET', '');
-if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'change-me-in-production') {
-  console.error('[ENV] JWT_SECRET is using a placeholder value. Set a strong secret in your deployment environment.');
+
+// Validación estricta de secrets en producción - CRASH si son inválidos
+if (process.env.NODE_ENV === 'production') {
+  if (!JWT_SECRET || JWT_SECRET === 'change-me-in-production' || JWT_SECRET.length < 32) {
+    console.error('[CRITICAL SECURITY] JWT_SECRET is invalid, placeholder, or too short in production. Server will crash to prevent security breach.');
+    console.error('[CRITICAL SECURITY] Set a strong JWT_SECRET (min 32 chars) in server/.env or docker.env before deploying.');
+    process.exit(1);
+  }
+  if (!REFRESH_TOKEN_SECRET || REFRESH_TOKEN_SECRET.length < 32) {
+    console.error('[CRITICAL SECURITY] REFRESH_TOKEN_SECRET is missing or too short in production. Server will crash to prevent security breach.');
+    console.error('[CRITICAL SECURITY] Set a strong REFRESH_TOKEN_SECRET (min 32 chars) in server/.env or docker.env before deploying.');
+    process.exit(1);
+  }
+  if (REFRESH_TOKEN_SECRET === JWT_SECRET) {
+    console.error('[CRITICAL SECURITY] REFRESH_TOKEN_SECRET must be different from JWT_SECRET in production. Server will crash to prevent security breach.');
+    process.exit(1);
+  }
+  console.log('[SECURITY] Production secrets validated successfully.');
+} else {
+  // En desarrollo, solo advertir
+  if (JWT_SECRET === 'change-me-in-production') {
+    console.warn('[ENV] JWT_SECRET is using a placeholder value. Set a strong secret in your deployment environment.');
+  }
+  if (!REFRESH_TOKEN_SECRET) {
+    console.warn('[ENV] REFRESH_TOKEN_SECRET is missing. Set a strong refresh token secret in production or configure a secret manager.');
+  }
+  if (REFRESH_TOKEN_SECRET === JWT_SECRET) {
+    console.warn('[ENV] REFRESH_TOKEN_SECRET must be different from JWT_SECRET in production.');
+  }
 }
-if (process.env.NODE_ENV === 'production' && !REFRESH_TOKEN_SECRET) {
-  console.error('[ENV] REFRESH_TOKEN_SECRET is missing. Set a strong refresh token secret in production or configure a secret manager.');
-}
-if (process.env.NODE_ENV === 'production' && REFRESH_TOKEN_SECRET === JWT_SECRET) {
-  console.error('[ENV] REFRESH_TOKEN_SECRET must be different from JWT_SECRET in production.');
-}
+
 process.env.JWT_SECRET = JWT_SECRET;
 process.env.REFRESH_TOKEN_SECRET = REFRESH_TOKEN_SECRET || JWT_SECRET;
 const errorHandler = require('./middleware/errorHandler');
@@ -176,9 +198,27 @@ const corsOptions = {
     console.log(`[CORS] Request from origin: ${origin}`);
     console.log(`[CORS] NODE_ENV: ${process.env.NODE_ENV}`);
     
-    // TEMPORALMENT: Permitir cualquier origen para solucionar el problema CORS
-    console.log('[CORS] Temporalmente permitiendo todos los orígenes');
-    return callback(null, true);
+    // En desarrollo sin origin (requests directos como curl, Postman), permitir
+    if (!origin && process.env.NODE_ENV !== 'production') {
+      console.log('[CORS] No origin present in development, allowing');
+      return callback(null, true);
+    }
+    
+    // Verificar si el origen está en la allowlist
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log(`[CORS] Origin ${origin} is allowed`);
+      return callback(null, true);
+    }
+    
+    // Verificar wildcard de trycloudflare.com (para túneles temporales en desarrollo)
+    if (process.env.NODE_ENV !== 'production' && origin && origin.endsWith('.trycloudflare.com')) {
+      console.log(`[CORS] Allowing trycloudflare origin in development: ${origin}`);
+      return callback(null, true);
+    }
+    
+    // Rechazar origen no permitido
+    console.log(`[CORS] Origin ${origin} is NOT allowed`);
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS', 'HEAD', 'PUT', 'DELETE'],
@@ -247,7 +287,16 @@ const sanitizeQueryParams = (req, res, next) => {
     return value;
   };
 
+  // Rechazar arrays en query params (ej: offset[]=1&offset[]=2)
   for (const key in req.query) {
+    if (Array.isArray(req.query[key])) {
+      console.log(`[SECURITY] Array parameter detected and rejected: ${key}`);
+      return res.status(400).json({
+        success: false,
+        error_code: 'INVALID_PARAMETER',
+        message: 'Los parámetros de consulta no pueden ser arrays.'
+      });
+    }
     req.query[key] = sanitizeQueryValue(req.query[key]);
   }
 
@@ -468,7 +517,7 @@ app.get('/', (req, res) => {
 });
 
 // Endpoint de estadísticas de seguridad (solo para administradores autenticados)
-app.get('/api/admin/security-stats', authMiddleware, authorize(['admin']), (req, res) => {
+app.get('/api/admin/security-stats', authMiddleware, authorize('admin'), (req, res) => {
   try {
     const securityStats = getSecurityStats();
     const rateLimitStats = getRateLimitStats();

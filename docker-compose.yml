@@ -13,7 +13,8 @@ services:
       - START_RAG=true
       - CHROMA_HOST=http://chromadb:8000
       - RAG_SERVICE_URL=http://rag-service:5001
-      - JWT_SECRET=${JWT_SECRET}
+      # JWT_SECRET y REFRESH_TOKEN_SECRET se cargan desde env_file (server/.env y docker.env)
+      # NO sobrescribir con variables del shell para evitar vaciar el secret
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       - LOCAL_DB_NAME=${LOCAL_DB_NAME}
       - LOCAL_DB_USER=${LOCAL_DB_USER}
@@ -23,7 +24,8 @@ services:
       - PUBLIC_HOST=${PUBLIC_HOST}
       
     volumes:
-      - ./server:/app
+      - ./server/src:/app/src
+      - ./server/uploads:/app/uploads
       - /app/node_modules
       - /app/rag/chroma
 
@@ -38,7 +40,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   database:
-    image: mysql:8.0
+    image: mysql:8.0.36
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${LOCAL_DB_NAME}
@@ -56,7 +58,7 @@ services:
     command: --default-authentication-plugin=mysql_native_password --ssl=0
 
   chromadb:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:0.4.24
     container_name: chromadb
     restart: always
     # Puerto protegido - solo accesible dentro de red Docker
@@ -88,7 +90,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2024.6.0
     container_name: cloudflared_tunnel
     restart: always
     command: tunnel --url http://backend:5000
@@ -98,7 +100,7 @@ services:
       - app-network
 
   backup:
-    image: mysql:8.0
+    image: mysql:8.0.36
     container_name: database_backup
     restart: "no"
     volumes:

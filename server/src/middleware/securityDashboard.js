@@ -59,12 +59,37 @@ const isPersistedBlocked = (ip) => {
   return Boolean(activeBlocks[ip]);
 };
 
+// Función para ofuscar IPs (proteger privacidad en logs de seguridad)
+const obfuscateIP = (ip) => {
+  if (!ip) return 'unknown';
+  // Ofuscar los últimos octetos de IPv4 o últimos segmentos de IPv6
+  if (ip.includes(':')) {
+    // IPv6: ofuscar últimos 4 segmentos
+    const parts = ip.split(':');
+    if (parts.length >= 4) {
+      return parts.slice(0, 4).join(':') + ':' + '****'.repeat(parts.length - 4);
+    }
+    return ip.substring(0, ip.length / 2) + '****';
+  }
+  // IPv4: ofuscar últimos 2 octetos
+  const parts = ip.split('.');
+  if (parts.length === 4) {
+    return `${parts[0]}.${parts[1]}.***.***`;
+  }
+  return '***.***.***.***';
+};
+
 const getSecuritySummary = () => {
   const blocks = clearExpiredBlocks();
   const lines = fs.existsSync(eventsFilePath) ? fs.readFileSync(eventsFilePath, 'utf8').trim().split('\n').filter(Boolean) : [];
   const events = lines.slice(-100).map((line) => {
     try {
-      return JSON.parse(line);
+      const event = JSON.parse(line);
+      // Ofuscar IP en el evento para proteger privacidad
+      if (event.ip) {
+        event.ip = obfuscateIP(event.ip);
+      }
+      return event;
     } catch (error) {
       return null;
     }
@@ -72,7 +97,11 @@ const getSecuritySummary = () => {
 
   return {
     blockedIps: Object.keys(blocks).length,
-    blockedIpList: Object.entries(blocks).map(([ip, details]) => ({ ip, ...details })),
+    // Ofuscar IPs en la lista de bloqueados
+    blockedIpList: Object.entries(blocks).map(([ip, details]) => ({
+      ip: obfuscateIP(ip),
+      ...details
+    })),
     recentEvents: events,
     eventCount: events.length
   };

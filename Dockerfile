@@ -1,5 +1,5 @@
 # Frontend Dockerfile for Vite + React app
-FROM node:20-alpine AS builder
+FROM node:20.11-alpine AS builder
 WORKDIR /app
 
 # Install dependencies and build the app
@@ -13,7 +13,7 @@ ENV VITE_BASE_URL=$VITE_BASE_URL
 RUN npm run build
 
 # Production image
-FROM nginx:alpine
+FROM nginx:1.25-alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Install envsubst (gettext) to allow runtime templating of nginx config
