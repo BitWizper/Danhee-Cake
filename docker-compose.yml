@@ -81,6 +81,11 @@ services:
       - CHROMA_HOST=http://chromadb:8000
       - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
       - RAG_SERVICE_SECRET=${RAG_SERVICE_SECRET}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
     volumes:
       - ./server/rag:/app/rag
       - /app/rag/node_modules
