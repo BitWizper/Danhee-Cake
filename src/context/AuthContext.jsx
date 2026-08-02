@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { getApiUrl } from '../config/api';
+import { addCsrfToHeaders } from '../utils/csrfHelper';
 
 const AuthContext = createContext();
 
@@ -48,12 +49,11 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       // Llamar al endpoint de logout para limpiar cookies en el servidor
+      const headers = await addCsrfToHeaders({ 'Content-Type': 'application/json' });
       await fetch(getApiUrl('/api/auth/logout'), {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ refresh_token: 'from_cookie' }),
       });
     } catch (error) {

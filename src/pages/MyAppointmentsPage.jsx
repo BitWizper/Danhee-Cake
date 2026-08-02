@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getApiUrl } from '../config/api';
+import { addCsrfToHeaders } from '../utils/csrfHelper';
 import './MyAppointmentsPage.css';
 
 /* ── Helpers ── */
@@ -296,16 +297,26 @@ const MyAppointmentsPage = () => {
         ? `/api/bakers/appointments/${selectedAppt.id}/status`
         : `/api/appointments/${selectedAppt.id}`;
 
-      const options = isBaker 
-        ? {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ status: 'cancelled' })
-          }
-        : {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` }
-          };
+      let options;
+      if (isBaker) {
+        const headers = await addCsrfToHeaders({
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        });
+        options = {
+          method: 'PUT',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify({ status: 'cancelled' })
+        };
+      } else {
+        const headers = await addCsrfToHeaders({ Authorization: `Bearer ${token}` });
+        options = {
+          method: 'DELETE',
+          credentials: 'include',
+          headers
+        };
+      }
 
       const res = await fetch(getApiUrl(endpoint), options);
       const result = await res.json();
@@ -326,12 +337,14 @@ const MyAppointmentsPage = () => {
 
   const handleUpdateBakerStatus = async (apptId, newStatus) => {
     try {
+      const headers = await addCsrfToHeaders({
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      });
       const res = await fetch(getApiUrl(`/api/bakers/appointments/${apptId}/status`), {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({ status: newStatus })
       });
       const result = await res.json();

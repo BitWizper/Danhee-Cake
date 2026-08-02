@@ -5,6 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stage, ContactShadows } from '@react-three/drei';
 import { useAuth } from '../context/AuthContext';
 import { getApiUrl } from '../config/api';
+import { addCsrfToHeaders } from '../utils/csrfHelper';
 import Button from '../components/ui/Button';
 import './CakeDesignerPage.css';
 
@@ -167,9 +168,11 @@ const CakeDesignerPage = () => {
     setLoginError('');
 
     try {
+      const headers = await addCsrfToHeaders({ 'Content-Type': 'application/json' });
       const response = await fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify(loginForm)
       });
       const result = await response.json();

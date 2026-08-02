@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getApiUrl } from '../config/api';
+import { addCsrfToHeaders } from '../utils/csrfHelper';
 import Button from '../components/ui/Button';
 import CakeModal from '../components/ui/CakeModal';
 import './BakerDashboardPage.css';
@@ -157,18 +158,20 @@ const BakerDashboardPage = () => {
 
   const handleSaveCake = async (cakeData) => {
     try {
-      const url = editingCake 
+      const url = editingCake
         ? `/api/bakers/cakes/${editingCake.id}`
         : '/api/bakers/cakes';
-      
+
       const method = editingCake ? 'PUT' : 'POST';
+      const headers = await addCsrfToHeaders({ 'Authorization': `Bearer ${token}` });
 
       const response = await fetch(getApiUrl(url), {
         method,
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
+        headers,
         body: cakeData
       });
-      
+
       const result = await response.json();
       if (result.success) {
         setIsModalOpen(false);
@@ -185,11 +188,13 @@ const BakerDashboardPage = () => {
 
   const handleDeleteCake = async (id) => {
     if (!window.confirm('¿Estás seguro de que quieres eliminar este pastel?')) return;
-    
+
     try {
+      const headers = await addCsrfToHeaders({ 'Authorization': `Bearer ${token}` });
       const response = await fetch(getApiUrl(`/api/bakers/cakes/${id}`), {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include',
+        headers
       });
       const result = await response.json();
       if (result.success) {
@@ -206,12 +211,14 @@ const BakerDashboardPage = () => {
     e.preventDefault();
     setSavingProfile(true);
     try {
+      const headers = await addCsrfToHeaders({
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      });
       const response = await fetch(getApiUrl('/api/bakers/profile'), {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        credentials: 'include',
+        headers,
         body: JSON.stringify(bakerProfile)
       });
       const result = await response.json();
@@ -230,12 +237,14 @@ const BakerDashboardPage = () => {
   const handleUpdateAppointmentStatus = async (apptId, newStatus) => {
     setUpdatingApptId(apptId);
     try {
+      const headers = await addCsrfToHeaders({
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      });
       const response = await fetch(getApiUrl(`/api/bakers/appointments/${apptId}/status`), {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({ status: newStatus })
       });
       const result = await response.json();

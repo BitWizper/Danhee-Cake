@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getApiUrl } from '../config/api';
+import { addCsrfToHeaders } from '../utils/csrfHelper';
 import './AppointmentPage.css';
 
 const STEPS = ['Fecha', 'Horario', 'Detalles', 'Confirmar'];
@@ -129,12 +130,14 @@ const AppointmentPage = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
+      const headers = await addCsrfToHeaders({
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      });
       const response = await fetch(getApiUrl('/api/appointments'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({ baker_id: id, ...form })
       });
       const result = await response.json();
