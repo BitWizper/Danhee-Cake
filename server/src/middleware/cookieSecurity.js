@@ -3,11 +3,12 @@
 
 const crypto = require('crypto');
 
-// Generar fingerprint del cliente basado en IP y User-Agent
+// Generar fingerprint del cliente basado solo en User-Agent (no IP para evitar falsos positivos)
 const generateClientFingerprint = (req) => {
-  const ip = req.ip || req.connection.remoteAddress || 'unknown';
   const userAgent = req.headers['user-agent'] || 'unknown';
-  const fingerprintData = `${ip}:${userAgent}`;
+  const acceptLanguage = req.headers['accept-language'] || 'unknown';
+  const acceptEncoding = req.headers['accept-encoding'] || 'unknown';
+  const fingerprintData = `${userAgent}:${acceptLanguage}:${acceptEncoding}`;
   return crypto.createHash('sha256').update(fingerprintData).digest('hex').substring(0, 16);
 };
 
@@ -54,29 +55,31 @@ const validateCookieFingerprint = (req, res, next) => {
     res.cookie('client_fingerprint', fingerprint, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 24 * 60 * 60 * 1000, // 24 horas
-      ...(isProduction && { priority: 'high' })
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días
+      path: '/'
     });
     
     return next();
   }
   
   // Validar que el fingerprint no haya cambiado
-  if (!validateClientFingerprint(req, storedFingerprint)) {
-    // Fingerprint cambió - posible robo de sesión o cambio de IP
-    console.warn('[Security] Client fingerprint mismatch - possible session theft');
+  const currentFingerprint = generateClientFingerprint(req);
+  if (currentFingerprint !== storedFingerprint) {
+    // Fingerprint cambió - posible robo de sesión o cambio legítimo de configuración
+    console.warn('[Security] Client fingerprint mismatch - possible session theft or browser config change');
     
-    // Limpiar cookies de sesión
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
-    res.clearCookie('client_fingerprint', { path: '/' });
+    // Marcar la anomalía en el request para que middlewares posteriores puedan decidir
+    req.fingerprintMismatch = true;
     
-    return res.status(401).json({
-      success: false,
-      error: 'SESSION_INVALID',
-      message: 'Tu sesión ha sido invalidada por seguridad. Por favor inicia sesión nuevamente.'
+    // Actualizar el fingerprint pero mantener la sesión activa
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie('client_fingerprint', currentFingerprint, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días
+      path: '/'
     });
   }
   
@@ -134,6 +137,32 @@ const detectCookieTampering = (req, res, next) => {
   next();
 };
 
+// Middleware para requerir re-autenticación en acciones sensibles cuando hay fingerprint mismatch
+const requireReauthOnFingerprintMismatch = (req, res, next) => {
+  if (req.fingerprintMismatch) {
+    // Acciones sensibles que requieren re-autenticación
+    const sensitivePaths = [
+      '/api/auth/login',
+      '/api/auth/register',
+      '/api/appointments',
+      '/api/payments',
+      '/api/admin'
+    ];
+    
+    const isSensitivePath = sensitivePaths.some(path => req.path.startsWith(path));
+    
+    if (isSensitivePath) {
+      console.warn('[Security] Blocking sensitive action due to fingerprint mismatch');
+      return res.status(403).json({
+        success: false,
+        message: 'Se detectó un cambio en tu navegador. Por seguridad, recarga la página y vuelve a intentar.'
+      });
+    }
+  }
+  
+  next();
+};
+
 module.exports = {
   generateClientFingerprint,
   validateClientFingerprint,
@@ -141,5 +170,6 @@ module.exports = {
   validateCookieFingerprint,
   rotateCookies,
   detectCookieTampering,
-  COOKIE_PREFIX
+  COOKIE_PREFIX,
+  requireReauthOnFingerprintMismatch
 };

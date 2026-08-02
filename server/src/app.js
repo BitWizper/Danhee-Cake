@@ -89,7 +89,7 @@ const browserOriginGuard = require('./middleware/browserOriginGuard');
 const requestGuard = require('./middleware/requestGuard');
 const { authMiddleware, authorize } = require('./middleware/auth');
 const { csrfProtection, csrfTokenGenerator } = require('./middleware/csrfProtection');
-const { validateCookieFingerprint, detectCookieTampering } = require('./middleware/cookieSecurity');
+const { validateCookieFingerprint, detectCookieTampering, requireReauthOnFingerprintMismatch } = require('./middleware/cookieSecurity');
 
 
 const app = express();
@@ -110,6 +110,9 @@ app.use(detectCookieTampering);
 
 // Validar fingerprint del cliente para prevenir robo de sesiones
 app.use(validateCookieFingerprint);
+
+// Requerir re-autenticación en acciones sensibles cuando hay fingerprint mismatch
+app.use(requireReauthOnFingerprintMismatch);
 
 app.use(requestGuard);
 
@@ -198,8 +201,6 @@ const allowedOrigins = [
   'https://danhee-cake-3zzal4zyl-bitwizpers-projects.vercel.app',
   'https://danhee-cake-qvmrsik4m-bitwizpers-projects.vercel.app',
   'https://danhee-cake-3uix5gn6p-bitwizpers-projects.vercel.app',
-  // Permitir cualquier subdominio de trycloudflare.com (para túneles temporales)
-  'https://*.trycloudflare.com',
   // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
 ];
@@ -215,25 +216,27 @@ const corsOptions = {
       return callback(null, true);
     }
     
+    // En producción sin origin (healthchecks, server-to-server), permitir
+    if (!origin && process.env.NODE_ENV === 'production') {
+      console.log('[CORS] No origin present in production (healthcheck/server-to-server), allowing');
+      return callback(null, true);
+    }
+    
     // Verificar si el origen está en la allowlist
     if (allowedOrigins.indexOf(origin) !== -1) {
       console.log(`[CORS] Origin ${origin} is allowed`);
       return callback(null, true);
     }
     
-    // Verificar wildcard de trycloudflare.com (para túneles temporales en desarrollo)
-    if (process.env.NODE_ENV !== 'production' && origin && origin.endsWith('.trycloudflare.com')) {
-      console.log(`[CORS] Allowing trycloudflare origin in development: ${origin}`);
-      return callback(null, true);
-    }
-    
-    // Rechazar origen no permitido
+    // Rechazar origen no permitido con error específico
     console.log(`[CORS] Origin ${origin} is NOT allowed`);
-    return callback(new Error('Not allowed by CORS'));
+    const error = new Error('CORS no permitido');
+    error.status = 403;
+    return callback(error);
   },
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS', 'HEAD', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token'],
   exposedHeaders: ['Content-Length', 'Content-Type', 'Set-Cookie'],
   maxAge: 86400, // 24 horas de caché para preflight requests
   optionsSuccessStatus: 204 // Responder con 204 para OPTIONS exitosos
@@ -242,9 +245,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 
-// TEMPORALMENTE: Desactivar browserOriginGuard para debug
-// const browserOriginGuard = require('./middleware/browserOriginGuard');
-// app.use(browserOriginGuard);
+// Browser origin guard para prevenir requests desde navegadores no autorizados
+app.use(browserOriginGuard);
 
 // Validación de tipos de datos en request body para prevenir NoSQL injection
 const validateRequestBody = (req, res, next) => {

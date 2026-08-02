@@ -1,5 +1,6 @@
 // middleware/auth.js
 const jwt = require('jsonwebtoken');
+const db = require('../config/db');
 
 /**
  * Middleware de autenticación JWT.
@@ -92,7 +93,7 @@ const authMiddleware = (req, res, next) => {
  * @param {...string} roles - Lista de roles permitidos
  * @returns {Function} Middleware de autorización
  */
-const authorize = (...roles) => (req, res, next) => {
+const authorize = (...roles) => async (req, res, next) => {
   // Verificar que el usuario existe (el authMiddleware ya debería haberlo adjuntado)
   if (!req.user) {
     return res.status(401).json({
@@ -104,18 +105,49 @@ const authorize = (...roles) => (req, res, next) => {
   // Aplanar roles si se pasa un array (fix para bug de doble array)
   const allowedRoles = roles.flat();
 
-  // Verificar si el rol del usuario está en la lista de roles permitidos
-  if (!allowedRoles.includes(req.user.role)) {
-    return res.status(403).json({
-      success: false,
-      message: `Acceso denegado. Se requiere uno de los siguientes roles: ${allowedRoles.join(', ')}`,
-      user_role: req.user.role,
-      required_roles: allowedRoles
-    });
-  }
+  try {
+    // Verificar el rol del usuario en la base de datos (no confiar solo en JWT)
+    const [users] = await db.execute(
+      'SELECT role FROM users WHERE id = ?',
+      [req.user.id]
+    );
 
-  console.log(`[Auth] ✅ Autorización concedida para rol: ${req.user.role}`);
-  next();
+    if (!users || users.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    const dbRole = users[0].role;
+    
+    // Actualizar req.user.role con el rol de la base de datos
+    req.user.role = dbRole;
+
+    // Verificar si el rol del usuario está en la lista de roles permitidos
+    if (!allowedRoles.includes(dbRole)) {
+      return res.status(403).json({
+        success: false,
+        message: `Acceso denegado. Se requiere uno de los siguientes roles: ${allowedRoles.join(', ')}`,
+        user_role: dbRole,
+        required_roles: allowedRoles
+      });
+    }
+
+    console.log(`[Auth] ✅ Autorización concedida para rol: ${dbRole} (verificado en BD)`);
+    next();
+  } catch (error) {
+    console.error('[Auth] Error verificando rol en base de datos:', error);
+    // En caso de error de BD, fallback al rol del JWT (con advertencia)
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado'
+      });
+    }
+    console.warn('[Auth] ⚠️ Usando rol del JWT como fallback (BD no disponible)');
+    next();
+  }
 };
 
 /**
