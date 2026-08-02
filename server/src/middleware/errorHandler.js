@@ -29,7 +29,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Errores de CORS explícitos
-  if (err && typeof err.message === 'string' && err.message.includes('CORS no permitido')) {
+  if (err && typeof err.message === 'string' && (err.message.includes('CORS no permitido') || err.message.includes('Not allowed by CORS'))) {
     return res.status(403).json({
       success: false,
       error_code: 'FORBIDDEN',
