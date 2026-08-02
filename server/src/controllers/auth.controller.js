@@ -99,15 +99,20 @@ exports.register = async (req, res, next) => {
     // Verificar si el usuario ya existe
     const [existingUser] = await db.execute('SELECT id FROM users WHERE email = ?', [sanitizedEmail]);
     if (existingUser.length > 0) {
+      console.log('[Register] Usuario ya existe:', sanitizedEmail);
       return res.status(400).json({
         success: false,
         message: 'No se pudo completar el registro. Verifica tus datos e intenta de nuevo.'
       });
     }
 
+    console.log('[Register] Usuario no existe, procediendo a crear:', { name: sanitizedName, email: sanitizedEmail, role: userRole });
+
     // Hashear la contraseña
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+
+    console.log('[Register] Contraseña hasheada, insertando usuario...');
 
     // Insertar usuario con consultas parametrizadas y role validado
     const [userResult] = await db.execute(
@@ -116,15 +121,19 @@ exports.register = async (req, res, next) => {
     );
 
     const userId = userResult.insertId;
+    console.log('[Register] Usuario insertado con ID:', userId);
 
     // Si es repostero, crear perfil
     if (userRole === 'repostero') {
+      console.log('[Register] Creando perfil de repostero para usuario:', userId);
       await db.execute(
         'INSERT INTO baker_profiles (user_id, business_name, location, specialty, bio) VALUES (?, ?, ?, ?, ?)',
         [userId, sanitizedBusinessName || sanitizedName, sanitizedLocation, sanitizedSpecialty, sanitizedBio]
       );
+      console.log('[Register] Perfil de repostero creado');
     }
 
+    console.log('[Register] Registro completado exitosamente');
     res.status(201).json({
       success: true,
       message: 'Usuario registrado exitosamente. Verifica tu correo si es necesario antes de continuar.'
