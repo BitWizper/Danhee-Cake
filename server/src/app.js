@@ -202,8 +202,6 @@ const allowedOrigins = [
   'https://danhee-cake-3zzal4zyl-bitwizpers-projects.vercel.app',
   'https://danhee-cake-qvmrsik4m-bitwizpers-projects.vercel.app',
   'https://danhee-cake-3uix5gn6p-bitwizpers-projects.vercel.app',
-  // Permitir cualquier subdominio de trycloudflare.com (para túneles temporales)
-  'https://*.trycloudflare.com',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
 ];
 
@@ -225,8 +223,14 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // En desarrollo, ser más permisivo con orígenes de túneles Cloudflare y localhost
-    if (process.env.NODE_ENV !== 'production' && (origin.includes('trycloudflare.com') || origin.includes('localhost'))) {
+    // Permitir cualquier subdominio de trycloudflare.com (Quick Tunnels)
+    if (origin.includes('.trycloudflare.com')) {
+      console.log(`[CORS] Allowing trycloudflare.com origin: ${origin}`);
+      return callback(null, true);
+    }
+    
+    // En desarrollo, ser más permisivo con localhost
+    if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
       console.log(`[CORS] Allowing development origin: ${origin}`);
       return callback(null, true);
     }
