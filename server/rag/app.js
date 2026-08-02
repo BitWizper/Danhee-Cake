@@ -198,7 +198,7 @@ app.get('/chat/stream', authenticateRAGRequest, async (req, res) => {
     
     try {
         if (!taskRouter) {
-            res.write(`data: ${JSON.stringify({ error: 'Service not ready' })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: 'error', content: 'Service not ready' })}\n\n`);
             res.end();
             return;
         }
@@ -210,12 +210,12 @@ app.get('/chat/stream', authenticateRAGRequest, async (req, res) => {
             user_id || null
         );
         
-        res.write(`data: ${JSON.stringify({ response: result.response, was_blocked: result.wasBlocked })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'response', content: result.response, was_blocked: result.wasBlocked })}\n\n`);
         res.end();
         
     } catch (e) {
         console.error(`[app] Error en /chat/stream: ${e.message}`);
-        res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'error', content: e.message })}\n\n`);
         res.end();
     }
 });
@@ -243,7 +243,7 @@ app.post('/chat/stream', authenticateRAGRequest, async (req, res) => {
     // Configurar timeout razonable para el streaming (30 segundos)
     const streamTimeout = setTimeout(() => {
         console.error('[app] Stream timeout exceeded for conversation:', conversation_id);
-        res.write(`data: ${JSON.stringify({ error: 'Stream timeout - request took too long' })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'error', content: 'Stream timeout - request took too long' })}\n\n`);
         res.end();
     }, 30000);
     
@@ -256,7 +256,7 @@ app.post('/chat/stream', authenticateRAGRequest, async (req, res) => {
         if (!taskRouter) {
             clearTimeout(streamTimeout);
             clearInterval(heartbeatInterval);
-            res.write(`data: ${JSON.stringify({ error: 'Service not ready' })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: 'error', content: 'Service not ready' })}\n\n`);
             res.end();
             return;
         }
@@ -276,14 +276,14 @@ app.post('/chat/stream', authenticateRAGRequest, async (req, res) => {
         clearTimeout(streamTimeout);
         clearInterval(heartbeatInterval);
         
-        res.write(`data: ${JSON.stringify({ response: result.response, was_blocked: result.wasBlocked })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'response', content: result.response, was_blocked: result.wasBlocked })}\n\n`);
         res.end();
         
     } catch (e) {
         console.error(`[app] Error en POST /chat/stream: ${e.stack || e.message}`);
         clearTimeout(streamTimeout);
         clearInterval(heartbeatInterval);
-        res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'error', content: e.message })}\n\n`);
         res.end();
     }
 });

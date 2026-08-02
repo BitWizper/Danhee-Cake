@@ -116,7 +116,7 @@ export const CHAT_SECURITY_CONFIG = {
 };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const VALID_SSE_TYPES = new Set(['conversation_id', 'state', 'token', 'error', 'response', 'content', 'done', 'start', 'end']);
+const VALID_SSE_TYPES = new Set(['conversation_id', 'state', 'token', 'error', 'response', 'content', 'done', 'start', 'end', 'heartbeat']);
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
 const HTML_TAG = /<[^>]*>/g;
