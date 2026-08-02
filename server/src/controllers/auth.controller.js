@@ -189,7 +189,7 @@ exports.login = async (req, res, next) => {
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax', // Cambiado de 'strict' a 'lax' para permitir cross-origin
       path: '/',
       maxAge: 15 * 60 * 1000, // 15 minutos para access token
       domain: cookieDomain, // Restringir a dominio específico si está configurado
@@ -203,7 +203,7 @@ exports.login = async (req, res, next) => {
     const refreshCookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax', // Cambiado de 'strict' a 'lax' para permitir cross-origin
       path: '/',
       maxAge: refreshTokenExpiryMs,
       domain: cookieDomain,
@@ -289,7 +289,7 @@ exports.refreshToken = async (req, res, next) => {
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax', // Cambiado de 'strict' a 'lax' para permitir cross-origin
       path: '/',
       maxAge: 15 * 60 * 1000 // 15 minutos
     };
@@ -297,7 +297,7 @@ exports.refreshToken = async (req, res, next) => {
     const refreshCookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'strict',
+      sameSite: 'lax', // Cambiado de 'strict' a 'lax' para permitir cross-origin
       path: '/',
       maxAge: refreshTokenExpiryMs
     };

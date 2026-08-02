@@ -195,7 +195,7 @@ exports.createInternal = async (req, res, next) => {
  * Endpoint: POST /api/appointments/guest
  */
 exports.createGuest = async (req, res, next) => {
-  const { baker_id, date, time_slot, notes } = req.body;
+  const { baker_id, date, time_slot, notes, client_id } = req.body;
 
   // Validar y sanitizar inputs
   const sanitizedBakerId = sanitizeString(baker_id, 50);
@@ -203,6 +203,7 @@ exports.createGuest = async (req, res, next) => {
   const normalizedDate = normalizeAppointmentDate(sanitizedDate);
   const sanitizedTimeSlot = sanitizeString(time_slot, 50);
   const sanitizedNotes = sanitizeString(notes, 500);
+  const sanitizedClientId = sanitizeString(client_id, 50);
 
   // Validaciones
   if (!sanitizedBakerId || !normalizedDate || !sanitizedTimeSlot) {
@@ -217,6 +218,22 @@ exports.createGuest = async (req, res, next) => {
       success: false,
       message: 'baker_id debe ser un número válido.'
     });
+  }
+
+  // Si se proporciona client_id, verificar que pertenezca al usuario autenticado
+  let authenticatedUserId = null;
+  if (req.user && req.user.id) {
+    authenticatedUserId = req.user.id;
+  }
+
+  if (sanitizedClientId && authenticatedUserId) {
+    if (sanitizedClientId !== authenticatedUserId.toString()) {
+      console.log(`[Appointment Guest] ❌ Intento de acceso no autorizado: user ${authenticatedUserId} intentando usar client_id ${sanitizedClientId}`);
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para crear citas para este cliente.'
+      });
+    }
   }
 
   console.log(`[Appointment] 👤 Solicitud guest desde chatbot:`);
@@ -239,30 +256,38 @@ exports.createGuest = async (req, res, next) => {
       });
     }
 
-    // Crear un usuario temporal de tipo invitado para mantener la integridad referencial
-    const guestEmail = `guest-${Date.now()}-${crypto.randomBytes(4).toString('hex')}@local.invalid`;
-    const guestPassword = `Guest${Date.now()}A1!`;
-    const guestName = 'Invitado';
-    const hashedGuestPassword = await bcrypt.hash(guestPassword, 10);
+    // Si hay usuario autenticado, usar su ID; si no, crear usuario temporal
+    let finalClientId;
+    if (authenticatedUserId) {
+      finalClientId = authenticatedUserId;
+      console.log(`[Appointment] ✅ Usando ID de usuario autenticado: ${finalClientId}`);
+    } else {
+      // Crear un usuario temporal de tipo invitado para mantener la integridad referencial
+      const guestEmail = `guest-${Date.now()}-${crypto.randomBytes(4).toString('hex')}@local.invalid`;
+      const guestPassword = `Guest${Date.now()}A1!`;
+      const guestName = 'Invitado';
+      const hashedGuestPassword = await bcrypt.hash(guestPassword, 10);
 
-    const [guestUser] = await db.execute(
-      'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
-      [guestName, guestEmail, hashedGuestPassword, 'cliente']
-    );
+      const [guestUser] = await db.execute(
+        'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
+        [guestName, guestEmail, hashedGuestPassword, 'cliente']
+      );
 
-    const guestClientId = guestUser.insertId;
+      finalClientId = guestUser.insertId;
+      console.log(`[Appointment] ✅ Creado cliente temporal: ${finalClientId}`);
+    }
 
     const [result] = await db.execute(
       'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [guestClientId, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
+      [finalClientId, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
     );
 
-    console.log(`[Appointment] ✅ Solicitud guest creada con ID: ${result.insertId} para cliente temporal ${guestClientId}`);
+    console.log(`[Appointment] ✅ Solicitud guest creada con ID: ${result.insertId} para cliente ${finalClientId}`);
 
     return res.status(201).json({
       success: true,
       message: 'Solicitud de cita recibida. Te contactaremos pronto para confirmar.',
-      data: { id: result.insertId, client_id: guestClientId }
+      data: { id: result.insertId, client_id: finalClientId }
     });
   } catch (err) {
     console.error('[Appointment] ❌ Error creando cita guest:', err);

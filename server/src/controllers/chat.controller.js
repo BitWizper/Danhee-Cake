@@ -26,6 +26,12 @@ const validateChatText = (value, maxLength = 5000, fieldName = 'mensaje') => {
 };
 
 const askChatbot = async (req, res) => {
+  // Validar RAG_SERVICE_SECRET no sea el placeholder inseguro
+  if (!process.env.RAG_SERVICE_SECRET || process.env.RAG_SERVICE_SECRET === 'change-me-in-production') {
+    console.error('[Chat] RAG_SERVICE_SECRET no está configurado o usa placeholder inseguro');
+    return res.status(503).json({ error: "El servicio de chat no está configurado correctamente" });
+  }
+
   const { message } = req.body;
   const validation = validateChatText(message, 5000, 'El mensaje');
 
@@ -183,6 +189,14 @@ const getChatHistory = async (req, res) => {
 };
 
 const streamChatbot = async (req, res) => {
+  // Validar RAG_SERVICE_SECRET no sea el placeholder inseguro
+  if (!process.env.RAG_SERVICE_SECRET || process.env.RAG_SERVICE_SECRET === 'change-me-in-production') {
+    console.error('[Chat Stream] RAG_SERVICE_SECRET no está configurado o usa placeholder inseguro');
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.write(`data: ${JSON.stringify({ type: "error", content: "El servicio de chat no está configurado correctamente" })}\n\n`);
+    return res.end();
+  }
+
   const { message, conversation_id } = req.body;
   console.log('[Chat Stream] Message received:', message);
   console.log('[Chat Stream] Conversation ID:', conversation_id);

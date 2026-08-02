@@ -1,0 +1,4 @@
+Contact: mailto:security@danhee.com
+Preferred-Languages: es, en
+Canonical: https://danhee-cake.vercel.app/.well-known/security.txt
+Policy: https://danhee-cake.vercel.app/security-policy.html

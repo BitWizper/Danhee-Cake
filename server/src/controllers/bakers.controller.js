@@ -1,6 +1,28 @@
 const db = require('../config/db');
 const { sanitizeString, validateNumber } = require('../middleware/inputValidator');
 
+// Ofuscar PII en notas (teléfonos, emails, nombres)
+const obfuscatePII = (text) => {
+  if (!text || typeof text !== 'string') return text;
+  
+  return text
+    // Ofuscar teléfonos (formatos comunes)
+    .replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, (match) => {
+      const digits = match.replace(/\D/g, '');
+      return digits.slice(0, 3) + '***' + digits.slice(-2);
+    })
+    // Ofuscar emails
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, (match) => {
+      const [local, domain] = match.split('@');
+      return local.slice(0, 2) + '***@' + domain;
+    })
+    // Ofuscar nombres completos (palabras con mayúscula inicial)
+    .replace(/\b[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)+\b/g, (match) => {
+      const parts = match.split(' ');
+      return parts.map(p => p.slice(0, 2) + '***').join(' ');
+    });
+};
+
 const normalizeImageUrl = (imageUrl) => {
   if (!imageUrl) return imageUrl;
   if (imageUrl.startsWith('/uploads/')) return imageUrl;
@@ -187,7 +209,12 @@ exports.getAppointments = async (req, res, next) => {
 
     const isOwner = req.user.role === 'admin' || (req.user.role === 'repostero' && myBakerId && myBakerId === bakerId);
     if (full && isOwner) {
-      return res.json({ success: true, data: appointments });
+      // Aún ofuscar notas incluso en modo full para proteger PII
+      const maskedNotes = appointments.map((a) => ({
+        ...a,
+        notes: obfuscatePII(a.notes)
+      }));
+      return res.json({ success: true, data: maskedNotes });
     }
 
     // Enmascarar datos sensibles (PII) antes de devolver
@@ -195,7 +222,8 @@ exports.getAppointments = async (req, res, next) => {
       ...a,
       client_name: maskName(a.client_name),
       client_email: maskEmail(a.client_email),
-      client_phone: maskPhone(a.client_phone)
+      client_phone: maskPhone(a.client_phone),
+      notes: obfuscatePII(a.notes)
     }));
 
     res.json({ success: true, data: masked });

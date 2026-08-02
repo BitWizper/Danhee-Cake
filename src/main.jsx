@@ -10,13 +10,20 @@ window.fetch = async (input, init = {}) => {
     const token = localStorage.getItem('token')
     let url = typeof input === 'string' ? input : input.url
 
-    if (token && typeof url === 'string' && url.startsWith('/api')) {
-      const initCopy = { ...init }
-      initCopy.headers = new Headers(initCopy.headers || {})
-      if (!initCopy.headers.has('Authorization')) {
-        initCopy.headers.set('Authorization', `Bearer ${token}`)
+    // Agregar token para URLs relativas /api Y URLs absolutas del túnel Cloudflare
+    if (token && typeof url === 'string') {
+      const isApiCall = url.startsWith('/api') || 
+                        url.includes('/api/') ||
+                        url.includes('trycloudflare.com/api/')
+      
+      if (isApiCall) {
+        const initCopy = { ...init }
+        initCopy.headers = new Headers(initCopy.headers || {})
+        if (!initCopy.headers.has('Authorization')) {
+          initCopy.headers.set('Authorization', `Bearer ${token}`)
+        }
+        return originalFetch(input, initCopy)
       }
-      return originalFetch(input, initCopy)
     }
   } catch (error) {
     console.warn('Error al aplicar token de autenticación global:', error)

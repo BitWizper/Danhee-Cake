@@ -201,7 +201,7 @@ const allowedOrigins = [
   'https://danhee-cake-3zzal4zyl-bitwizpers-projects.vercel.app',
   'https://danhee-cake-qvmrsik4m-bitwizpers-projects.vercel.app',
   'https://danhee-cake-3uix5gn6p-bitwizpers-projects.vercel.app',
-  // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)
+  'https://broken-defined-physiology-pirates.trycloudflare.com',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
 ];
 
@@ -210,21 +210,22 @@ const corsOptions = {
     console.log(`[CORS] Request from origin: ${origin}`);
     console.log(`[CORS] NODE_ENV: ${process.env.NODE_ENV}`);
     
-    // En desarrollo sin origin (requests directos como curl, Postman), permitir
-    if (!origin && process.env.NODE_ENV !== 'production') {
-      console.log('[CORS] No origin present in development, allowing');
-      return callback(null, true);
-    }
-    
-    // En producción sin origin (healthchecks, server-to-server), permitir
-    if (!origin && process.env.NODE_ENV === 'production') {
-      console.log('[CORS] No origin present in production (healthcheck/server-to-server), allowing');
+    // Permitir requests sin origin (curl, healthchecks, server-to-server, túnel Cloudflare)
+    // Esto es necesario porque el túnel puede no enviar header Origin en algunos casos
+    if (!origin) {
+      console.log('[CORS] No origin present, allowing (curl/healthcheck/tunnel)');
       return callback(null, true);
     }
     
     // Verificar si el origen está en la allowlist
     if (allowedOrigins.indexOf(origin) !== -1) {
       console.log(`[CORS] Origin ${origin} is allowed`);
+      return callback(null, true);
+    }
+    
+    // En desarrollo, ser más permisivo con orígenes de túneles Cloudflare
+    if (process.env.NODE_ENV !== 'production' && (origin.includes('trycloudflare.com') || origin.includes('localhost'))) {
+      console.log(`[CORS] Allowing development origin: ${origin}`);
       return callback(null, true);
     }
     
