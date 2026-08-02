@@ -215,8 +215,9 @@ export const validateJSONStructure = (obj, depth = 0, maxDepth = 10) => {
   if (obj === null || obj === undefined) return true;
 
   if (typeof obj === 'object') {
-    // Detectar propiedades peligrosas
-    if ('__proto__' in obj || 'constructor' in obj) {
+    // Detectar propiedades peligrosas - solo si están en las propias propiedades (no heredadas)
+    if (Object.prototype.hasOwnProperty.call(obj, '__proto__') ||
+        Object.prototype.hasOwnProperty.call(obj, 'constructor')) {
       console.warn('[Security] Detected prototype pollution attempt');
       return false;
     }
@@ -232,8 +233,9 @@ export const validateJSONStructure = (obj, depth = 0, maxDepth = 10) => {
     }
 
     return Object.entries(obj).every(([key, value]) => {
-      // Validar que las claves no sean peligrosas
-      if (key.startsWith('__') || key === 'constructor') {
+      // Validar que las claves no sean peligrosas (solo propiedades propias)
+      if ((key.startsWith('__') || key === 'constructor') &&
+          Object.prototype.hasOwnProperty.call(obj, key)) {
         return false;
       }
       return validateJSONStructure(value, depth + 1, maxDepth);
