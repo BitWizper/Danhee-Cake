@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { FaPaperPlane, FaRobot, FaTimes, FaMicrophone, FaMicrophoneSlash, FaEllipsisV, FaShieldAlt } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
 import { getApiUrl } from "../../config/api";
+import { addCsrfToHeaders } from "../../utils/csrfHelper";
 import {
   CHAT_SECURITY_CONFIG,
   validateMessage,
@@ -434,6 +435,8 @@ function ChatBot() {
       const fetchUrl = getApiUrl("/api/chat/stream");
       console.log("[ChatBot] Enviando stream a:", fetchUrl, "client_id:", clientId, "role:", roleToSend);
 
+      const headersWithCsrf = await addCsrfToHeaders(headers);
+
       // Construir body del request - solo incluir campos no null
       const requestBody = {
         message: trimmedMessage,
@@ -455,7 +458,7 @@ function ChatBot() {
       // Esto permite que usuarios no autenticados puedan usar el chat
       const fetchOptions = {
         method: "POST",
-        headers,
+        headers: headersWithCsrf,
         body: JSON.stringify(requestBody),
         credentials: 'include'
       };

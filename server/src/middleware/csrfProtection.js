@@ -70,7 +70,7 @@ const generateCSRFTokenMiddleware = (req, res, next) => {
   res.cookie('csrf_token', token, {
     httpOnly: false, // No httpOnly para que JavaScript pueda leerlo
     secure: isProduction,
-    sameSite: 'lax', // Cambiado de 'strict' a 'lax' para permitir cross-origin
+    sameSite: isProduction ? 'none' : 'lax', // cross-site POST requiere SameSite=None en producción
     path: '/',
     maxAge: 24 * 60 * 60 * 1000 // 24 horas
   });
@@ -90,10 +90,11 @@ const csrfTokenGenerator = (req, res, next) => {
   console.log('[CSRF] Origin:', req.headers.origin);
   console.log('[CSRF] Referer:', req.headers.referer);
   
+  const isProduction = process.env.NODE_ENV === 'production';
   res.cookie('csrf_token', token, {
     httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax', // Cambiado de 'strict' a 'lax' para permitir cross-origin
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     path: '/',
     maxAge: 24 * 60 * 60 * 1000
   });
