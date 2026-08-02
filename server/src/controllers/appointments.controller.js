@@ -72,29 +72,40 @@ exports.create = async (req, res, next) => {
   }
 
   try {
-    // Verificar solapamiento de citas para el mismo repostero en la misma fecha y hora
-    const [existingAppointments] = await db.execute(
-      'SELECT id FROM appointments WHERE baker_id = ? AND date = ? AND time_slot = ? AND status != ?',
-      [sanitizedBakerId, normalizedDate, sanitizedTimeSlot, 'cancelled']
-    );
+    // Iniciar transacción para prevenir race condition
+    await db.execute('START TRANSACTION');
 
-    if (existingAppointments.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'El repostero ya tiene una cita agendada en esta fecha y hora. Por favor, selecciona otro horario.'
+    try {
+      // Verificar solapamiento de citas con bloqueo FOR UPDATE para prevenir race condition
+      const [existingAppointments] = await db.execute(
+        'SELECT id FROM appointments WHERE baker_id = ? AND date = ? AND time_slot = ? AND status != ? FOR UPDATE',
+        [sanitizedBakerId, normalizedDate, sanitizedTimeSlot, 'cancelled']
+      );
+
+      if (existingAppointments.length > 0) {
+        await db.execute('ROLLBACK');
+        return res.status(409).json({
+          success: false,
+          message: 'El repostero ya tiene una cita agendada en esta fecha y hora. Por favor, selecciona otro horario.'
+        });
+      }
+
+      const [result] = await db.execute(
+        'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
+        [client_id, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
+      );
+
+      await db.execute('COMMIT');
+
+      res.status(201).json({
+        success: true,
+        message: 'Cita solicitada exitosamente.',
+        data: { id: result.insertId }
       });
+    } catch (transactionErr) {
+      await db.execute('ROLLBACK');
+      throw transactionErr;
     }
-
-    const [result] = await db.execute(
-      'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [client_id, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
-    );
-
-    res.status(201).json({
-      success: true,
-      message: 'Cita solicitada exitosamente.',
-      data: { id: result.insertId }
-    });
   } catch (err) {
     console.error('[Appointment] Error en create:', err);
     next(err);
@@ -153,37 +164,48 @@ exports.createInternal = async (req, res, next) => {
   console.log(`   Notas: ${sanitizedNotes || 'Sin notas'}`);
 
   try {
-    // Verificar solapamiento de citas para el mismo repostero en la misma fecha y hora
-    const [existingAppointments] = await db.execute(
-      'SELECT id FROM appointments WHERE baker_id = ? AND date = ? AND time_slot = ? AND status != ?',
-      [sanitizedBakerId, normalizedDate, sanitizedTimeSlot, 'cancelled']
-    );
+    // Iniciar transacción para prevenir race condition
+    await db.execute('START TRANSACTION');
 
-    if (existingAppointments.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'El repostero ya tiene una cita agendada en esta fecha y hora. Por favor, selecciona otro horario.'
-      });
-    }
+    try {
+      // Verificar solapamiento de citas con bloqueo FOR UPDATE para prevenir race condition
+      const [existingAppointments] = await db.execute(
+        'SELECT id FROM appointments WHERE baker_id = ? AND date = ? AND time_slot = ? AND status != ? FOR UPDATE',
+        [sanitizedBakerId, normalizedDate, sanitizedTimeSlot, 'cancelled']
+      );
 
-    const [result] = await db.execute(
-      'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [sanitizedClientId, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
-    );
-
-    console.log(`[Appointment] ✅ Cita creada exitosamente con ID: ${result.insertId}`);
-
-    return res.status(201).json({
-      success: true,
-      message: 'Cita agendada exitosamente desde el chatbot.',
-      data: {
-        id: result.insertId,
-        client_id: sanitizedClientId,
-        baker_id: sanitizedBakerId,
-        date: sanitizedDate,
-        time_slot: sanitizedTimeSlot
+      if (existingAppointments.length > 0) {
+        await db.execute('ROLLBACK');
+        return res.status(409).json({
+          success: false,
+          message: 'El repostero ya tiene una cita agendada en esta fecha y hora. Por favor, selecciona otro horario.'
+        });
       }
-    });
+
+      const [result] = await db.execute(
+        'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
+        [sanitizedClientId, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
+      );
+
+      await db.execute('COMMIT');
+
+      console.log(`[Appointment] ✅ Cita creada exitosamente con ID: ${result.insertId}`);
+
+      return res.status(201).json({
+        success: true,
+        message: 'Cita agendada exitosamente desde el chatbot.',
+        data: {
+          id: result.insertId,
+          client_id: sanitizedClientId,
+          baker_id: sanitizedBakerId,
+          date: sanitizedDate,
+          time_slot: sanitizedTimeSlot
+        }
+      });
+    } catch (transactionErr) {
+      await db.execute('ROLLBACK');
+      throw transactionErr;
+    }
   } catch (err) {
     console.error('[Appointment] ❌ Error creando cita interna:', err);
     next(err);
@@ -243,52 +265,63 @@ exports.createGuest = async (req, res, next) => {
   console.log(`   Notas: ${sanitizedNotes || 'Sin notas'}`);
 
   try {
-    // Verificar solapamiento de citas para el mismo repostero en la misma fecha y hora
-    const [existingAppointments] = await db.execute(
-      'SELECT id FROM appointments WHERE baker_id = ? AND date = ? AND time_slot = ? AND status != ?',
-      [sanitizedBakerId, normalizedDate, sanitizedTimeSlot, 'cancelled']
-    );
+    // Iniciar transacción para prevenir race condition
+    await db.execute('START TRANSACTION');
 
-    if (existingAppointments.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'El repostero ya tiene una cita agendada en esta fecha y hora. Por favor, selecciona otro horario.'
-      });
-    }
-
-    // Si hay usuario autenticado, usar su ID; si no, crear usuario temporal
-    let finalClientId;
-    if (authenticatedUserId) {
-      finalClientId = authenticatedUserId;
-      console.log(`[Appointment] ✅ Usando ID de usuario autenticado: ${finalClientId}`);
-    } else {
-      // Crear un usuario temporal de tipo invitado para mantener la integridad referencial
-      const guestEmail = `guest-${Date.now()}-${crypto.randomBytes(4).toString('hex')}@local.invalid`;
-      const guestPassword = `Guest${Date.now()}A1!`;
-      const guestName = 'Invitado';
-      const hashedGuestPassword = await bcrypt.hash(guestPassword, 10);
-
-      const [guestUser] = await db.execute(
-        'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
-        [guestName, guestEmail, hashedGuestPassword, 'cliente']
+    try {
+      // Verificar solapamiento de citas con bloqueo FOR UPDATE para prevenir race condition
+      const [existingAppointments] = await db.execute(
+        'SELECT id FROM appointments WHERE baker_id = ? AND date = ? AND time_slot = ? AND status != ? FOR UPDATE',
+        [sanitizedBakerId, normalizedDate, sanitizedTimeSlot, 'cancelled']
       );
 
-      finalClientId = guestUser.insertId;
-      console.log(`[Appointment] ✅ Creado cliente temporal: ${finalClientId}`);
+      if (existingAppointments.length > 0) {
+        await db.execute('ROLLBACK');
+        return res.status(409).json({
+          success: false,
+          message: 'El repostero ya tiene una cita agendada en esta fecha y hora. Por favor, selecciona otro horario.'
+        });
+      }
+
+      // Si hay usuario autenticado, usar su ID; si no, crear usuario temporal
+      let finalClientId;
+      if (authenticatedUserId) {
+        finalClientId = authenticatedUserId;
+        console.log(`[Appointment] ✅ Usando ID de usuario autenticado: ${finalClientId}`);
+      } else {
+        // Crear un usuario temporal de tipo invitado para mantener la integridad referencial
+        const guestEmail = `guest-${Date.now()}-${crypto.randomBytes(4).toString('hex')}@local.invalid`;
+        const guestPassword = `Guest${Date.now()}A1!`;
+        const guestName = 'Invitado';
+        const hashedGuestPassword = await bcrypt.hash(guestPassword, 10);
+
+        const [guestUser] = await db.execute(
+          'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
+          [guestName, guestEmail, hashedGuestPassword, 'cliente']
+        );
+
+        finalClientId = guestUser.insertId;
+        console.log(`[Appointment] ✅ Creado cliente temporal: ${finalClientId}`);
+      }
+
+      const [result] = await db.execute(
+        'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
+        [finalClientId, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
+      );
+
+      await db.execute('COMMIT');
+
+      console.log(`[Appointment] ✅ Solicitud guest creada con ID: ${result.insertId} para cliente ${finalClientId}`);
+
+      return res.status(201).json({
+        success: true,
+        message: 'Solicitud de cita recibida. Te contactaremos pronto para confirmar.',
+        data: { id: result.insertId, client_id: finalClientId }
+      });
+    } catch (transactionErr) {
+      await db.execute('ROLLBACK');
+      throw transactionErr;
     }
-
-    const [result] = await db.execute(
-      'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [finalClientId, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
-    );
-
-    console.log(`[Appointment] ✅ Solicitud guest creada con ID: ${result.insertId} para cliente ${finalClientId}`);
-
-    return res.status(201).json({
-      success: true,
-      message: 'Solicitud de cita recibida. Te contactaremos pronto para confirmar.',
-      data: { id: result.insertId, client_id: finalClientId }
-    });
   } catch (err) {
     console.error('[Appointment] ❌ Error creando cita guest:', err);
     next(err);
