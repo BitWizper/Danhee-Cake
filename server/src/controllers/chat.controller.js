@@ -82,9 +82,12 @@ const askChatbot = async (req, res) => {
   }
 
   try {
-    const ragUrl = process.env.RAG_SERVICE_URL;
+    const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
     const conversationId = req.body.conversation_id || `conv_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     
+    if (!process.env.RAG_SERVICE_URL) {
+      console.warn('[Chat DEBUG] RAG_SERVICE_URL no está configurado; usando fallback http://rag-service:5001');
+    }
     console.log(`[Chat DEBUG] Conectando a RAG service: ${ragUrl}/chat`);
     const response = await fetch(`${ragUrl}/chat`, {
       method: "POST",
@@ -167,7 +170,10 @@ const getChatHistory = async (req, res) => {
   }
 
   try {
-    const ragUrl = process.env.RAG_SERVICE_URL;
+    const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
+    if (!process.env.RAG_SERVICE_URL) {
+      console.warn('[Chat DEBUG] RAG_SERVICE_URL no está configurado; usando fallback http://rag-service:5001');
+    }
     let response;
     
     if (sanitizedConversationId) {
@@ -285,9 +291,12 @@ const streamChatbot = async (req, res) => {
   }, 30000);
 
   try {
-    const ragUrl = process.env.RAG_SERVICE_URL;
+    const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
     const conversationId = sanitizedConversationId || `conv_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     
+    if (!process.env.RAG_SERVICE_URL) {
+      console.warn('[Node Stream] RAG_SERVICE_URL no está configurado; usando fallback http://rag-service:5001');
+    }
     // TEMPORALMENTE: Si no hay RAG service, responder con mensaje de error amigable
     if (!ragUrl) {
       console.warn("[Node Stream] RAG_SERVICE_URL no configurado, respondiendo con mensaje de servicio no disponible");
@@ -408,7 +417,10 @@ const deleteChatHistory = async (req, res) => {
   }
 
   try {
-    const ragUrl = process.env.RAG_SERVICE_URL;
+    const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
+    if (!process.env.RAG_SERVICE_URL) {
+      console.warn('[Chat DEBUG] RAG_SERVICE_URL no está configurado; usando fallback http://rag-service:5001');
+    }
     const response = await fetch(`${ragUrl}/chat/${sanitizedConversationId}?client_id=${sanitizedClientId}`, {
       method: "DELETE",
       headers: { 
