@@ -35,7 +35,7 @@ const BAKER_WELCOME_MESSAGE = {
 };
 
 function ChatBot() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -128,7 +128,6 @@ function ChatBot() {
 
     const conversation_id = localStorage.getItem("conversation_id");
     const clientId = user?.id != null ? user.id : null;
-    const token = localStorage.getItem("token");
 
     if (conversation_id && !isValidConversationId(conversation_id)) {
       localStorage.removeItem("conversation_id");
@@ -263,8 +262,6 @@ function ChatBot() {
     try {
       if (!user?.id) return;
 
-      // Usar localStorage como fallback porque las cookies httpOnly no pueden ser leídas por JS
-      const token = localStorage.getItem("token");
       const headers = {};
       if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -388,7 +385,6 @@ function ChatBot() {
     setLoadingState({ status: "thinking", message: "Conectando con el asistente..." });
 
     try {
-      const token = localStorage.getItem("token");
       const rawConvId = localStorage.getItem("conversation_id");
       const conversation_id = isValidConversationId(rawConvId) ? rawConvId : null;
 

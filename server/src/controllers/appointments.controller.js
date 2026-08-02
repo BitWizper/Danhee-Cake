@@ -49,6 +49,19 @@ exports.create = async (req, res, next) => {
   }
 
   try {
+    // Verificar solapamiento de citas para el mismo repostero en la misma fecha y hora
+    const [existingAppointments] = await db.execute(
+      'SELECT id FROM appointments WHERE baker_id = ? AND date = ? AND time_slot = ? AND status != ?',
+      [sanitizedBakerId, normalizedDate, sanitizedTimeSlot, 'cancelled']
+    );
+
+    if (existingAppointments.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'El repostero ya tiene una cita agendada en esta fecha y hora. Por favor, selecciona otro horario.'
+      });
+    }
+
     const [result] = await db.execute(
       'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
       [client_id, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
@@ -117,6 +130,19 @@ exports.createInternal = async (req, res, next) => {
   console.log(`   Notas: ${sanitizedNotes || 'Sin notas'}`);
 
   try {
+    // Verificar solapamiento de citas para el mismo repostero en la misma fecha y hora
+    const [existingAppointments] = await db.execute(
+      'SELECT id FROM appointments WHERE baker_id = ? AND date = ? AND time_slot = ? AND status != ?',
+      [sanitizedBakerId, normalizedDate, sanitizedTimeSlot, 'cancelled']
+    );
+
+    if (existingAppointments.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'El repostero ya tiene una cita agendada en esta fecha y hora. Por favor, selecciona otro horario.'
+      });
+    }
+
     const [result] = await db.execute(
       'INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status) VALUES (?, ?, ?, ?, ?, ?)',
       [sanitizedClientId, sanitizedBakerId, normalizedDate, sanitizedTimeSlot, sanitizedNotes || null, 'pending']
@@ -177,6 +203,19 @@ exports.createGuest = async (req, res, next) => {
   console.log(`   Notas: ${sanitizedNotes || 'Sin notas'}`);
 
   try {
+    // Verificar solapamiento de citas para el mismo repostero en la misma fecha y hora
+    const [existingAppointments] = await db.execute(
+      'SELECT id FROM appointments WHERE baker_id = ? AND date = ? AND time_slot = ? AND status != ?',
+      [sanitizedBakerId, normalizedDate, sanitizedTimeSlot, 'cancelled']
+    );
+
+    if (existingAppointments.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'El repostero ya tiene una cita agendada en esta fecha y hora. Por favor, selecciona otro horario.'
+      });
+    }
+
     // Crear un usuario temporal de tipo invitado para mantener la integridad referencial
     const guestEmail = `guest-${Date.now()}-${Math.floor(Math.random() * 10000)}@local.invalid`;
     const guestPassword = `Guest${Date.now()}A1!`;

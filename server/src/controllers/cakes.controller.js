@@ -21,8 +21,14 @@ const normalizeImageUrl = (imageUrl) => {
   // Generar token temporal firmado para acceso seguro a la imagen
   const timestamp = Date.now() + (3600 * 1000); // Token válido por 1 hora
   const tokenData = `${filename}|${timestamp}`;
+  
+  if (!process.env.JWT_SECRET) {
+    console.error('[Security] JWT_SECRET no está definido para generar token de imagen');
+    throw new Error('JWT_SECRET no está definido');
+  }
+  
   const signature = crypto
-    .createHmac('sha256', process.env.JWT_SECRET || 'default-secret')
+    .createHmac('sha256', process.env.JWT_SECRET)
     .update(tokenData)
     .digest('hex');
   

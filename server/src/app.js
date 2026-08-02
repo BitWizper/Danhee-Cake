@@ -333,8 +333,14 @@ app.get('/api/images/:filename', (req, res) => {
   
   // Validar la firma del token
   const tokenData = `${filename}|${expires}`;
+  
+  if (!process.env.JWT_SECRET) {
+    console.error('[Security] JWT_SECRET no está definido para validar token de imagen');
+    return res.status(500).json({ success: false, message: 'Error de configuración del servidor' });
+  }
+  
   const expectedSignature = crypto
-    .createHmac('sha256', process.env.JWT_SECRET || 'default-secret')
+    .createHmac('sha256', process.env.JWT_SECRET)
     .update(tokenData)
     .digest('hex');
   

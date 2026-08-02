@@ -58,6 +58,7 @@ async function agregarNuevoPastel(nombre, descripcion, precio, categoriaId, isFe
     
     const clientId = getCurrentClientId();
     if (!clientId) {
+        console.error('[Security] Intento de agregar pastel sin user_id verificado del JWT');
         return { mensaje: 'No has iniciado sesión como repostero. Por favor inicia sesión para agregar pasteles.' };
     }
     
