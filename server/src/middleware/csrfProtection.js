@@ -18,6 +18,12 @@ const csrfProtection = (req, res, next) => {
     return next();
   }
 
+  // En desarrollo, desactivar CSRF para facilitar las pruebas
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[CSRF] CSRF protection disabled in development');
+    return next();
+  }
+
   // Obtener token del header o del body
   const csrfTokenFromHeader = req.headers['x-csrf-token'];
   const csrfTokenFromBody = req.body?.csrf_token;
@@ -26,6 +32,7 @@ const csrfProtection = (req, res, next) => {
   const providedToken = csrfTokenFromHeader || csrfTokenFromBody || csrfTokenFromCookie;
 
   if (!providedToken) {
+    console.log('[CSRF] No CSRF token provided');
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_MISSING',
@@ -36,6 +43,7 @@ const csrfProtection = (req, res, next) => {
   // Verificar token (en producción verificar contra token almacenado por sesión)
   // Por ahora, usamos una validación simple basada en cookie
   if (csrfTokenFromCookie && providedToken !== csrfTokenFromCookie) {
+    console.log('[CSRF] CSRF token mismatch');
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_INVALID',
@@ -43,6 +51,7 @@ const csrfProtection = (req, res, next) => {
     });
   }
 
+  console.log('[CSRF] Token validated successfully');
   next();
 };
 

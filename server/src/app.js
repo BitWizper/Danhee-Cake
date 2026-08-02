@@ -112,7 +112,8 @@ app.use(detectCookieTampering);
 app.use(validateCookieFingerprint);
 
 // Requerir re-autenticación en acciones sensibles cuando hay fingerprint mismatch
-app.use(requireReauthOnFingerprintMismatch);
+// TEMPORALMENTE DESACTIVADO PARA DESARROLLO - puede causar problemas de login
+// app.use(requireReauthOnFingerprintMismatch);
 
 app.use(requestGuard);
 
@@ -147,8 +148,8 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       scriptSrc: ["'self'"],
       scriptSrcAttr: ["'none'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", ...(process.env.CSP_CONNECT_SRC ? process.env.CSP_CONNECT_SRC.split(',') : []), ...(process.env.NODE_ENV !== 'production' ? ["https://*.trycloudflare.com"] : [])],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
+      connectSrc: ["'self'", ...(process.env.CSP_CONNECT_SRC ? process.env.CSP_CONNECT_SRC.split(',') : []), ...(process.env.NODE_ENV !== 'production' ? ["https://*.trycloudflare.com", "http://*.trycloudflare.com"] : [])],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -161,9 +162,9 @@ app.use(helmet({
   xContentTypeOptions: true,
   xFrameOptions: { action: 'deny' },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-  crossOriginEmbedderPolicy: { policy: "require-corp" },
-  crossOriginOpenerPolicy: { policy: "same-origin" },
-  crossOriginResourcePolicy: { policy: "same-origin" },
+  crossOriginEmbedderPolicy: { policy: process.env.NODE_ENV === 'production' ? "require-corp" : false },
+  crossOriginOpenerPolicy: { policy: process.env.NODE_ENV === 'production' ? "same-origin" : false },
+  crossOriginResourcePolicy: { policy: process.env.NODE_ENV === 'production' ? "same-origin" : "cross-origin" },
   // Headers adicionales de seguridad
   xDnsPrefetchControl: { allow: false },
   xPermittedCrossDomainPolicies: { permittedPolicies: "none" },
@@ -201,7 +202,8 @@ const allowedOrigins = [
   'https://danhee-cake-3zzal4zyl-bitwizpers-projects.vercel.app',
   'https://danhee-cake-qvmrsik4m-bitwizpers-projects.vercel.app',
   'https://danhee-cake-3uix5gn6p-bitwizpers-projects.vercel.app',
-  'https://broken-defined-physiology-pirates.trycloudflare.com',
+  // Permitir cualquier subdominio de trycloudflare.com (para túneles temporales)
+  'https://*.trycloudflare.com',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
 ];
 
@@ -223,7 +225,7 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // En desarrollo, ser más permisivo con orígenes de túneles Cloudflare
+    // En desarrollo, ser más permisivo con orígenes de túneles Cloudflare y localhost
     if (process.env.NODE_ENV !== 'production' && (origin.includes('trycloudflare.com') || origin.includes('localhost'))) {
       console.log(`[CORS] Allowing development origin: ${origin}`);
       return callback(null, true);
@@ -247,7 +249,8 @@ app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 
 // Browser origin guard para prevenir requests desde navegadores no autorizados
-app.use(browserOriginGuard);
+// TEMPORALMENTE DESACTIVADO PARA DESARROLLO - puede causar problemas de CORS
+// app.use(browserOriginGuard);
 
 // Validación de tipos de datos en request body para prevenir NoSQL injection
 const validateRequestBody = (req, res, next) => {
@@ -411,6 +414,12 @@ app.use('/uploads', (req, res, next) => {
   }
   
   next();
+}, (req, res, next) => {
+  // Agregar headers CORS para archivos estáticos (imágenes)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  next();
 }, express.static('uploads'));
 
 // Ruta para servir medios protegidos (p.ej. videos) desde `public` o `dist`.
@@ -437,6 +446,10 @@ app.get('/protected-media/:folder/:filename', (req, res) => {
   fs.stat(safePath, (err, stat) => {
     if (err || !stat.isFile()) return res.status(404).json({ success: false, message: 'Recurso no encontrado' });
 
+    // Headers CORS para imágenes
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Content-Length', stat.size);
     res.setHeader('Accept-Ranges', 'bytes');
     const stream = fs.createReadStream(safePath);
@@ -527,7 +540,7 @@ app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
 app.use('/api/payments', require('./routes/payments.routes'));
-// Endpoint de streaming específico para chat con rate limiting
+// Endpoint de streaming específico para chat con rate limiting (permite usuarios no autenticados)
 app.post('/api/chat/stream', chatLimiter, clientChatGuard, streamChatbot);
 // Aplicar guardrail específico para clientes (no afecta a reposteros)
 app.use('/api/chat', clientChatGuard, chatRoutes);

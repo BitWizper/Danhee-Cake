@@ -44,15 +44,23 @@ const askChatbot = async (req, res) => {
   console.log(`[Chat DEBUG] Recibida solicitud - message: ${sanitizedMessage}`);
 
   // ── Detectar si el usuario está logueado ──────────────────────────────────
-  // Si hay un JWT válido en el header Authorization, extraemos el client_id
+  // Si hay un JWT válido en el header Authorization o cookie, extraemos el client_id
   // para que el chatbot pueda agendar citas reales. Si no, client_id = null.
   let client_id = null;
   let role = null;
   const authHeader = req.headers['authorization'];
+  const cookieToken = req.cookies?.access_token;
 
+  // Prioridad: header Authorization > cookie
+  let token = null;
   if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7);
+  } else if (cookieToken) {
+    token = cookieToken;
+  }
+
+  if (token) {
     try {
-      const token = authHeader.slice(7);
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       client_id = decoded.id || decoded.userId || null;
       role = decoded.role || null;
@@ -220,10 +228,18 @@ const streamChatbot = async (req, res) => {
   let client_id = null;
   let role = null;
   const authHeader = req.headers['authorization'];
+  const cookieToken = req.cookies?.access_token;
 
+  // Prioridad: header Authorization > cookie
+  let token = null;
   if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7);
+  } else if (cookieToken) {
+    token = cookieToken;
+  }
+
+  if (token) {
     try {
-      const token = authHeader.slice(7);
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       client_id = decoded.id || decoded.userId || null;
       role = decoded.role || null;
@@ -233,11 +249,14 @@ const streamChatbot = async (req, res) => {
           role = null;
         }
       }
+      console.log(`[Chat Stream] Usuario autenticado: ID=${client_id}, Rol=${role}`);
     } catch (error) {
       console.log(`[Chat Stream] Token inválido o expirado, continuando como invitado`);
       client_id = null;
       role = null;
     }
+  } else {
+    console.log(`[Chat Stream] No hay token, usuario invitado`);
   }
 
   // Configurar cabeceras de Server-Sent Events (SSE)

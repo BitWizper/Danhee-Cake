@@ -451,18 +451,14 @@ function ChatBot() {
         requestBody.role = roleToSend;
       }
 
-      // Solo enviar credentials: 'include' si hay autenticación
-      // Esto previene errores CORS cuando el usuario no está autenticado
+      // Siempre enviar credentials: 'include' para permitir que el backend lea cookies httpOnly
+      // Esto permite que usuarios no autenticados puedan usar el chat
       const fetchOptions = {
         method: "POST",
         headers,
         body: JSON.stringify(requestBody),
+        credentials: 'include'
       };
-
-      // Agregar credentials solo si el usuario está autenticado
-      if (token || user) {
-        fetchOptions.credentials = 'include';
-      }
 
       const res = await fetch(fetchUrl, fetchOptions);
 
