@@ -434,18 +434,29 @@ function ChatBot() {
       const fetchUrl = getApiUrl("/api/chat/stream");
       console.log("[ChatBot] Enviando stream a:", fetchUrl, "client_id:", clientId, "role:", roleToSend);
 
+      // Construir body del request - solo incluir campos no null
+      const requestBody = {
+        message: trimmedMessage,
+        client_datetime: new Date().toISOString(),
+      };
+
+      // Solo agregar campos opcionales si tienen valores válidos
+      if (conversation_id) {
+        requestBody.conversation_id = conversation_id;
+      }
+      if (clientId) {
+        requestBody.client_id = clientId;
+      }
+      if (roleToSend) {
+        requestBody.role = roleToSend;
+      }
+
       // Solo enviar credentials: 'include' si hay autenticación
       // Esto previene errores CORS cuando el usuario no está autenticado
       const fetchOptions = {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          message: trimmedMessage,
-          conversation_id,
-          client_id: clientId,
-          role: roleToSend,
-          client_datetime: new Date().toISOString(),
-        }),
+        body: JSON.stringify(requestBody),
       };
 
       // Agregar credentials solo si el usuario está autenticado
