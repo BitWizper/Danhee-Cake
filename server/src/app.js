@@ -558,12 +558,16 @@ app.get('/api/admin/security-stats', authMiddleware, authorize('admin'), (req, r
 });
 
 app.get('/health', (req, res) => {
+  // No exponer información sensible en producción
+  const isProduction = process.env.NODE_ENV === 'production';
   res.json({
     success: true,
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
-    version: rootPackage?.version || 'unknown',
-    timestamp: new Date().toISOString()
+    ...(isProduction ? {} : {
+      environment: process.env.NODE_ENV || 'development',
+      version: rootPackage?.version || 'unknown',
+      timestamp: new Date().toISOString()
+    })
   });
 });
 
@@ -590,16 +594,21 @@ app.get('/.well-known/security.txt', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
+  // No exponer información sensible en producción
+  const isProduction = process.env.NODE_ENV === 'production';
   res.json({
     success: true,
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
-    version: rootPackage?.version || 'unknown',
-    timestamp: new Date().toISOString()
+    ...(isProduction ? {} : {
+      environment: process.env.NODE_ENV || 'development',
+      version: rootPackage?.version || 'unknown',
+      timestamp: new Date().toISOString()
+    })
   });
 });
 
 app.get('/api/security/alerts', authMiddleware, authorize('admin'), (req, res) => {
+  // getSecuritySummary ya ofusca IPs automáticamente (obfuscateIP)
   res.json({
     success: true,
     data: getSecuritySummary()

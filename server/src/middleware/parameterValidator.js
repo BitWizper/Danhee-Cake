@@ -84,8 +84,18 @@ const validateAllParameters = (req, res, next) => {
   const mutatingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
   const isMutatingRequest = mutatingMethods.includes(req.method?.toUpperCase());
 
-  // Validar parámetros query
+  // Validar parámetros query - rechazar arrays en parámetros numéricos
   for (const [key, value] of Object.entries(req.query || {})) {
+    // Rechazar arrays en parámetros que deberían ser escalares (fix para bypass offset[])
+    if (Array.isArray(value)) {
+      console.log(`[SECURITY] Array detectado en parámetro query: ${key} - rechazando para prevenir bypass`);
+      return res.status(400).json({
+        success: false,
+        error_code: 'INVALID_PARAMETER',
+        message: 'Parámetro inválido. Los arrays no están permitidos en este parámetro.'
+      });
+    }
+
     if (isDangerousValue(value, `query.${key}`)) {
       console.log(`[SECURITY] Parámetro peligroso detectado en query: ${key}=${value}`);
       return res.status(400).json({
