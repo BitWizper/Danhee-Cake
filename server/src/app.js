@@ -242,10 +242,18 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token'],
   exposedHeaders: ['Content-Length', 'Content-Type', 'Set-Cookie'],
   maxAge: 86400, // 24 horas de caché para preflight requests
-  optionsSuccessStatus: 204 // Responder con 204 para OPTIONS exitosos
+  optionsSuccessStatus: 204, // Responder con 204 para OPTIONS exitosos
+  // Asegurar que Access-Control-Allow-Credentials se envíe siempre
+  preflightContinue: false
 };
 
 app.use(cors(corsOptions));
+
+// Middleware manual para asegurar que OPTIONS preflight envíen credentials header
+app.options(/.*/, (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  next();
+});
 app.options(/.*/, cors(corsOptions));
 
 // Browser origin guard para prevenir requests desde navegadores no autorizados
