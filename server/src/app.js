@@ -349,7 +349,21 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Protección CSRF para las rutas API que modifican estado
-app.use('/api', csrfProtection);
+// Excluir endpoints públicos que usuarios no autenticados necesitan acceder
+app.use('/api', (req, res, next) => {
+  const publicPaths = [
+    '/chat/stream',
+    '/auth/login',
+    '/auth/register',
+    '/auth/refresh',
+    '/auth/csrf-token'
+  ];
+  
+  if (publicPaths.some(path => req.path === path)) {
+    return next(); // Saltar CSRF protection para endpoints públicos
+  }
+  return csrfProtection(req, res, next);
+});
 
 // Endpoint seguro para servir imágenes con token temporal
 app.get('/api/images/:filename', (req, res) => {
