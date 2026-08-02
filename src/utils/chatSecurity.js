@@ -132,26 +132,25 @@ export const isValidConversationId = (id) => {
 };
 
 export const isValidSSEEvent = (data) => {
-  // TEMPORALMENTE: Desactivar validaciones estrictas para debug
   if (!data || typeof data !== 'object') return false;
   
-  // Si el tipo no está definido, pero tiene contenido, permitirlo (permisivo para debug)
-  if (!data.type && (data.content || data.response || data.conversation_id)) {
-    console.warn('[Security] Evento SSE sin tipo, pero con contenido válido - permitiendo:', data);
-    return true;
+  // Validar estructura contra prototype pollution
+  if (!validateJSONStructure(data)) {
+    console.warn('[Security] SSE event failed structure validation');
+    return false;
   }
   
-  // Si el tipo no está en la lista, pero parece ser un evento de respuesta, permitirlo
+  // El tipo es obligatorio
+  if (!data.type) {
+    console.warn('[Security] Evento SSE sin tipo - rechazando');
+    return false;
+  }
+  
+  // Solo permitir tipos reconocidos
   if (!VALID_SSE_TYPES.has(data.type)) {
-    console.warn('[Security] Tipo de evento SSE no reconocido:', data.type, '- permitiendo por compatibilidad');
-    return true;
+    console.warn('[Security] Tipo de evento SSE no reconocido:', data.type, '- rechazando');
+    return false;
   }
-  
-  // Validar estructura contra prototype pollution - DESACTIVADO TEMPORALMENTE
-  // if (!validateJSONStructure(data)) {
-  //   console.warn('[Security] SSE event failed structure validation');
-  //   return false;
-  // }
   
   if (data.type === 'conversation_id' && typeof data.conversation_id !== 'string') return false;
   if (data.type === 'token' && typeof data.content !== 'string') return false;

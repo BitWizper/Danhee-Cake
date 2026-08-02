@@ -5,7 +5,7 @@ const handleValidationErrors = require('../middleware/validationHandler');
 const { authMiddleware } = require('../middleware/auth');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 const { chatAbuseGuard } = require('../middleware/chatAbuseGuard');
-const { chatLimiter } = require('../middleware/rateLimiter');
+const { chatLimiter, ipBlocker, writeLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
@@ -46,6 +46,7 @@ const validateHistoryParams = [
 
 router.post("/",
   authMiddleware,
+  ipBlocker,
   chatLimiter,
   chatAbuseGuard,
   validateAllParameters,
@@ -56,6 +57,7 @@ router.post("/",
 
 router.get("/history",
   authMiddleware,
+  ipBlocker,
   validateAllParameters,
   validateHistoryParams,
   handleValidationErrors,
@@ -64,6 +66,8 @@ router.get("/history",
 
 router.delete("/history",
   authMiddleware,
+  ipBlocker,
+  writeLimiter,
   validateAllParameters,
   handleValidationErrors,
   deleteChatHistory

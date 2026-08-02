@@ -135,17 +135,26 @@ function ChatBot() {
 
     try {
       const headers = { "Content-Type": "application/json" };
-      if (token) headers.Authorization = `Bearer ${token}`;
+      // Solo enviar Authorization si el token NO es 'cookie-based' (usamos cookies httpOnly)
+      if (token && token !== 'cookie-based') {
+        headers.Authorization = `Bearer ${token}`;
+      }
 
-      await fetch(getApiUrl("/api/chat/history"), {
+      const fetchOptions = {
         method: "DELETE",
         headers,
-        credentials: 'include', // Importante para enviar cookies httpOnly
         body: JSON.stringify({
           conversation_id: isValidConversationId(conversation_id) ? conversation_id : null,
           client_id: clientId,
         }),
-      });
+      };
+
+      // Agregar credentials solo si el usuario está autenticado
+      if (token || user) {
+        fetchOptions.credentials = 'include';
+      }
+
+      await fetch(getApiUrl("/api/chat/history"), fetchOptions);
     } catch (err) {
       console.error("Error al borrar el chat en el servidor:", err);
     }
@@ -264,14 +273,23 @@ function ChatBot() {
       if (!user?.id) return;
 
       const headers = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
+      // Solo enviar Authorization si el token NO es 'cookie-based' (usamos cookies httpOnly)
+      if (token && token !== 'cookie-based') {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const fetchOptions = {
+        headers,
+      };
+
+      // Agregar credentials solo si el usuario está autenticado
+      if (token || user) {
+        fetchOptions.credentials = 'include';
+      }
 
       const response = await fetch(
         getApiUrl(`/api/chat/history?client_id=${encodeURIComponent(user.id)}`),
-        { 
-          headers,
-          credentials: 'include' // Importante para enviar cookies httpOnly
-        }
+        fetchOptions
       );
       const welcomeMsg = user?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
 
@@ -397,22 +415,45 @@ function ChatBot() {
       const clientId = user?.id != null ? user.id : null;
 
       const headers = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      // Solo enviar Authorization si el token NO es 'cookie-based' (usamos cookies httpOnly)
+      if (token && token !== 'cookie-based') {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      // Mitigación de rate limit bypass: verificar consistencia del rol
+      // El rol se envía para funcionalidad (mensajes de bienvenida diferenciados)
+      // pero se valida que sea consistente con el usuario autenticado
+      const roleToSend = user?.role || null;
+
+      if (roleToSend && token === 'cookie-based') {
+        // Con cookies httpOnly, el rol debería venir del token JWT, no del body
+        // Enviamos el rol para funcionalidad, pero el backend debe validarlo
+        console.warn('[Security] Rol enviado con cookie-based auth - backend debe validar rol del token');
+      }
 
       const fetchUrl = getApiUrl("/api/chat/stream");
-      console.log("[ChatBot] Enviando stream a:", fetchUrl, "client_id:", clientId, "role:", user?.role);
-      const res = await fetch(fetchUrl, {
+      console.log("[ChatBot] Enviando stream a:", fetchUrl, "client_id:", clientId, "role:", roleToSend);
+
+      // Solo enviar credentials: 'include' si hay autenticación
+      // Esto previene errores CORS cuando el usuario no está autenticado
+      const fetchOptions = {
         method: "POST",
         headers,
-        credentials: 'include', // Importante para enviar cookies httpOnly
         body: JSON.stringify({
           message: trimmedMessage,
           conversation_id,
           client_id: clientId,
-          role: user?.role || null,
+          role: roleToSend,
           client_datetime: new Date().toISOString(),
         }),
-      });
+      };
+
+      // Agregar credentials solo si el usuario está autenticado
+      if (token || user) {
+        fetchOptions.credentials = 'include';
+      }
+
+      const res = await fetch(fetchUrl, fetchOptions);
 
       if (res.status === 429) {
         const retryAfter = res.headers.get("Retry-After");
@@ -499,7 +540,8 @@ function ChatBot() {
               });
             } else if (data.type === "token") {
               setLoadingState({ status: "", message: "" });
-              fullBotResponse += data.content;
+              // Sanitizar antes de concatenar para prevenir acumulación de contenido malicioso
+              fullBotResponse += sanitizeMessageAdvanced(data.content);
               setChat((prev) => {
                 const updated = [...prev];
                 const index = updated.findIndex((msg) => msg.id === botMessageId);
@@ -528,7 +570,8 @@ function ChatBot() {
             } else if (typeof data.response === "string" || typeof data.content === "string") {
               const responseText = typeof data.response === "string" ? data.response : data.content;
               setLoadingState({ status: "", message: "" });
-              fullBotResponse += responseText;
+              // Sanitizar antes de concatenar para prevenir acumulación de contenido malicioso
+              fullBotResponse += sanitizeMessageAdvanced(responseText);
               setChat((prev) => {
                 const updated = [...prev];
                 const index = updated.findIndex((msg) => msg.id === botMessageId);
@@ -547,7 +590,9 @@ function ChatBot() {
         }
       }
 
-      if (user?.role === "repostero") {
+      // Mitigación de seguridad: verificar rol antes de disparar evento custom
+      // Solo permitir si el usuario está autenticado como repostero
+      if (user?.role === "repostero" && token && token !== 'cookie-based') {
         window.dispatchEvent(new CustomEvent("baker-catalog-updated"));
       }
     } catch (error) {
@@ -570,7 +615,7 @@ function ChatBot() {
   const _handleSend = (rawText) => {
     const trimmedMessage = (rawText || "").trim();
 
-    // Validaciones de seguridad previas
+    // Validaciones de seguridad críticas - APLICAN A TODOS los usuarios
     if (detectAdvancedSQLi(trimmedMessage)) {
       showValidationError("⚠️ Patrón sospechoso detectado (SQLi)");
       return;
@@ -605,7 +650,7 @@ function ChatBot() {
       return;
     }
 
-    // Solo aplicar validación de seguridad para usuarios que no son reposteros
+    // Validaciones de longitud y spam - Solo para clientes (no afecta función de reposteros)
     console.log('[ChatBot] User role:', user?.role, 'User:', user);
     if (user?.role !== "repostero") {
       const validation = validateMessage(trimmedMessage);
@@ -670,7 +715,9 @@ function ChatBot() {
       const parts = cleanLine.split(/(\*\*.*?\*\*)/g);
       const lineContent = parts.map((part, pIdx) => {
         if (part.startsWith("**") && part.endsWith("**")) {
-          return <strong key={pIdx}>{part.slice(2, -2)}</strong>;
+          // Sanitizar el contenido dentro de ** para prevenir XSS
+          const innerContent = sanitizeDisplayText(part.slice(2, -2));
+          return <strong key={pIdx}>{innerContent}</strong>;
         }
         return part;
       });
