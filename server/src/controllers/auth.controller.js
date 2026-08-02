@@ -79,10 +79,16 @@ exports.register = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'El nombre es requerido.' });
     }
 
-    // Validar caracteres permitidos en nombre (whitelist)
-    const validNamePattern = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s'-]+$/;
+    // Validar longitud del nombre (mínimo 2 caracteres, máximo 150)
+    if (name.trim().length < 2 || name.trim().length > 150) {
+      return res.status(400).json({ success: false, message: 'El nombre debe tener entre 2 y 150 caracteres.' });
+    }
+
+    // Validar caracteres permitidos en nombre (whitelist menos restrictiva)
+    // Permite: letras, números, espacios, apóstrofes, guiones, puntos, comas
+    const validNamePattern = /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s'\-.,]+$/;
     if (!validNamePattern.test(name.trim())) {
-      return res.status(400).json({ success: false, message: 'El nombre contiene caracteres inválidos. Solo se permiten letras, espacios, apóstrofes y guiones.' });
+      return res.status(400).json({ success: false, message: 'El nombre contiene caracteres inválidos.' });
     }
 
     // Validar que el nombre no esté vacío después de sanitización
