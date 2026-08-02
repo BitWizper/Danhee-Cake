@@ -112,24 +112,61 @@ const RegisterPage = () => {
           </button>
         </div>
 
-        <form className="auth-form" onSubmit={handleSubmit} noValidate id="register-form">
+        <form className="auth-form" onSubmit={handleSubmit} noValidate id="register-form" aria-label="Formulario de registro">
           <div className="auth-form__field">
             <label htmlFor="register-name">{userType === 'repostero' ? 'Tu nombre' : 'Nombre completo'} *</label>
-            <input id="register-name" type="text" name="name" placeholder="Tu nombre" value={form.name} onChange={handleChange} />
+            <input 
+              id="register-name" 
+              type="text" 
+              name="name" 
+              placeholder="Tu nombre" 
+              value={form.name} 
+              onChange={handleChange}
+              aria-invalid={!!error}
+              aria-describedby={error ? "register-error" : undefined}
+              required
+            />
           </div>
           <div className="auth-form__field">
             <label htmlFor="register-email">Correo electrónico *</label>
-            <input id="register-email" type="email" name="email" placeholder="tu@correo.com" value={form.email} onChange={handleChange} />
+            <input 
+              id="register-email" 
+              type="email" 
+              name="email" 
+              placeholder="tu@correo.com" 
+              value={form.email} 
+              onChange={handleChange}
+              aria-invalid={!!error}
+              aria-describedby={error ? "register-error" : undefined}
+              required
+            />
           </div>
           <div className="auth-form__field">
             <label htmlFor="register-password">Contraseña *</label>
-            <input id="register-password" type="password" name="password" placeholder="••••••••" value={form.password} onChange={handleChange} />
+            <input 
+              id="register-password" 
+              type="password" 
+              name="password" 
+              placeholder="••••••••" 
+              value={form.password} 
+              onChange={handleChange}
+              aria-invalid={!!error}
+              aria-describedby={error ? "register-error" : undefined}
+              required
+            />
           </div>
 
           {userType === 'cliente' && (
             <div className="auth-form__field">
               <label htmlFor="register-address">Dirección</label>
-              <input id="register-address" type="text" name="address" placeholder="Tu dirección" value={form.address} onChange={handleChange} />
+              <input 
+                id="register-address" 
+                type="text" 
+                name="address" 
+                placeholder="Tu dirección" 
+                value={form.address} 
+                onChange={handleChange}
+              />
             </div>
           )}
 
@@ -137,21 +174,47 @@ const RegisterPage = () => {
             <>
               <div className="auth-form__field">
                 <label htmlFor="register-business">Nombre del negocio</label>
-                <input id="register-business" type="text" name="business_name" placeholder="Ej. Atelier Dulce" value={form.business_name} onChange={handleChange} />
+                <input 
+                  id="register-business" 
+                  type="text" 
+                  name="business_name" 
+                  placeholder="Ej. Atelier Dulce" 
+                  value={form.business_name} 
+                  onChange={handleChange}
+                />
               </div>
               <div className="auth-form__field">
                 <label htmlFor="register-location">Ubicación</label>
-                <input id="register-location" type="text" name="location" placeholder="Ciudad, Estado" value={form.location} onChange={handleChange} />
+                <input 
+                  id="register-location" 
+                  type="text" 
+                  name="location" 
+                  placeholder="Ciudad, Estado" 
+                  value={form.location} 
+                  onChange={handleChange}
+                />
               </div>
               <div className="auth-form__field">
                 <label htmlFor="register-specialty">Especialidad</label>
-                <input id="register-specialty" type="text" name="specialty" placeholder="Ej. Fondant, Naked Cakes..." value={form.specialty} onChange={handleChange} />
+                <input 
+                  id="register-specialty" 
+                  type="text" 
+                  name="specialty" 
+                  placeholder="Ej. Fondant, Naked Cakes..." 
+                  value={form.specialty} 
+                  onChange={handleChange}
+                />
               </div>
             </>
           )}
 
           {error && (
-            <p className={`auth-form__error ${blocked ? 'auth-form__error--blocked' : ''}`}>
+            <p 
+              id="register-error"
+              className={`auth-form__error ${blocked ? 'auth-form__error--blocked' : ''}`}
+              role="alert"
+              aria-live="polite"
+            >
               {error}
               {blocked && countdown && <span className="auth-form__countdown"> ({countdown})</span>}
             </p>

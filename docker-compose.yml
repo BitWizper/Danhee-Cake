@@ -55,7 +55,7 @@ services:
     restart: always
     networks:
       - app-network
-    command: --default-authentication-plugin=mysql_native_password --ssl=0
+    command: --default-authentication-plugin=mysql_native_password --ssl=1
 
   chromadb:
     image: chromadb/chroma:0.4.24

@@ -7,6 +7,9 @@
 const { AsyncLocalStorage } = require('async_hooks');
 const asyncLocalStorage = new AsyncLocalStorage();
 
+// Variable para asegurar que el client_id solo se establezca una vez por solicitud
+let clientIdLocked = false;
+
 function getCurrentClientId() {
     const store = asyncLocalStorage.getStore();
     return store ? store.clientId : null;
@@ -14,8 +17,29 @@ function getCurrentClientId() {
 
 function setCurrentClientId(value) {
     const store = asyncLocalStorage.getStore() || {};
+    
+    // Si el client_id ya está establecido, no permitir sobrescribirlo (security hardening)
+    if (store.clientId !== undefined && store.clientId !== null) {
+        console.warn('[Security] Intento de sobrescribir client_id ya establecido. Bloqueando sobrescritura.');
+        return;
+    }
+    
     store.clientId = value;
     asyncLocalStorage.enterWith(store);
+}
+
+// Función para bloquear el client_id después de establecerlo (para herramientas sensibles)
+function lockClientId() {
+    const store = asyncLocalStorage.getStore();
+    if (store) {
+        store.clientIdLocked = true;
+    }
+}
+
+// Función para verificar si el client_id está bloqueado
+function isClientIdLocked() {
+    const store = asyncLocalStorage.getStore();
+    return store ? store.clientIdLocked : false;
 }
 
 function quitarAcentos(texto) {

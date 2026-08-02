@@ -137,7 +137,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       scriptSrcAttr: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://danhee-cake.vercel.app", ...(process.env.NODE_ENV !== 'production' ? ["https://*.trycloudflare.com"] : [])],
+      connectSrc: ["'self'", "https://danhee-cake-sage.vercel.app", "https://danhee-cake.vercel.app", "https://danhee-cake-3zzal4zyl-bitwizpers-projects.vercel.app", ...(process.env.NODE_ENV !== 'production' ? ["https://*.trycloudflare.com"] : [])],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -187,6 +187,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'https://danhee-cake.vercel.app',
   'https://danhee-cake-sage.vercel.app',
+  'https://danhee-cake-3zzal4zyl-bitwizpers-projects.vercel.app',
   // Permitir cualquier subdominio de trycloudflare.com (para túneles temporales)
   'https://*.trycloudflare.com',
   // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)

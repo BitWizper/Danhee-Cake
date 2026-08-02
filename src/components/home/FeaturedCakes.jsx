@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getApiUrl } from '../../config/api';
+import { apiFetch, getErrorMessage } from '../../utils/apiHelper';
 import StarRating from '../ui/StarRating';
 import './FeaturedCakes.css';
 
@@ -16,11 +17,7 @@ const FeaturedCakes = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(getApiUrl('/api/cakes?featured=true'));
-      if (!response.ok) {
-        throw new Error(`Error de red: ${response.status} ${response.statusText}`);
-      }
-      const result = await response.json();
+      const result = await apiFetch('/api/cakes?featured=true');
       if (result.success) {
         setCakes(result.data);
       } else {
@@ -28,7 +25,7 @@ const FeaturedCakes = () => {
       }
     } catch (err) {
       console.error('Error fetching featured cakes:', err);
-      setError('No se pudo conectar con el servidor. Por favor, verifica tu conexión.');
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

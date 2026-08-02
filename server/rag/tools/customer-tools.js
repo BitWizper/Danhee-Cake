@@ -4,7 +4,7 @@
  */
 
 const db = require('../db-config');
-const { quitarAcentos, extraerTextoPdf, getCurrentClientId } = require('./common-tools');
+const { quitarAcentos, extraerTextoPdf, getCurrentClientId, lockClientId } = require('./common-tools');
 
 let lastSearchResult = {};
 let lastContext = {};
@@ -405,6 +405,9 @@ function baseDateFromIso(clientDatetimeStr) {
  * @returns {Promise<Object>} Objeto con结果: { mensaje: string, cita: Object|null }
  */
 async function registrarSolicitudCita(clientName = '', bakerId = null, fecha = '', hora = '', notas = '', clientDatetime = '') {
+    // Bloquear el client_id para evitar manipulación durante esta operación sensible
+    lockClientId();
+    
     const baseDate = baseDateFromIso(clientDatetime);
     const fechaConvertida = parseFechaRelativa(fecha, baseDate);
     

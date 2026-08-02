@@ -89,7 +89,7 @@ const LoginPage = () => {
         <h1 className="auth-page__title font-serif">Bienvenido de vuelta</h1>
         <p className="auth-page__subtitle">Inicia sesión para continuar</p>
 
-        <form className="auth-form" onSubmit={handleSubmit} noValidate id="login-form">
+        <form className="auth-form" onSubmit={handleSubmit} noValidate id="login-form" aria-label="Formulario de inicio de sesión">
           <div className="auth-form__field">
             <label htmlFor="login-email">Correo electrónico</label>
             <input
@@ -100,6 +100,9 @@ const LoginPage = () => {
               value={form.email}
               onChange={handleChange}
               autoComplete="email"
+              aria-invalid={!!error}
+              aria-describedby={error ? "login-error" : undefined}
+              required
             />
           </div>
           <div className="auth-form__field">
@@ -112,11 +115,19 @@ const LoginPage = () => {
               value={form.password}
               onChange={handleChange}
               autoComplete="current-password"
+              aria-invalid={!!error}
+              aria-describedby={error ? "login-error" : undefined}
+              required
             />
           </div>
 
           {error && (
-            <p className={`auth-form__error ${blocked ? 'auth-form__error--blocked' : ''}`}>
+            <p 
+              id="login-error"
+              className={`auth-form__error ${blocked ? 'auth-form__error--blocked' : ''}`}
+              role="alert"
+              aria-live="polite"
+            >
               {error}
               {blocked && countdown && <span className="auth-form__countdown"> ({countdown})</span>}
             </p>

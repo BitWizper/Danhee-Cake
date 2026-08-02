@@ -1,9 +1,20 @@
 const { logAttack } = require('./attackLogger');
 const { getClientIP } = require('./clientIp');
 
+// Importar validaciones de clientChatGuard
+const { 
+  validateMessageLength, 
+  checkCooldown, 
+  checkRepeatMessages, 
+  checkUserRateLimit, 
+  detectChatAttackPatterns 
+} = require('./clientChatGuard');
+
 const state = {
   chatRequests: new Map(),
-  chatBlocks: new Map()
+  chatBlocks: new Map(),
+  messageHistory: new Map(), // Para detectar mensajes repetidos
+  lastMessageTime: new Map() // Para cooldown entre mensajes
 };
 
 const getUserKey = (req) => {
@@ -32,6 +43,7 @@ const chatAbuseGuard = (req, res, next) => {
   const limit = 5;
   const key = getUserKey(req);
   const ip = getClientIP(req);
+  const message = req.body?.message || '';
 
   cleanupExpired(state.chatRequests);
   cleanupExpired(state.chatBlocks);
@@ -49,6 +61,62 @@ const chatAbuseGuard = (req, res, next) => {
     state.chatBlocks.delete(key);
   }
 
+  // Validación 1: Longitud del mensaje
+  const lengthValidation = validateMessageLength(message);
+  if (!lengthValidation.valid) {
+    logAttack(req, 'chat_message_too_long', { key, reason: lengthValidation.reason });
+    return res.status(400).json({
+      success: false,
+      error_code: lengthValidation.reason,
+      message: lengthValidation.message
+    });
+  }
+
+  // Validación 2: Cooldown entre mensajes (2 segundos)
+  const cooldownValidation = checkCooldown(key);
+  if (!cooldownValidation.valid) {
+    logAttack(req, 'chat_cooldown', { key, reason: cooldownValidation.reason });
+    return res.status(429).json({
+      success: false,
+      error_code: cooldownValidation.reason,
+      message: cooldownValidation.message
+    });
+  }
+
+  // Validación 3: Mensajes repetidos
+  const repeatValidation = checkRepeatMessages(key, message);
+  if (!repeatValidation.valid) {
+    logAttack(req, 'chat_repeat_message', { key, reason: repeatValidation.reason });
+    return res.status(429).json({
+      success: false,
+      error_code: repeatValidation.reason,
+      message: repeatValidation.message
+    });
+  }
+
+  // Validación 4: Rate limit por usuario (20 mensajes/min)
+  const rateLimitValidation = checkUserRateLimit(key);
+  if (!rateLimitValidation.valid) {
+    logAttack(req, 'chat_rate_limit', { key, reason: rateLimitValidation.reason });
+    return res.status(429).json({
+      success: false,
+      error_code: rateLimitValidation.reason,
+      message: rateLimitValidation.message
+    });
+  }
+
+  // Validación 5: Patrones de ataque (prompt injection, jailbreak, etc.)
+  const attackPattern = detectChatAttackPatterns(message);
+  if (attackPattern) {
+    logAttack(req, 'chat_attack_pattern', { key, pattern: attackPattern.pattern, type: attackPattern.type });
+    return res.status(400).json({
+      success: false,
+      error_code: 'SUSPICIOUS_PATTERN',
+      message: 'Tu mensaje contiene contenido sospechoso. Por favor reformula tu solicitud.'
+    });
+  }
+
+  // Rate limit global existente
   const bucket = state.chatRequests.get(key) || { count: 0, expiresAt: now + windowMs };
   if (bucket.expiresAt <= now) {
     bucket.count = 0;

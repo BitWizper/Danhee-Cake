@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom'; // ← Agregamos useNavigate
 import { getApiUrl } from '../../config/api';
+import { apiFetch } from '../../utils/apiHelper';
 import './CategoriesSection.css';
 
 const CategoriesSection = () => {
@@ -32,8 +33,7 @@ const CategoriesSection = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch(getApiUrl('/api/categories'));
-        const result = await response.json();
+        const result = await apiFetch('/api/categories');
         if (result.success) {
           setCategories(result.data);
         }

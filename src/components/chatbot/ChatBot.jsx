@@ -277,6 +277,15 @@ function ChatBot() {
       );
       const welcomeMsg = user?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
 
+      // Manejar 401 - token expirado
+      if (response.status === 401) {
+        console.warn("[Chat] Token expirado (401), limpiando sesión");
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setChat([welcomeMsg]);
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
       if (data?.error) {
@@ -761,7 +770,12 @@ function ChatBot() {
           {renderRateLimitIndicator()}
 
           {validationError && (
-            <div className={`chat-validation-error ${validationError.startsWith("⏳") ? "blocked" : ""} shake`}>
+            <div 
+              id="chat-validation-error"
+              className={`chat-validation-error ${validationError.startsWith("⏳") ? "blocked" : ""} shake`}
+              role="alert"
+              aria-live="assertive"
+            >
               {validationError.startsWith("⏳") && (
                 <FaShieldAlt style={{ marginRight: 6, flexShrink: 0 }} />
               )}
@@ -772,13 +786,15 @@ function ChatBot() {
             </div>
           )}
 
-          <form className="chat-footer" onSubmit={sendMessage}>
+          <form className="chat-footer" onSubmit={sendMessage} aria-label="Formulario de chat">
             <button
               type="button"
               className={`mic-button ${isListening ? "active" : ""}`}
               onClick={toggleListening}
               title={isListening ? "Detener grabación" : "Grabar voz"}
               disabled={isSending || rateLimitStatus.blocked}
+              aria-label={isListening ? "Detener grabación de voz" : "Iniciar grabación de voz"}
+              aria-pressed={isListening}
             >
               {isListening ? <FaMicrophoneSlash /> : <FaMicrophone />}
             </button>
@@ -798,6 +814,9 @@ function ChatBot() {
               maxLength={CHAT_SECURITY_CONFIG.maxMessageLength}
               autoComplete="off"
               spellCheck={false}
+              aria-label="Mensaje del chat"
+              aria-invalid={!!validationError}
+              aria-describedby={validationError ? "chat-validation-error" : undefined}
             />
 
             <button

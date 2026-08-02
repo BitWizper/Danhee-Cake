@@ -4,7 +4,7 @@
  */
 
 const db = require('../db-config');
-const { getCurrentClientId } = require('./common-tools');
+const { getCurrentClientId, lockClientId } = require('./common-tools');
 
 /**
  * Lista todos los pasteles del repostero actual en su catálogo.
@@ -53,6 +53,9 @@ async function listarMisPasteles() {
  * @returns {Promise<Object>} Objeto con resultado: { exito: boolean, cakeId?: number, mensaje: string }
  */
 async function agregarNuevoPastel(nombre, descripcion, precio, categoriaId, isFeatured = false) {
+    // Bloquear el client_id para evitar manipulación durante esta operación sensible
+    lockClientId();
+    
     const clientId = getCurrentClientId();
     if (!clientId) {
         return { mensaje: 'No has iniciado sesión como repostero. Por favor inicia sesión para agregar pasteles.' };
@@ -95,6 +98,9 @@ async function agregarNuevoPastel(nombre, descripcion, precio, categoriaId, isFe
  * @returns {Promise<Object>} Objeto con resultado: { exito: boolean, mensaje: string }
  */
 async function actualizarMiPastel(cakeId, nombre, descripcion, precio, categoriaId, isFeatured = false) {
+    // Bloquear el client_id para evitar manipulación durante esta operación sensible
+    lockClientId();
+    
     const clientId = getCurrentClientId();
     if (!clientId) {
         return { mensaje: 'No has iniciado sesión como repostero. Por favor inicia sesión para actualizar pasteles.' };

@@ -25,15 +25,23 @@ const authenticateRAGRequest = (req, res, next) => {
     // Verificamos un header secreto compartido
     const ragSecret = req.headers['x-rag-secret'];
     
-    // En desarrollo, si no hay secreto configurado, permitir todas las solicitudes
+    // VALIDACIÓN CON FALLOBACK: Si no hay secreto configurado, permitir con advertencia
+    // En producción, esto debería ser obligatorio
     if (!process.env.RAG_SERVICE_SECRET) {
-        console.warn('[RAG Auth] RAG_SERVICE_SECRET not configured - allowing all requests (DEVELOPMENT MODE)');
+        console.warn('[RAG Auth] WARNING: RAG_SERVICE_SECRET not configured - running in insecure mode (DEVELOPMENT ONLY)');
+        console.warn('[RAG Auth] Set RAG_SERVICE_SECRET in environment variables for production security');
+        // En desarrollo, permitir continuar pero registrar el intento
         return next();
     }
     
+    if (!ragSecret) {
+        console.warn('[RAG Auth] Unauthorized access attempt - missing x-rag-secret header');
+        return res.status(403).json({ error: 'Unauthorized', message: 'Missing authentication header' });
+    }
+    
     if (ragSecret !== process.env.RAG_SERVICE_SECRET) {
-        console.warn('[RAG Auth] Unauthorized access attempt - missing or invalid secret');
-        return res.status(403).json({ error: 'Unauthorized' });
+        console.warn('[RAG Auth] Unauthorized access attempt - invalid x-rag-secret');
+        return res.status(403).json({ error: 'Unauthorized', message: 'Invalid authentication' });
     }
     
     next();
@@ -232,8 +240,22 @@ app.post('/chat/stream', authenticateRAGRequest, async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     
+    // Configurar timeout razonable para el streaming (30 segundos)
+    const streamTimeout = setTimeout(() => {
+        console.error('[app] Stream timeout exceeded for conversation:', conversation_id);
+        res.write(`data: ${JSON.stringify({ error: 'Stream timeout - request took too long' })}\n\n`);
+        res.end();
+    }, 30000);
+    
+    // Enviar heartbeat cada 15 segundos para mantener la conexión viva
+    const heartbeatInterval = setInterval(() => {
+        res.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: Date.now() })}\n\n`);
+    }, 15000);
+    
     try {
         if (!taskRouter) {
+            clearTimeout(streamTimeout);
+            clearInterval(heartbeatInterval);
             res.write(`data: ${JSON.stringify({ error: 'Service not ready' })}\n\n`);
             res.end();
             return;
@@ -251,11 +273,16 @@ app.post('/chat/stream', authenticateRAGRequest, async (req, res) => {
             wasBlocked: result.wasBlocked
         });
         
+        clearTimeout(streamTimeout);
+        clearInterval(heartbeatInterval);
+        
         res.write(`data: ${JSON.stringify({ response: result.response, was_blocked: result.wasBlocked })}\n\n`);
         res.end();
         
     } catch (e) {
         console.error(`[app] Error en POST /chat/stream: ${e.stack || e.message}`);
+        clearTimeout(streamTimeout);
+        clearInterval(heartbeatInterval);
         res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
         res.end();
     }

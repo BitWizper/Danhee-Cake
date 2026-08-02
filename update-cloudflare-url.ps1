@@ -47,10 +47,25 @@ if ($domainMatches.Count -gt 0) {
     Write-Host "PUBLIC_HOST actualizado en server/.env" -ForegroundColor Green
     
     # Actualizar PUBLIC_HOST en docker.env para Docker Compose
+    # Solo modificar la línea PUBLIC_HOST, preservando el resto del archivo (incluyendo secrets)
     $dockerEnvPath = "docker.env"
-    $dockerEnvContent = "PUBLIC_HOST=localhost,127.0.0.1,$domain"
-    Set-Content $dockerEnvPath $dockerEnvContent -NoNewline
-    Write-Host "PUBLIC_HOST actualizado en docker.env" -ForegroundColor Green
+    if (Test-Path $dockerEnvPath) {
+        $dockerEnvContent = Get-Content $dockerEnvPath -Raw
+        
+        # Eliminar línea PUBLIC_HOST existente si existe
+        $dockerEnvContent = $dockerEnvContent -replace "PUBLIC_HOST=.*`r?`n", ""
+        
+        # Agregar nueva línea PUBLIC_HOST
+        $dockerEnvContent = $dockerEnvContent.TrimEnd() + "`nPUBLIC_HOST=localhost,127.0.0.1,$domain"
+        
+        Set-Content $dockerEnvPath $dockerEnvContent -NoNewline
+        Write-Host "PUBLIC_HOST actualizado en docker.env (secrets preservados)" -ForegroundColor Green
+    } else {
+        # Si docker.env no existe, crearlo solo con PUBLIC_HOST (no recomendado, pero fallback)
+        $dockerEnvContent = "PUBLIC_HOST=localhost,127.0.0.1,$domain"
+        Set-Content $dockerEnvPath $dockerEnvContent -NoNewline
+        Write-Host "ADVERTENCIA: docker.env no existía, creado solo con PUBLIC_HOST (falta configurar secrets)" -ForegroundColor Yellow
+    }
     
     # Reiniciar el backend para aplicar cambios
     Write-Host "Reiniciando backend para aplicar cambios..." -ForegroundColor Yellow

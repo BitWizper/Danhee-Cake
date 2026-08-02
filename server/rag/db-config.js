@@ -251,17 +251,25 @@ async function getOrCreateChatSession(conversationId, clientId = null) {
         );
         
         if (rows.length > 0) {
+            const existingClientId = rows[0].client_id;
+            
             // Si la sesión ya existe y tiene un client_id null pero ahora tenemos uno, actualizarlo
-            if (clientId && rows[0].client_id === null) {
+            if (clientId && existingClientId === null) {
                 await conn.execute(
                     'UPDATE chat_sessions SET client_id = ? WHERE conversation_id = ?',
                     [clientId, conversationId]
                 );
-                console.log(`[db-config] Actualizado client_id ${clientId} para sesión existente ${conversationId}`);
+                console.log(`[db-config] Actualizado client_id ${clientId} para sesión existente ${conversationId} (backfill)`);
+            }
+            // Si la sesión ya tiene un client_id diferente al proporcionado, registrar advertencia de seguridad
+            else if (clientId && existingClientId !== null && existingClientId !== clientId) {
+                console.warn(`[Security] Intento de asociar sesión ${conversationId} a client_id diferente. Existente: ${existingClientId}, Intentado: ${clientId}`);
+                // No actualizamos por seguridad - el client_id original tiene prioridad
             }
             return true;
         }
         
+        // Crear nueva sesión con el client_id proporcionado
         await conn.execute(
             'INSERT INTO chat_sessions (conversation_id, client_id) VALUES (?, ?)',
             [conversationId, clientId]
