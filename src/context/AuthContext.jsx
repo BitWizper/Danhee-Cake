@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { getApiUrl } from '../config/api';
-import { addCsrfToHeaders } from '../utils/csrfHelper';
+import { addCsrfToHeaders, getCsrfToken } from '../utils/csrfHelper';
 
 const AuthContext = createContext();
 
@@ -12,6 +12,12 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Verificar sesión llamando al endpoint de usuario actual
     const checkSession = async () => {
+      // Preload CSRF token to ensure cookie and header are available for subsequent mutating requests
+      try {
+        await getCsrfToken();
+      } catch (err) {
+        console.warn('No se pudo obtener CSRF token durante init:', err);
+      }
       try {
         const response = await fetch(getApiUrl('/api/auth/me'), {
           method: 'GET',
