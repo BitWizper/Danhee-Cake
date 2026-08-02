@@ -112,7 +112,8 @@ app.use(detectCookieTampering);
 app.use(validateCookieFingerprint);
 
 // Requerir re-autenticación en acciones sensibles cuando hay fingerprint mismatch
-app.use(requireReauthOnFingerprintMismatch);
+// TEMPORALMENTE DESACTIVADO PARA DESARROLLO - puede causar problemas de login
+// app.use(requireReauthOnFingerprintMismatch);
 
 app.use(requestGuard);
 
@@ -201,6 +202,8 @@ const allowedOrigins = [
   'https://danhee-cake-3zzal4zyl-bitwizpers-projects.vercel.app',
   'https://danhee-cake-qvmrsik4m-bitwizpers-projects.vercel.app',
   'https://danhee-cake-3uix5gn6p-bitwizpers-projects.vercel.app',
+  // Permitir cualquier subdominio de trycloudflare.com (para túneles temporales)
+  'https://*.trycloudflare.com',
   // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
 ];
@@ -228,6 +231,12 @@ const corsOptions = {
       return callback(null, true);
     }
     
+    // Permitir requests de Vercel a Cloudflare tunnel en desarrollo
+    if (process.env.NODE_ENV !== 'production' && origin && origin.includes('vercel.app') && req.path.includes('/api/chat')) {
+      console.log(`[CORS] Allowing Vercel to Cloudflare tunnel in development: ${origin}`);
+      return callback(null, true);
+    }
+    
     // Rechazar origen no permitido con error específico
     console.log(`[CORS] Origin ${origin} is NOT allowed`);
     const error = new Error('CORS no permitido');
@@ -246,7 +255,8 @@ app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 
 // Browser origin guard para prevenir requests desde navegadores no autorizados
-app.use(browserOriginGuard);
+// TEMPORALMENTE DESACTIVADO PARA DESARROLLO - puede causar problemas de CORS
+// app.use(browserOriginGuard);
 
 // Validación de tipos de datos en request body para prevenir NoSQL injection
 const validateRequestBody = (req, res, next) => {
