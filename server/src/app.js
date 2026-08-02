@@ -197,6 +197,7 @@ const allowedOrigins = [
   'https://danhee-cake-sage.vercel.app',
   'https://danhee-cake-3zzal4zyl-bitwizpers-projects.vercel.app',
   'https://danhee-cake-qvmrsik4m-bitwizpers-projects.vercel.app',
+  'https://danhee-cake-3uix5gn6p-bitwizpers-projects.vercel.app',
   // Permitir cualquier subdominio de trycloudflare.com (para túneles temporales)
   'https://*.trycloudflare.com',
   // Leer FRONTEND_URL de variables de entorno (Cloudflare, ngrok, etc.)
