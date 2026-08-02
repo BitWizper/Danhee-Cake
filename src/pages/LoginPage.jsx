@@ -23,9 +23,10 @@ const LoginPage = () => {
         credentials: 'include',
       });
       const data = await response.json();
+      console.log('[CSRF Frontend] Token received:', data.csrf_token ? data.csrf_token.substring(0, 8) + '...' : 'null');
       return data.csrf_token;
     } catch (err) {
-      console.error('Error obteniendo CSRF token:', err);
+      console.error('[CSRF Frontend] Error obteniendo CSRF token:', err);
       return null;
     }
   };
@@ -52,6 +53,9 @@ const LoginPage = () => {
       const headers = { 'Content-Type': 'application/json' };
       if (csrfToken) {
         headers['X-CSRF-Token'] = csrfToken;
+        console.log('[CSRF Frontend] Token added to headers:', csrfToken.substring(0, 8) + '...');
+      } else {
+        console.log('[CSRF Frontend] No token available, proceeding without CSRF header');
       }
 
       const response = await fetch(getApiUrl('/api/auth/login'), {
@@ -60,6 +64,8 @@ const LoginPage = () => {
         headers,
         body: JSON.stringify(form)
       });
+
+      console.log('[CSRF Frontend] Login response status:', response.status);
 
       if (response.status === 429) {
         setError(handleServer429(response));

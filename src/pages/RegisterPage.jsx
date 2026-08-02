@@ -31,9 +31,10 @@ const RegisterPage = () => {
         credentials: 'include',
       });
       const data = await response.json();
+      console.log('[CSRF Frontend Register] Token received:', data.csrf_token ? data.csrf_token.substring(0, 8) + '...' : 'null');
       return data.csrf_token;
     } catch (err) {
-      console.error('Error obteniendo CSRF token:', err);
+      console.error('[CSRF Frontend Register] Error obteniendo CSRF token:', err);
       return null;
     }
   };
