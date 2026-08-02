@@ -243,6 +243,11 @@ const clientChatGuard = (req, res, next) => {
       role = null;
       userId = null;
     }
+  } else {
+    // No hay token - usuario no autenticado (esto es válido para el chatbot)
+    console.log('[clientChatGuard] No token - continuing as unauthenticated user');
+    role = null;
+    userId = null;
   }
   
   // Usar IP como identificador para usuarios no autenticados
@@ -264,6 +269,11 @@ const clientChatGuard = (req, res, next) => {
       error: 'Invalid message',
       message: 'El mensaje es requerido y debe ser texto'
     });
+  }
+  
+  // Permitir que usuarios no autenticados usen el chat (solo rate limiting y sanitización)
+  if (!role) {
+    console.log('[clientChatGuard] Unauthenticated user - applying basic validation only');
   }
   
   // Validación de longitud
