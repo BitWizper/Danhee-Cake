@@ -1,115 +1,114 @@
-# Danhee — Reporte de Mejoras (Backend + Chat + Frontend)
+# Reporte de Mejoras — Backend, Chat y Frontend de Danhee
 
 **Fecha:** 2026-08-01
-**Cobertura:** Todo el proyecto (frontend Vercel + backend Node/Express + MySQL + chat RAG/Ollama/ChromaDB + Docker/Vercel).
-**Estado verificado en vivo:** Frontend OK · Backend OK (túnel efímero) · Chat OK (respuesta RAG real confirmada) · Login/Registro OK (rate limited).
+**Base:** Revisión de código del proyecto completo (`server/`, `src/`, `server/rag/`, `docker-compose.yml`, config Vercel) + validación contra el despliegue vivo.
+
+> 📌 Nota importante: durante la revisión, el repositorio **cambió en vivo** (commits nuevos: "eliminar fallback secrets", "mejorar chat SSE", "persistir rate-limit"). Este reporte refleja **tanto** el estado del deploy como el del código local, marcando lo que ya está corregido en el código pero **aún no desplegado**.
 
 ---
 
-## 1. Lo que ya funciona bien (no tocar)
+## A. Estado general por módulo
 
-- ✅ **Auth por capas**: JWT access (15m) + refresh (7d) con secrets separados; bcrypt; rate limiters por IP (`authLimiter` 5/15m, `registerLimiter` 3/h) y brute-force protection.
-- ✅ **Defensa en profundidad**: `inputSanitizer`, `parameterValidator`, `apiGuard`, `apiFuzzingGuard`, `sqlInjectionBlocker`, `methodBlocker`, WAF `advancedSecurity`, `httpsEnforcer`, bloqueo de rutas sensibles.
-- ✅ **Headers**: CSP estricto, HSTS preload, nosniff, X-Frame-Options DENY, referrer-policy.
-- ✅ **Chat**: streaming SSE real, validación de mensaje (regex + patrones sospechosos), `clientChatGuard`, `chatLimiter` (20/min), `RAG_SERVICE_SECRET`.
-- ✅ **Privacidad**: PII enmascarada (`maskName/maskEmail/maskPhone`) en dashboards; endpoint de observabilidad del RAG eliminado.
-- ✅ **Repositorio**: `docker.env` y `.env*` en `.gitignore`; `generate_secrets.cjs`; `setup-dev.js`.
-- ✅ **SQLi/XSS**: parametrización + sanitización; pruebas de inyección bloqueadas.
-
----
-
-## 2. Problemas críticos de funcionamiento (por prioridad)
-
-### 🔴 P0 — El backend NO puede vivir en un túnel efímero
-- El bundle desplegado apunta a `https://sep-scratch-garbage-anne.trycloudflare.com`. Los túneles `trycloudflare` **cambian de URL en cada reinicio** (el anterior `literally-justice-nat-saturday...` ya murió; se observó error 1033 con la API caída).
-- Cada cambio obliga a reconstruir y re-desplegar Vercel con la nueva `VITE_BASE_URL`.
-- **Acción:** alojar el backend en un host estable (VPS con dominio, Railway/Render/Fly, o un servidor con IP fija) y eliminar el túnel. Después definir `VITE_BASE_URL` en Vercel → Settings → Environment Variables.
-
-### 🔴 P0 — El secret JWT activo es el placeholder (bug de docker-compose)
-- `docker-compose.yml:16` → `JWT_SECRET=${JWT_SECRET}` sobreescribe `server/.env` y `docker.env` con una variable de shell vacía → `app.js:35` cae al fallback `change-me-in-production`.
-- **Acción:** quitar esa línea del compose (o `JWT_SECRET=${JWT_SECRET:-}` no sirve; mejor no definirlo y dejar que `dotenv`/`env_file` lo cargue) y hacer que `app.js` **falle** en producción si el secret es placeholder/vacío.
-- Ojo: `update-cloudflare-url.ps1:50-52` **sobrescribe `docker.env` dejándolo solo con `PUBLIC_HOST`** (borra DB/JWT). Revisar que ese script no borre secrets; mejor usar `-replace` línea por línea en vez de `Set-Content` total.
-
-### 🟠 P1 — Pagos sin respaldo real
-- El checkout OXXO genera un comprobante mock y el estado se "espera" con `setTimeout` + `alert`. No hay tabla `orders`/`payments` ni endpoint de consulta de estado.
-- **Acción:** crear tablas `orders` + `payments`; `POST /api/payments/oxxo-ticket` que registre la orden (estado `pending` + folio); endpoint `GET /api/payments/:id` para que el frontend consulte el estado real.
-
-### 🟠 P1 — Historial de chat roto para usuarios logueados (en vivo)
-- Los `401` constantes en `/api/chat/history` del log de seguridad indican que el frontend pide historial sin token válido (o con token viejo tras rotar secretos). La mayoría de sesiones tienen `client_id=null` (invitados).
-- El backend ya mejora: `db-config.js` ahora **actualiza** el `client_id` cuando una sesión existente lo tiene null (backfill).
-- **Acción:** en `ChatBot.jsx`, asegurar que `GET /api/chat/history` siempre lleve el `Authorization` header con el token de `AuthContext` (no solo `localStorage`); y al crear sesión pasar el `user_id` real para que queden ligadas al usuario.
-
-### 🟡 P2 — Bug en `authorize(['admin'])`
-- `/api/admin/security-stats` devuelve `required_roles: [["admin"]]` y 403 **siempre** (el array llega anidado; `roles.includes('admin')` es false). El endpoint admin de estadísticas está roto.
-- **Acción:** llamar `authorize('admin')` (rol plano) o aplanar `roles` dentro del middleware.
-
-### 🟡 P2 — Detección de abuso/prompt-injection sin conectar
-- `clientChatGuard.js` define `validateMessageLength`, `checkCooldown`, `checkRepeatMessages`, `checkUserRateLimit`, `detectChatAttackPatterns` con un catálogo de patrones de jailbreak/prompt injection, **pero no los invoca** (comentario "Continuar sin validaciones complejas de seguridad temporalmente").
-- **Acción:** invocar las validaciones para clientes/no autenticados (manteniendo al repostero con sanitización básica).
-
----
-
-## 3. Mejoras por módulo
-
-### Backend (`server/`)
-| Área | Mejora | Esfuerzo |
+| Módulo | Funciona | Madurez |
 |---|---|---|
-| Config/Secrets | Fallo duro si `JWT_SECRET` placeholder/vacío en prod; mover secrets a secret manager (Vercel env / Docker secrets); NO escribir `docker.env` completo desde scripts | Bajo |
-| CORS | Usar la allowlist real en vez de `callback(null, true)` | Bajo |
-| BD | Rotar credenciales; whitelist de IPs; `--ssl` habilitado (hoy `--ssl=0`); verificar migraciones reproducibles (no solo `benchmark_stress_cakes` de prueba) | Medio |
-| Auth | Verificación de email al registrar; opción 2FA/TOTP; **rotación de refresh tokens** con revocación; logout que invalide refresh en BD | Medio |
-| Appointments | Validar solapamiento de citas por baker/fecha/hora; límite de notas; notificación al repostero (email/in-app) | Medio |
-| Pagos | Modelo real de órdenes + estado + folio (P1) | Medio |
-| Admin | Arreglar `authorize`; endpoint de stats con IPs ofuscadas y audit-log | Bajo |
-| Logs/Monitoring | Persistir rate-limit/brute-force (hoy `Map` en memoria se pierde al reiniciar); alertas; dashboard admin real | Medio |
-| API | Rechazar arrays/objetos en query params (p. ej. `offset[]`) en vez de ignorarlos | Bajo |
-| Imágenes | El token de `/api/images` usa `process.env.JWT_SECRET || 'default-secret'`: el fallback `default-secret` debe eliminarse | Bajo |
-| Dependencias | `npm audit` periódico; pinnear imágenes Docker (mysql, chromadb, cloudflared) | Bajo |
-
-### Chat / RAG (`server/rag/`)
-| Área | Mejora | Esfuerzo |
-|---|---|---|
-| Auth | Aunque `RAG_SERVICE_SECRET` está configurado, si faltara el RAG aceptaría todo (modo dev). Fallar cerrado por defecto | Bajo |
-| Abuso | Conectar las validaciones de `clientChatGuard` (cooldown, repetidos, rate limit por usuario, prompt-injection) | Medio |
-| Historial | Asociar `client_id` correcto desde el alta de sesión; probar flujo completo logueado (la mayoría de sesiones quedan `client_id=null`) | Medio |
-| Stream | El streaming tarda/expira bajo carga (timeouts observados). Añadir heartbeat SSE, timeout razonable y cola para Ollama | Medio |
-| Herramientas del agente | Revisar `baker-tools.js`/`customer-tools.js`: el agente puede crear citas/catálogo — validar que el `user_id` usado provenga del JWT verificado (no del texto del prompt) | Alto |
-| Ingesta | Verificar que la knowledge base (`danhee_knowledge_base.pdf`, `cake_sizes.pdf`) esté indexada en ChromaDB y documentar el proceso de re-ingesta | Bajo |
-| Evaluación | Hay scripts (`evaluate-rag.js`, `evaluar-agente.js`): integrarlos a CI para medir regresiones del agente | Medio |
-
-### Frontend (`src/`)
-| Área | Mejora | Esfuerzo |
-|---|---|---|
-| Sesión | Mover `token` de `localStorage` a cookie `httpOnly` + CSRF; mínimo: `sessionStorage` y limpiar `user` con datos sensibles | Medio |
-| Chat | Enviar siempre el token en `history`/`stream`; manejar `401` (refresh + reintento); mostrar estado del historial | Medio |
-| Checkout | Sustituir `setTimeout`+`alert` por consulta real al estado de la orden | Medio |
-| Estados de carga | Manejar errores de red de forma consistente (el túnel caído = pantallas vacías sin aviso) | Bajo |
-| Accesibilidad/UX | Labels, foco, mensajes de error inline en formularios | Bajo |
-| Tests | Agregar al menos Vitest + Testing Library para auth, carrito y checkout; ESLint ya existe? (verificar) | Medio |
-
-### Infraestructura / DevOps
-| Área | Mejora |
-|---|---|
-| Hosting | Backend estable (eliminar trycloudflare); ver `update-cloudflare-url.ps1` solo como fallback dev |
-| Vercel | `vercel.json` correcto para SPA (rewrites); definir `VITE_BASE_URL` como env var (no hardcode en build) |
-| CI/CD | Pipeline de build + test + deploy; escaneo de secrets (gitleaks/trivy) para evitar re-commit de `.env` |
-| Docker | `docker-compose` con secrets no-vacíos; database/chromadb sin exponer puertos al host (ya comentados ✓) |
-| Docs | README desactualizado (habla de Vite template); actualizar con arquitectura real, cómo correr, y manual de despliegue |
+| Frontend (Vercel SPA) | ✅ Estático OK | 🟡 Deuda de auth |
+| Backend (Node/Express + MySQL) | ⚠️ Intermitente (túnel caído) | 🟠 Crítico en infra |
+| Chat (Node server + RAG + Ollama + ChromaDB) | ❌ Caído en producción (timeout) | 🟠 |
+| Pagos (OXXO) | ⚠️ Mock sin persistencia | 🟠 |
+| Citas | ✅ Con JWT válido (y con JWT forjado) | 🟡 |
 
 ---
 
-## 4. Checklist hacia producción
+## B. Correcciones ya hechas en el código (pero NO en el deploy)
 
-- [ ] Backend en host estable + `VITE_BASE_URL` correcta en Vercel
-- [ ] `JWT_SECRET`/`REFRESH_TOKEN_SECRET` rotados **de nuevo** y sin fallback en prod (crash si placeholder)
-- [ ] Credenciales de BD rotadas y BD sin acceso público
-- [ ] CORS con allowlist
-- [ ] `authorize('admin')` corregido
-- [ ] `clientChatGuard` validaciones activas
-- [ ] Pagos con órdenes reales
-- [ ] Historial de chat funcional para usuarios logueados (token en todas las llamadas)
-- [ ] Verificación de email + 2FA (opcional pero recomendado)
-- [ ] Token fuera de `localStorage`
-- [ ] `npm audit` limpio + imágenes Docker pinnadas
-- [ ] README/documentación actualizada
-- [ ] CI/CD con tests y escaneo de secrets
+1. **JWT crash-on-invalid en producción** (`app.js`): si `JWT_SECRET` es placeholder/corto → `process.exit(1)`. ✅
+2. **CORS con allowlist real** (`app.js`): rechaza orígenes no permitidos; wildcard trycloudflare solo en dev. ✅
+3. **Auth por cookie** (`auth.js`): lee `access_token` de cookie o Bearer; whitelist `algorithms:['HS256']`. ✅
+4. **CSRF en rutas de auth** (`csrfProtection`, `csrfTokenGenerator`). ✅
+5. **PII masking** en citas del frontend (`maskEmail`, `maskPhone`, `maskName`). ✅
+6. **Ownership en historial de chat** (`getChatHistory`/`deleteChatHistory`). ✅
+7. **Rate limiters reactivados** (429 observados en vivo). ✅
+
+> ⚠️ **Problema de raíz para TODO lo anterior:** el deploy no corre este código. La app viva sigue con fallback `change-me-in-production`, CORS abierto y sin CSRF.
+
+---
+
+## C. Mejoras pendientes por módulo
+
+### C1. Backend (`server/`)
+
+**Crítico — Despliegue e infraestructura**
+- [ ] **Host estable**: reemplazar el túnel trycloudflare (efímero y caído con frecuencia) por un servicio con dominio fijo (Railway, Render, Fly.io, o Clever Cloud App). Fijar `FRONTEND_URL` y `VITE_BASE_URL` al dominio estable en Vercel.
+- [ ] **`docker-compose.yml`**: cambiar `JWT_SECRET=${JWT_SECRET}` por `${JWT_SECRET:?error}` para que falle si la variable no está definida en el shell host (evita el fallback silencioso al placeholder). Aplicar lo mismo a `REFRESH_TOKEN_SECRET`, `DB_PASSWORD`.
+- [ ] **Rotar `DB_PASSWORD`** (sigue siendo la misma credencial histórica) y **cerrar 3306** (firewall/whitelist en Clever Cloud).
+- [ ] **Configurar `RAG_SERVICE_SECRET`** en `server/.env` y `docker.env` (hoy solo existe en `.env.example`). Quitar la exposición del puerto `5001` en compose (red interna).
+
+**Seguridad**
+- [ ] Eliminar el fallback `change-me-in-production` de `requireEnv('JWT_SECRET', ...)` — dejar sin fallback (el crash en producción ya cubre el caso, pero el fallback es innecesario y peligroso).
+- [ ] **Separar el secreto HMAC de imágenes**: `createHmac('sha256', process.env.JWT_SECRET || 'default-secret')` debe usar una clave dedicada `IMAGE_TOKEN_SECRET`, no el JWT.
+- [ ] **Validar `role` en registro**: nunca confiar en `body.role` sin verificación; idealmente no permitir `role` en el body (asignar `cliente` por defecto y crear reposteros vía flujo admin).
+- [ ] **Corregir `authorize(['admin'])`**: `required_roles: [["admin"]]` — el doble array rompe la comparación para admins legítimos (falso 403). Usar `authorize('admin')`.
+- [ ] **Endpoint de citas "invitado"**: validar ownership del `client_id` del body (hoy se persiste el que mande el cliente).
+- [ ] **Constraint único** en `appointments (baker_id, date, time_slot)` para evitar doble reserva (race condition).
+- [ ] **chatLimiter**: no eximir por `role` de un JWT verificable-cliente (hoy `skip` si role==repostero; con JWT forjable se evita el límite). Limitar por sesión/ID también.
+
+**Funcional / datos**
+- [ ] **Pagos reales**: crear tablas `orders`/`payments`, persistir el ticket OXXO con estado `pending`, y un endpoint de consulta de estado. Hoy el ticket se genera y se pierde.
+- [ ] **No duplicar PII en notas de citas**: el frontend arma `notes: "Cliente: Mily. ..."` y el backend la guarda — ofuscar o usar campos dedicados `client_name`/`client_phone` (ya existen) y dejar `notes` solo como texto libre.
+- [ ] **Verificación de email + 2FA/TOTP** opcional.
+- [ ] **Revisar `/api/security/alerts`**: expone IPs completas de clientes — enmascarar IPs de usuarios finales (solo staff/admin).
+
+### C2. Chat (Node server + RAG)
+
+**Roto en producción**
+- [ ] **RAG/Ollama caído**: `/api/chat` y `/api/chat/stream` dan timeout en vivo. Revisar el arranque de Ollama + ChromaDB + el `TaskRouter`. Agregar healthcheck en el `rag-service` y mensajes de fallback inmediato en el Node server (hoy espera a que el fetch falle → timeout).
+- [ ] **`RAG_SERVICE_SECRET` sin configurar** → el RAG corre en "modo inseguro" y acepta cualquier request. Configurarlo en ambos lados y bloquear el puerto 5001 del host.
+
+**Funcional**
+- [ ] **Asociación `client_id` real**: la mayoría de `chat_sessions` tiene `client_id=null` (invitado). Cuando el usuario está autenticado, el Node server envía `user_id`, pero las sesiones viejas quedaron con null → `/api/chat/history` devuelve vacío. Hacer backfill/migración por `conversation_id`.
+- [ ] **SSE**: el frontend parsea chunks `data:` y tipos `token`/`error` — asegurar `keep-alive`, `retry`, y manejo de desconexión (cleanup del `AbortController`).
+- [ ] **Validación del mensaje**: el `validateChatText` bloquea `--`, `/*`, `..`, `sleep(`, `benchmark(`. Revisar falsos positivos con números telefónicos/emails legítimos (p.ej. `+52-999...`).
+
+**Seguridad**
+- [ ] **Rate limit del chat sin bypass por rol forjable** (ver C1).
+- [ ] **Ownership en RAG directo**: `/chat/history/:conversationId` y `DELETE /chat/*` deben validar que `user_id` coincida con el dueño (hoy el Node server lo valida, pero el RAG directo no).
+- [ ] **No exponer `conversation_id` en URLs de logs** en el RAG.
+
+### C3. Frontend (`src/`)
+
+**Auth — resolver la contradicción (bloqueante)**
+- [ ] **Unificar**: `main.jsx` interceptor (localStorage + solo URLs relativas `/api`) vs `AuthContext` (cookies + `credentials:'include'`) vs backend (cookie o Bearer).
+  - Opción A (recomendada): volver a **Bearer en memoria** (sin localStorage) + `getApiUrl` absoluto, con el token en estado React y refresh vía `/api/auth/refresh`. Mover el Bearer al interceptor pero con URL absoluta (chequear `getApiUrl`).
+  - Opción B: cookies httpOnly con `SameSite=lax` + `COOKIE_DOMAIN` correcto + CSRF en todos los mutating. (⚠️ Con backend en `trycloudflare.com` y app en `vercel.app`, las cookies **no viajan** — requiere el host estable del C1.)
+- [ ] **Sacar `token` de localStorage** (hoy `main.jsx` lee `localStorage.getItem('token')`; exfiltrable por XSS).
+- [ ] **`apiHelper.js`**: adjuntar el Bearer automáticamente (hoy las páginas lo repiten manualmente y el interceptor global casi nunca aplica porque las URLs son absolutas).
+
+**Checkout**
+- [ ] Reemplazar `setTimeout` + `alert` en `UI_checkout_process.jsx` por consulta real al estado de la orden (requiere C1 pagos).
+- [ ] Validar precios/cantidades en el backend, no solo en el carrito.
+
+**PII / UX**
+- [ ] Ofuscar `notes` en la vista de repostero (o eliminar la duplicación de nombre/teléfono).
+- [ ] `robots.txt` / `security.txt`: el SPA no los sirve en Vercel — generar con un endpoint serverless o añadirlos a `public/`.
+
+**Calidad**
+- [ ] Tests: existe `src/test/AuthContext.test.jsx` y `setup.js` — ampliar cobertura (login flow, chat, checkout, citas). Verificar si hay script `test` en `package.json`.
+- [ ] `npm audit fix` (react-router high).
+
+---
+
+## D. Checkpoint del despliegue (Vercel)
+
+1. Frontend: `VITE_BASE_URL=https://<backend-estable>` como variable de entorno (NO hardcodear el túnel en el bundle).
+2. Backend: correr con `NODE_ENV=production` + secrets fuertes en el entorno del proveedor.
+3. BD: cerrar 3306, rotar password, conectar solo desde el host del backend.
+4. RAG: `RAG_SERVICE_SECRET` + red interna.
+5. Verificar en vivo: `curl -I https://<backend>/health`, `GET /api/cakes`, `POST /api/auth/login` (200/401), `POST /api/chat/stream` (SSE), `OPTIONS` con `Origin: evil.com` → **debe** devolver 403.
+
+---
+
+## E. Notas finales
+
+- El **deploy actual y el código local están desincronizados**: las correcciones de seguridad existen en el repo pero el servidor vivo ejecuta una versión anterior. **Primera acción: desplegar el código actual.**
+- La **prioridad #1 es el host estable**; sin él, ninguna mejora de seguridad es sostenible (el túnel se cae y la URL cambia, rompiendo todo).
+- Puntaje sugerido de madurez actual: **~35/100**; con las acciones de la sección C1-C3 completas, objetivo: **70+/100**.

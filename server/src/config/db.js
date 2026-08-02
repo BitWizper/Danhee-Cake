@@ -173,12 +173,12 @@ const safeExecute = async (sql, params, runner = null) => {
     throw new Error('Query SQL demasiado largo');
   }
 
-  // TEMPORALMENTE: Desactivar detección de patrones sospechosos
-  // const suspiciousCheck = detectSuspiciousSQL(sql);
-  // if (suspiciousCheck.suspicious) {
-  //   console.error('[DB SECURITY] ⚠️  Patrón sospechoso detectado:', suspiciousCheck);
-  //   throw new Error('Query SQL contiene patrones sospechosos no permitidos');
-  // }
+  // Reactivar detección de patrones sospechosos - CRÍTICO para seguridad
+  const suspiciousCheck = detectSuspiciousSQL(sql);
+  if (suspiciousCheck.suspicious) {
+    console.error('[DB SECURITY] ⚠️  Patrón sospechoso detectado:', suspiciousCheck);
+    throw new Error('Query SQL contiene patrones sospechosos no permitidos');
+  }
 
   if (sql.includes(';') && !sql.trim().endsWith(';')) {
     throw new Error('Múltiples sentencias SQL no permitidas por seguridad');

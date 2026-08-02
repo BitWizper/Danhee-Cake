@@ -35,7 +35,7 @@ const BAKER_WELCOME_MESSAGE = {
 };
 
 function ChatBot() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -128,7 +128,6 @@ function ChatBot() {
 
     const conversation_id = localStorage.getItem("conversation_id");
     const clientId = user?.id != null ? user.id : null;
-    const token = localStorage.getItem("token");
 
     if (conversation_id && !isValidConversationId(conversation_id)) {
       localStorage.removeItem("conversation_id");
@@ -141,6 +140,7 @@ function ChatBot() {
       await fetch(getApiUrl("/api/chat/history"), {
         method: "DELETE",
         headers,
+        credentials: 'include', // Importante para enviar cookies httpOnly
         body: JSON.stringify({
           conversation_id: isValidConversationId(conversation_id) ? conversation_id : null,
           client_id: clientId,
@@ -263,8 +263,6 @@ function ChatBot() {
     try {
       if (!user?.id) return;
 
-      // Usar localStorage como fallback porque las cookies httpOnly no pueden ser leídas por JS
-      const token = localStorage.getItem("token");
       const headers = {};
       if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -272,7 +270,7 @@ function ChatBot() {
         getApiUrl(`/api/chat/history?client_id=${encodeURIComponent(user.id)}`),
         { 
           headers,
-          credentials: 'include' // Las cookies httpOnly se envían automáticamente
+          credentials: 'include' // Importante para enviar cookies httpOnly
         }
       );
       const welcomeMsg = user?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
@@ -388,7 +386,6 @@ function ChatBot() {
     setLoadingState({ status: "thinking", message: "Conectando con el asistente..." });
 
     try {
-      const token = localStorage.getItem("token");
       const rawConvId = localStorage.getItem("conversation_id");
       const conversation_id = isValidConversationId(rawConvId) ? rawConvId : null;
 
@@ -407,6 +404,7 @@ function ChatBot() {
       const res = await fetch(fetchUrl, {
         method: "POST",
         headers,
+        credentials: 'include', // Importante para enviar cookies httpOnly
         body: JSON.stringify({
           message: trimmedMessage,
           conversation_id,

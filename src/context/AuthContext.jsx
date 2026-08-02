@@ -1,4 +1,5 @@
 import { createContext, useState, useEffect, useContext } from 'react';
+import { getApiUrl } from '../config/api';
 
 const AuthContext = createContext();
 
@@ -8,33 +9,65 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    const savedToken = localStorage.getItem('token');
-    
-    if (savedUser && savedToken) {
-      setUser(JSON.parse(savedUser));
-      setToken(savedToken);
-    }
-    setLoading(false);
+    // Verificar sesión llamando al endpoint de usuario actual
+    const checkSession = async () => {
+      try {
+        const response = await fetch(getApiUrl('/api/auth/me'), {
+          method: 'GET',
+          credentials: 'include', // Importante para enviar cookies httpOnly
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data.user);
+          setToken('cookie-based'); // Indicar que usamos cookies
+        } else {
+          setUser(null);
+          setToken(null);
+        }
+      } catch (error) {
+        console.error('Error verificando sesión:', error);
+        setUser(null);
+        setToken(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSession();
   }, []);
 
-  const login = (userData, userToken) => {
+  const login = async (userData, userToken) => {
+    // Guardar datos del usuario en localStorage (solo datos no sensibles)
     setUser(userData);
-    setToken(userToken);
+    setToken(userToken || 'cookie-based');
     localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('token', userToken);
+    // NO guardar el token en localStorage - ahora está en cookie httpOnly
   };
 
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    localStorage.removeItem('conversation_id');
+  const logout = async () => {
+    try {
+      // Llamar al endpoint de logout para limpiar cookies en el servidor
+      await fetch(getApiUrl('/api/auth/logout'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: 'from_cookie' }),
+      });
+    } catch (error) {
+      console.error('Error en logout:', error);
+    } finally {
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem('user');
+      localStorage.removeItem('conversation_id');
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );

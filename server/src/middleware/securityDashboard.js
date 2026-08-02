@@ -114,3 +114,6 @@ module.exports = {
   getSecuritySummary,
   getBlockedIPs
 };
+
+// Limpiar entradas expiradas al iniciar el servidor (después de que todas las funciones estén definidas)
+clearExpiredBlocks();

@@ -5,6 +5,8 @@ const { body } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
 const { validateAllParameters, isDangerousValue } = require('../middleware/parameterValidator');
 const { authLimiter, registerLimiter, publicLimiter, ipBlocker } = require('../middleware/rateLimiter');
+const { authMiddleware } = require('../middleware/auth');
+const { csrfProtection, csrfTokenGenerator } = require('../middleware/csrfProtection');
 
 const validateRegister = [
   body('name')
@@ -80,9 +82,14 @@ const validateRefreshToken = [
 ];
 
 // Rate limiters de auth aplicados en app.js antes del body parser
-router.post('/register', ipBlocker, publicLimiter, registerLimiter, validateAllParameters, validateRegister, handleValidationErrors, authController.register);
-router.post('/login', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateLogin, handleValidationErrors, authController.login);
-router.post('/refresh', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateRefreshToken, handleValidationErrors, authController.refreshToken);
-router.post('/logout', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateRefreshToken, handleValidationErrors, authController.logout);
+// CSRF protection aplicado a endpoints que modifican estado
+router.post('/register', ipBlocker, publicLimiter, registerLimiter, csrfProtection, validateAllParameters, validateRegister, handleValidationErrors, authController.register);
+router.post('/login', ipBlocker, publicLimiter, authLimiter, csrfProtection, validateAllParameters, validateLogin, handleValidationErrors, authController.login);
+router.post('/refresh', ipBlocker, publicLimiter, authLimiter, csrfProtection, validateAllParameters, validateRefreshToken, handleValidationErrors, authController.refreshToken);
+router.post('/logout', ipBlocker, publicLimiter, authLimiter, csrfProtection, validateAllParameters, validateRefreshToken, handleValidationErrors, authController.logout);
+router.get('/me', ipBlocker, publicLimiter, authMiddleware, authController.getMe);
+router.get('/csrf-token', csrfTokenGenerator, (req, res) => {
+  res.json({ csrf_token: req.cookies?.csrf_token || res.getHeader('X-CSRF-Token') });
+});
 
 module.exports = router;

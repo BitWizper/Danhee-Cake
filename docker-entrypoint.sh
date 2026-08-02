@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/sh
 # Template nginx config with environment variables and start nginx
 set -e
 

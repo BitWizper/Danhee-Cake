@@ -232,6 +232,25 @@ const streamChatbot = async (req, res) => {
   res.setHeader('Connection', 'close');
   res.setHeader('X-Accel-Buffering', 'no');
 
+  // Timeout para detectar conexiones colgadas (5 minutos)
+  const timeoutMs = 5 * 60 * 1000;
+  const timeoutId = setTimeout(() => {
+    console.warn('[Node Stream] Timeout alcanzado, cerrando conexión');
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: "error", content: "Tiempo de espera agotado. Por favor intenta de nuevo." })}\n\n`);
+      res.end();
+    }
+  }, timeoutMs);
+
+  // Heartbeat cada 30 segundos para mantener la conexión viva
+  const heartbeatInterval = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: "heartbeat", timestamp: Date.now() })}\n\n`);
+    } else {
+      clearInterval(heartbeatInterval);
+    }
+  }, 30000);
+
   try {
     const ragUrl = process.env.RAG_SERVICE_URL;
     const conversationId = sanitizedConversationId || `conv_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -240,10 +259,15 @@ const streamChatbot = async (req, res) => {
     if (!ragUrl) {
       console.warn("[Node Stream] RAG_SERVICE_URL no configurado, respondiendo con mensaje de servicio no disponible");
       res.write(`data: ${JSON.stringify({ type: "error", content: "El servicio de chat no está disponible en este momento. Por favor intenta más tarde." })}\n\n`);
+      clearTimeout(timeoutId);
+      clearInterval(heartbeatInterval);
       return res.end();
     }
     
-    // Llamar al endpoint de stream del RAG service
+    // Llamar al endpoint de stream del RAG service con timeout
+    const controller = new AbortController();
+    const ragTimeoutId = setTimeout(() => controller.abort(), timeoutMs - 10000); // Abortar 10s antes del timeout general
+
     const ragRes = await fetch(`${ragUrl}/chat/stream`, {
       method: "POST",
       headers: { 
@@ -256,17 +280,23 @@ const streamChatbot = async (req, res) => {
         user_role: role || 'cliente', 
         user_id: client_id 
       }),
+      signal: controller.signal
     });
+
+    clearTimeout(ragTimeoutId);
 
     if (!ragRes.ok) {
       console.error("[Node Stream] Error del servicio RAG:", ragRes.statusText);
       res.write(`data: ${JSON.stringify({ type: "error", content: "Error en el servicio RAG" })}\n\n`);
+      clearTimeout(timeoutId);
+      clearInterval(heartbeatInterval);
       return res.end();
     }
 
     const reader = ragRes.body.getReader();
     const decoder = new TextDecoder();
     let streamBuffer = "";
+    let lastDataTime = Date.now();
 
     try {
       while (true) {
@@ -278,6 +308,8 @@ const streamChatbot = async (req, res) => {
           }
           break;
         }
+
+        lastDataTime = Date.now();
 
         // Decodificar usando { stream: true } para evitar fragmentación de caracteres
         streamBuffer += decoder.decode(value, { stream: true });
@@ -297,12 +329,18 @@ const streamChatbot = async (req, res) => {
     }
 
     // Cierre forzado y limpio de la conexión HTTP hacia React
+    clearTimeout(timeoutId);
+    clearInterval(heartbeatInterval);
     res.end();
 
   } catch (error) {
     console.error("[Node Stream] Error conectando con el servicio RAG:", error.message);
-    res.write(`data: ${JSON.stringify({ type: "error", content: "El asistente de IA se está iniciando. Por favor, intenta de nuevo." })}\n\n`);
-    res.end();
+    clearTimeout(timeoutId);
+    clearInterval(heartbeatInterval);
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: "error", content: "El asistente de IA se está iniciando. Por favor, intenta de nuevo." })}\n\n`);
+      res.end();
+    }
   }
 };
 
