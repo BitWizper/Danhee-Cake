@@ -348,6 +348,9 @@ app.use('/api/auth/register', bruteForceProtection);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+// Protección CSRF para las rutas API que modifican estado
+app.use('/api', csrfProtection);
+
 // Endpoint seguro para servir imágenes con token temporal
 app.get('/api/images/:filename', (req, res) => {
   const { filename } = req.params;
@@ -593,17 +596,20 @@ app.get('/api/admin/security-stats', authMiddleware, authorize('admin'), (req, r
 });
 
 app.get('/health', (req, res) => {
-  // No exponer información sensible en producción
   const isProduction = process.env.NODE_ENV === 'production';
-  res.json({
+  const response = {
     success: true,
-    uptime: process.uptime(),
-    ...(isProduction ? {} : {
-      environment: process.env.NODE_ENV || 'development',
-      version: rootPackage?.version || 'unknown',
-      timestamp: new Date().toISOString()
-    })
-  });
+    status: 'ok'
+  };
+
+  if (!isProduction) {
+    response.uptime = process.uptime();
+    response.environment = process.env.NODE_ENV || 'development';
+    response.version = rootPackage?.version || 'unknown';
+    response.timestamp = new Date().toISOString();
+  }
+
+  res.json(response);
 });
 
 app.get('/robots.txt', (req, res) => {
@@ -629,17 +635,20 @@ app.get('/.well-known/security.txt', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  // No exponer información sensible en producción
   const isProduction = process.env.NODE_ENV === 'production';
-  res.json({
+  const response = {
     success: true,
-    uptime: process.uptime(),
-    ...(isProduction ? {} : {
-      environment: process.env.NODE_ENV || 'development',
-      version: rootPackage?.version || 'unknown',
-      timestamp: new Date().toISOString()
-    })
-  });
+    status: 'ok'
+  };
+
+  if (!isProduction) {
+    response.uptime = process.uptime();
+    response.environment = process.env.NODE_ENV || 'development';
+    response.version = rootPackage?.version || 'unknown';
+    response.timestamp = new Date().toISOString();
+  }
+
+  res.json(response);
 });
 
 app.get('/api/security/alerts', authMiddleware, authorize('admin'), (req, res) => {

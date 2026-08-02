@@ -4,7 +4,7 @@
 const crypto = require('crypto');
 
 // Almacenamiento de tokens CSRF en memoria (en producción usar Redis o base de datos)
-const csrfTokens = new Map();
+const csrfTokens = new Set();
 
 // Generar token CSRF
 const generateCSRFToken = () => {
@@ -28,11 +28,10 @@ const csrfProtection = (req, res, next) => {
   const csrfTokenFromHeader = req.headers['x-csrf-token'];
   const csrfTokenFromBody = req.body?.csrf_token;
   const csrfTokenFromCookie = req.cookies?.csrf_token;
+  const providedToken = csrfTokenFromHeader || csrfTokenFromBody;
 
-  const providedToken = csrfTokenFromHeader || csrfTokenFromBody || csrfTokenFromCookie;
-
-  if (!providedToken) {
-    console.log('[CSRF] No CSRF token provided');
+  if (!csrfTokenFromCookie || !providedToken) {
+    console.log('[CSRF] CSRF token missing or cookie missing');
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_MISSING',
@@ -40,9 +39,16 @@ const csrfProtection = (req, res, next) => {
     });
   }
 
-  // Verificar token (en producción verificar contra token almacenado por sesión)
-  // Por ahora, usamos una validación simple basada en cookie
-  if (csrfTokenFromCookie && providedToken !== csrfTokenFromCookie) {
+  if (!csrfTokens.has(csrfTokenFromCookie)) {
+    console.log('[CSRF] CSRF token not found in server store');
+    return res.status(403).json({
+      success: false,
+      error: 'CSRF_TOKEN_INVALID',
+      message: 'Token CSRF inválido'
+    });
+  }
+
+  if (csrfTokenFromCookie !== providedToken) {
     console.log('[CSRF] CSRF token mismatch');
     return res.status(403).json({
       success: false,
@@ -78,7 +84,8 @@ const generateCSRFTokenMiddleware = (req, res, next) => {
 // Middleware opcional que solo genera token sin forzar validación
 const csrfTokenGenerator = (req, res, next) => {
   const token = generateCSRFToken();
-  
+  csrfTokens.add(token);
+
   console.log('[CSRF] Generating token:', token.substring(0, 8) + '...');
   console.log('[CSRF] Origin:', req.headers.origin);
   console.log('[CSRF] Referer:', req.headers.referer);

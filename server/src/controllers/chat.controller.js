@@ -70,7 +70,7 @@ const askChatbot = async (req, res) => {
           role = null;
         }
       }
-      console.log(`[Chat] Usuario autenticado: ID=${client_id}, Email=${decoded.email}, Rol=${role}`);
+      console.log(`[Chat] Usuario autenticado: ID=${client_id}, Rol=${role}`);
     } catch (error) {
       // Token ausente, expirado o inválido → usuario no autenticado
       console.log(`[Chat] Token inválido o expirado, continuando como invitado`);
