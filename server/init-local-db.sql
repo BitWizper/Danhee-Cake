@@ -87,7 +87,8 @@ CREATE TABLE IF NOT EXISTS appointments (
   status     ENUM('pending','confirmed','cancelled','completed') DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (client_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (baker_id)  REFERENCES baker_profiles(id) ON DELETE CASCADE
+  FOREIGN KEY (baker_id)  REFERENCES baker_profiles(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_appointment_slot (baker_id, date, time_slot)
 );
 
 -- ── Reseñas ──────────────────────────────────────────────────

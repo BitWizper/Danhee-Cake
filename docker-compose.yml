@@ -72,12 +72,14 @@ services:
   rag-service:
     build: ./server/rag
     container_name: rag-service
-    ports:
-      - "5001:5001"
+    # Puerto protegido - solo accesible dentro de red Docker
+    # ports:
+    #   - "5001:5001"
     environment:
       - PORT=5001
       - CHROMA_HOST=http://chromadb:8000
       - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
+      - RAG_SERVICE_SECRET=${RAG_SERVICE_SECRET:-change-me-in-production}
     volumes:
       - ./server/rag:/app/rag
       - /app/rag/node_modules

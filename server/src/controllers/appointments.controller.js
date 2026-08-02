@@ -17,6 +17,28 @@ const normalizeAppointmentDate = (value) => {
   return parsed.toISOString().slice(0, 10);
 };
 
+// Ofuscar PII en notas (teléfonos, emails, nombres)
+const obfuscatePII = (text) => {
+  if (!text || typeof text !== 'string') return text;
+  
+  return text
+    // Ofuscar teléfonos (formatos comunes)
+    .replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, (match) => {
+      const digits = match.replace(/\D/g, '');
+      return digits.slice(0, 3) + '***' + digits.slice(-2);
+    })
+    // Ofuscar emails
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, (match) => {
+      const [local, domain] = match.split('@');
+      return local.slice(0, 2) + '***@' + domain;
+    })
+    // Ofuscar nombres completos (palabras con mayúscula inicial)
+    .replace(/\b[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)+\b/g, (match) => {
+      const parts = match.split(' ');
+      return parts.map(p => p.slice(0, 2) + '***').join(' ');
+    });
+};
+
 /**
  * Crear una nueva cita (requiere autenticación).
  * Endpoint: POST /api/appointments
@@ -264,10 +286,16 @@ exports.getUserAppointments = async (req, res, next) => {
       ORDER BY a.date DESC, a.time_slot ASC
     `, [client_id]);
 
+    // Ofuscar PII en notas antes de devolver
+    const sanitizedAppointments = appointments.map(apt => ({
+      ...apt,
+      notes: obfuscatePII(apt.notes)
+    }));
+
     res.json({
       success: true,
-      data: appointments,
-      total: appointments.length
+      data: sanitizedAppointments,
+      total: sanitizedAppointments.length
     });
   } catch (err) {
     console.error('[Appointment] Error obteniendo citas:', err);

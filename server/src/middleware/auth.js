@@ -101,13 +101,16 @@ const authorize = (...roles) => (req, res, next) => {
     });
   }
 
+  // Aplanar roles si se pasa un array (fix para bug de doble array)
+  const allowedRoles = roles.flat();
+
   // Verificar si el rol del usuario está en la lista de roles permitidos
-  if (!roles.includes(req.user.role)) {
+  if (!allowedRoles.includes(req.user.role)) {
     return res.status(403).json({
       success: false,
-      message: `Acceso denegado. Se requiere uno de los siguientes roles: ${roles.join(', ')}`,
+      message: `Acceso denegado. Se requiere uno de los siguientes roles: ${allowedRoles.join(', ')}`,
       user_role: req.user.role,
-      required_roles: roles
+      required_roles: allowedRoles
     });
   }
 

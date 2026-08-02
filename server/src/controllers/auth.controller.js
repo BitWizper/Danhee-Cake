@@ -55,6 +55,16 @@ exports.register = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 8 caracteres e incluir letras y números.' });
     }
 
+    // Validar role contra whitelist estricta (CRÍTICO para prevenir escalación de privilegios)
+    const allowedRoles = ['cliente', 'repostero'];
+    const userRole = role || 'cliente';
+    if (!allowedRoles.includes(userRole)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Rol no válido. Solo se permiten: cliente, repostero' 
+      });
+    }
+
     // Sanitizar inputs contra SQL Injection
     const sanitizedName = sanitizeInput(name);
     const sanitizedEmail = email.toLowerCase().trim();
@@ -82,16 +92,16 @@ exports.register = async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Insertar usuario con consultas parametrizadas
+    // Insertar usuario con consultas parametrizadas y role validado
     const [userResult] = await db.execute(
       'INSERT INTO users (name, email, password_hash, role, address) VALUES (?, ?, ?, ?, ?)',
-      [sanitizedName, sanitizedEmail, hashedPassword, role || 'cliente', sanitizedAddress]
+      [sanitizedName, sanitizedEmail, hashedPassword, userRole, sanitizedAddress]
     );
 
     const userId = userResult.insertId;
 
     // Si es repostero, crear perfil
-    if (role === 'repostero') {
+    if (userRole === 'repostero') {
       await db.execute(
         'INSERT INTO baker_profiles (user_id, business_name, location, specialty, bio) VALUES (?, ?, ?, ?, ?)',
         [userId, sanitizedBusinessName || sanitizedName, sanitizedLocation, sanitizedSpecialty, sanitizedBio]
