@@ -6,7 +6,7 @@ const { validateAllParameters, isDangerousValue } = require('../middleware/param
 const { authMiddleware } = require('../middleware/auth');
 const { generateOxxoTicket } = require('../controllers/payments.controller');
 const { paymentGuard } = require('../middleware/paymentGuard');
-const { writeLimiter } = require('../middleware/rateLimiter');
+const { writeLimiter, ipBlocker } = require('../middleware/rateLimiter');
 
 const validateOxxoTicket = [
   body('orderId')
@@ -32,6 +32,6 @@ const validateOxxoTicket = [
 
 router.use(authMiddleware);
 
-router.post('/oxxo-ticket', writeLimiter, paymentGuard, validateAllParameters, validateOxxoTicket, handleValidationErrors, generateOxxoTicket);
+router.post('/oxxo-ticket', ipBlocker, writeLimiter, paymentGuard, validateAllParameters, validateOxxoTicket, handleValidationErrors, generateOxxoTicket);
 
 module.exports = router;

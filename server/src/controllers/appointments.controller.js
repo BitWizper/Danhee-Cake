@@ -1,6 +1,7 @@
 // controllers/appointments.controller.js
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { sanitizeString, validateNumber } = require('../middleware/inputValidator');
 
 const normalizeAppointmentDate = (value) => {
@@ -239,7 +240,7 @@ exports.createGuest = async (req, res, next) => {
     }
 
     // Crear un usuario temporal de tipo invitado para mantener la integridad referencial
-    const guestEmail = `guest-${Date.now()}-${Math.floor(Math.random() * 10000)}@local.invalid`;
+    const guestEmail = `guest-${Date.now()}-${crypto.randomBytes(4).toString('hex')}@local.invalid`;
     const guestPassword = `Guest${Date.now()}A1!`;
     const guestName = 'Invitado';
     const hashedGuestPassword = await bcrypt.hash(guestPassword, 10);

@@ -118,6 +118,7 @@ router.get('/',
 // ============================================================
 
 router.get('/stats',
+  ipBlocker,
   readLimiter,
   authMiddleware,
   authorize('repostero'),
@@ -127,6 +128,7 @@ router.get('/stats',
 );
 
 router.get('/appointments',
+  ipBlocker,
   readLimiter,
   authMiddleware,
   authorize('repostero', 'admin'),
@@ -137,6 +139,7 @@ router.get('/appointments',
 );
 
 router.put('/appointments/:id/status',
+  ipBlocker,
   writeLimiter,
   authMiddleware,
   authorize('repostero'),
@@ -147,6 +150,7 @@ router.put('/appointments/:id/status',
 );
 
 router.get('/cakes',
+  ipBlocker,
   readLimiter,
   authMiddleware,
   authorize('repostero'),
@@ -157,6 +161,7 @@ router.get('/cakes',
 );
 
 router.post('/cakes',
+  ipBlocker,
   writeLimiter,
   authMiddleware,
   authorize('repostero'),
@@ -168,6 +173,7 @@ router.post('/cakes',
 );
 
 router.put('/cakes/:id',
+  ipBlocker,
   writeLimiter,
   authMiddleware,
   authorize('repostero'),
@@ -179,6 +185,7 @@ router.put('/cakes/:id',
 );
 
 router.delete('/cakes/:id',
+  ipBlocker,
   writeLimiter,
   authMiddleware,
   authorize('repostero'),
@@ -189,6 +196,7 @@ router.delete('/cakes/:id',
 );
 
 router.get('/profile/me',
+  ipBlocker,
   readLimiter,
   authMiddleware,
   authorize('repostero'),
@@ -198,6 +206,7 @@ router.get('/profile/me',
 );
 
 router.put('/profile',
+  ipBlocker,
   writeLimiter,
   authMiddleware,
   authorize('repostero'),

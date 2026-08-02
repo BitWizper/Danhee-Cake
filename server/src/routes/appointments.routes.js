@@ -99,6 +99,8 @@ router.use(authMiddleware);
 
 // Crear nueva cita (usuario autenticado)
 router.post('/',
+  ipBlocker,
+  writeLimiter,
   validateAllParameters,
   validateAppointmentBody,
   handleValidationErrors,
@@ -107,6 +109,8 @@ router.post('/',
 
 // Obtener citas del usuario autenticado
 router.get('/my-appointments',
+  ipBlocker,
+  readLimiter,
   validateAllParameters,
   validateQueryParams,
   handleValidationErrors,
@@ -115,6 +119,8 @@ router.get('/my-appointments',
 
 // Cancelar una cita (solo el dueño)
 router.delete('/:id',
+  ipBlocker,
+  writeLimiter,
   validateAllParameters,
   [param('id').isInt({ min: 1 }).withMessage('id debe ser número entero positivo').toInt()],
   handleValidationErrors,

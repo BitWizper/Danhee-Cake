@@ -24,6 +24,21 @@ const RegisterPage = () => {
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
+  const getCsrfToken = async () => {
+    try {
+      const response = await fetch(getApiUrl('/api/auth/csrf-token'), {
+        method: 'GET',
+        credentials: 'include',
+      });
+      const data = await response.json();
+      console.log('[CSRF Frontend Register] Token received:', data.csrf_token ? data.csrf_token.substring(0, 8) + '...' : 'null');
+      return data.csrf_token;
+    } catch (err) {
+      console.error('[CSRF Frontend Register] Error obteniendo CSRF token:', err);
+      return null;
+    }
+  };
+
   const handleSubmit = async e => {
     e.preventDefault();
     if (!form.name || !form.email || !form.password) {
@@ -42,9 +57,16 @@ const RegisterPage = () => {
     setError('');
 
     try {
+      const csrfToken = await getCsrfToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+
       const response = await fetch(getApiUrl('/api/auth/register'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({ ...form, role: userType })
       });
 

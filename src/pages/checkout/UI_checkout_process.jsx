@@ -4,6 +4,7 @@ import Button from '../../components/ui/Button';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { getApiUrl } from '../../config/api';
+import { addCsrfToHeaders } from '../../utils/csrfHelper';
 import './UI_checkout_process.css';
 
 const UICheckout = () => {
@@ -42,12 +43,14 @@ const UICheckout = () => {
         }
 
         try {
+          const headers = await addCsrfToHeaders({
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          });
           const resp = await fetch(getApiUrl('/api/payments/oxxo-ticket'), {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
+            credentials: 'include',
+            headers,
             body: JSON.stringify({ orderId: `TEMP-${Date.now()}`, amount: total })
           });
           const json = await resp.json();

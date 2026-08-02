@@ -22,6 +22,7 @@ services:
       - OLLAMA_HOST=${OLLAMA_HOST}
       - FRONTEND_URL=${FRONTEND_URL}
       - PUBLIC_HOST=${PUBLIC_HOST}
+      - CSP_CONNECT_SRC=${CSP_CONNECT_SRC:-https://*.vercel.app}
       
     volumes:
       - ./server/src:/app/src
@@ -123,6 +124,7 @@ services:
     environment:
       - BACKEND_URL=http://backend:5000
       - VITE_BASE_URL=
+      - CSP_CONNECT_SRC=${CSP_CONNECT_SRC:-https://danhee-cake-sage.vercel.app,https://danhee-cake.vercel.app}
     restart: always
     networks:
       - app-network
