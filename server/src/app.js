@@ -226,7 +226,8 @@ const corsOptions = {
     // Allowlist explícita de subdominios trycloudflare.com (solo túneles específicos)
     const ALLOWED_CLOUDFLARE_TUNNELS = [
       ...(process.env.CLOUDFLARE_TUNNEL ? [process.env.CLOUDFLARE_TUNNEL] : []),
-      'broken-defined-physiology-pirates.trycloudflare.com', // fallback
+      'golf-counted-pounds-james.trycloudflare.com', // fallback actual
+      'broken-defined-physiology-pirates.trycloudflare.com', // fallback anterior
     ];
     
     if (ALLOWED_CLOUDFLARE_TUNNELS.some(tunnel => origin.includes(tunnel))) {
