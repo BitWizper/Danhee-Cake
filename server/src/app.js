@@ -356,8 +356,6 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/api', (req, res, next) => {
   const publicPaths = [
     '/chat/stream',
-    '/auth/login',
-    '/auth/register',
     '/auth/refresh',
     '/auth/csrf-token'
   ];

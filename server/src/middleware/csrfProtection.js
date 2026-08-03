@@ -18,9 +18,11 @@ const csrfProtection = (req, res, next) => {
     return next();
   }
 
-  // En desarrollo, desactivar CSRF para facilitar las pruebas
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[CSRF] CSRF protection disabled in development');
+  const isAuthMutationRoute = req.path === '/auth/login' || req.path === '/auth/register';
+
+  // En desarrollo, desactivar CSRF para el resto de rutas, pero mantenerlo para login/register
+  if (!isAuthMutationRoute && process.env.NODE_ENV !== 'production') {
+    console.log('[CSRF] CSRF protection disabled in development for non-auth routes');
     return next();
   }
 

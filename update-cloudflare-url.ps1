@@ -43,8 +43,13 @@ if ($domainMatches.Count -gt 0) {
     # Agregar nueva línea PUBLIC_HOST
     $envContent = $envContent.TrimEnd() + "`nPUBLIC_HOST=localhost,127.0.0.1,$domain"
     
+    # Actualizar CLOUDFLARE_TUNNEL en el .env del servidor
+    $envContent = $envContent -replace "CLOUDFLARE_TUNNEL=.*`r?`n", ""
+    $envContent = $envContent.TrimEnd() + "`nCLOUDFLARE_TUNNEL=https://$domain"
+    
     Set-Content $envPath $envContent -NoNewline
     Write-Host "PUBLIC_HOST actualizado en server/.env" -ForegroundColor Green
+    Write-Host "CLOUDFLARE_TUNNEL actualizado en server/.env" -ForegroundColor Green
     
     # Actualizar PUBLIC_HOST en docker.env para Docker Compose
     # Solo modificar la línea PUBLIC_HOST, preservando el resto del archivo (incluyendo secrets)
@@ -66,6 +71,20 @@ if ($domainMatches.Count -gt 0) {
         Set-Content $dockerEnvPath $dockerEnvContent -NoNewline
         Write-Host "ADVERTENCIA: docker.env no existía, creado solo con PUBLIC_HOST (falta configurar secrets)" -ForegroundColor Yellow
     }
+    
+    # Actualizar configuración CORS en app.js
+    $appJsPath = "server\src\app.js"
+    $appJsContent = Get-Content $appJsPath -Raw
+    
+    # Actualizar la línea CLOUDFLARE_TUNNEL en el array ALLOWED_CLOUDFLARE_TUNNELS
+    # Buscar el patrón actual y reemplazarlo con el nuevo túnel
+    $corsPattern = "'[a-z0-9-]+\.trycloudflare\.com', // túnel actual"
+    $corsReplacement = "'$domain', // túnel actual"
+    
+    $appJsContent = $appJsContent -replace $corsPattern, $corsReplacement
+    
+    Set-Content $appJsPath $appJsContent -NoNewline
+    Write-Host "Configuración CORS actualizada en server/src/app.js" -ForegroundColor Green
     
     # Reiniciar el backend para aplicar cambios
     Write-Host "Reiniciando backend para aplicar cambios..." -ForegroundColor Yellow
