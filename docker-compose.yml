@@ -2,13 +2,13 @@ services:
   backend:
     build: ./server
     ports:
-      - "4000:5000"
+      - "4000:4000"
       - "5005:5005"
     env_file:
       - ./server/.env
       - ./docker.env
     environment:
-      - PORT=5000
+      - PORT=4000
       - NODE_ENV=production
       - START_RAG=true
       - CHROMA_HOST=http://chromadb:8000
@@ -101,7 +101,7 @@ services:
     image: cloudflare/cloudflared:2024.6.0
     container_name: cloudflared_tunnel
     restart: always
-    command: tunnel --url http://backend:5000
+    command: tunnel --url http://backend:4000
     depends_on:
       - backend
     networks:
@@ -127,7 +127,7 @@ services:
     ports:
       - "3000:80"
     environment:
-      - BACKEND_URL=http://backend:5000
+      - BACKEND_URL=http://backend:4000
       - VITE_BASE_URL=
       - CSP_CONNECT_SRC=${CSP_CONNECT_SRC:-https://danhee-cake-sage.vercel.app,https://danhee-cake.vercel.app}
     restart: always
