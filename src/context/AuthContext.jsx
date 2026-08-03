@@ -1,8 +1,10 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { getApiUrl } from '../config/api';
 import { addCsrfToHeaders, getCsrfToken } from '../utils/csrfHelper';
 
 const AuthContext = createContext();
+
+const STORAGE_KEYS = ['user', 'token', 'auth_mode', 'conversation_id'];
 
 const getStoredUser = () => {
   try {
@@ -14,11 +16,25 @@ const getStoredUser = () => {
   }
 };
 
+const clearLocalStorage = () => {
+  STORAGE_KEYS.forEach(k => localStorage.removeItem(k));
+};
+
 export const AuthProvider = ({ children }) => {
   const initialUser = getStoredUser();
   const [user, setUser] = useState(initialUser);
   const [token, setToken] = useState(initialUser ? 'cookie-based' : null);
   const [loading, setLoading] = useState(true);
+  // Mensaje de sesión terminada (cuenta inactiva, eliminada, etc.)
+  const [sessionMessage, setSessionMessage] = useState(null);
+
+  // Limpiar estado de sesión (reutilizable desde logout y checkSession)
+  const clearSession = useCallback((message = null) => {
+    setUser(null);
+    setToken(null);
+    clearLocalStorage();
+    if (message) setSessionMessage(message);
+  }, []);
 
   useEffect(() => {
     console.log('[AuthContext] ========== INICIANDO CHECK SESSION ==========');
@@ -44,23 +60,29 @@ export const AuthProvider = ({ children }) => {
         if (response.ok) {
           const data = await response.json();
           console.log('[AuthContext] ✅ Sesión válida. Usuario:', data.user?.email, 'Rol:', data.user?.role);
+          // Actualizar estado con datos frescos de la BD
           setUser(data.user);
           setToken('cookie-based');
+          localStorage.setItem('user', JSON.stringify(data.user));
         } else {
-          console.log('[AuthContext] ❌ Sesión inválida o no autenticada (status:', response.status, ')');
           const errorData = await response.json().catch(() => ({}));
-          console.log('[AuthContext] Error response:', errorData);
-          setUser(null);
-          setToken(null);
+          console.log('[AuthContext] ❌ Sesión inválida (status:', response.status, ')', errorData);
+
+          // 403 = cuenta desactivada; 401 = sin sesión / cuenta eliminada
+          if (response.status === 403 && errorData.error === 'USER_INACTIVE') {
+            clearSession('Tu cuenta está desactivada. Contacta al administrador.');
+          } else if (response.status === 401 && errorData.error === 'USER_NOT_FOUND') {
+            clearSession('Tu cuenta ya no existe. Regístrate de nuevo.');
+          } else {
+            // Sesión expirada o no autenticado — limpiar silenciosamente
+            clearSession();
+          }
         }
       } catch (error) {
-        console.error('[AuthContext] ❌ ERROR verificando sesión:', error);
-        console.error('[AuthContext] Error details:', {
-          name: error.name,
-          message: error.message
-        });
-        setUser(null);
-        setToken(null);
+        console.error('[AuthContext] ❌ ERROR verificando sesión:', error.name, error.message);
+        // Error de red — mantener el estado local para no bloquear al usuario offline
+        setLoading(false);
+        return;
       } finally {
         setLoading(false);
         console.log('[AuthContext] ========== FIN CHECK SESSION ==========');
@@ -68,13 +90,14 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkSession();
-  }, []);
+  }, [clearSession]);
 
   const login = (userData, userToken) => {
     console.log('[AuthContext] login() llamado con usuario:', userData?.email, 'Rol:', userData?.role);
     const normalizedToken = userToken || 'cookie-based';
     setUser(userData);
     setToken(normalizedToken);
+    setSessionMessage(null);
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('token', normalizedToken);
     localStorage.setItem('auth_mode', normalizedToken);
@@ -103,18 +126,22 @@ export const AuthProvider = ({ children }) => {
       console.error('[AuthContext] ❌ Error en logout:', error);
     } finally {
       console.log('[AuthContext] Limpiando estado local y localStorage...');
-      setUser(null);
-      setToken(null);
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      localStorage.removeItem('auth_mode');
-      localStorage.removeItem('conversation_id');
+      clearSession();
       console.log('[AuthContext] ✅ Logout completado');
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{
+      user,
+      token,
+      loading,
+      login,
+      logout,
+      clearSession,
+      sessionMessage,
+      isAuthenticated: !!user
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -127,3 +154,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

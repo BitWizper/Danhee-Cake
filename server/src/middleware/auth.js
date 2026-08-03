@@ -12,7 +12,7 @@ const db = require('../config/db');
  * El usuario decodificado se adjunta en req.user con la estructura:
  *   req.user = { id, email, role, iat, exp }
  */
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   console.log('[Auth Middleware] ========== INICIO AUTH MIDDLEWARE ==========');
   console.log('[Auth Middleware] Path:', req.path);
   console.log('[Auth Middleware] Method:', req.method);
@@ -48,13 +48,43 @@ const authMiddleware = (req, res, next) => {
       algorithms: ['HS256']
     });
 
+    // ── Verificación activa en BD ──────────────────────────────
+    // El JWT puede ser válido pero el usuario puede haber sido eliminado
+    // o desactivado desde otro dispositivo / sesión.
+    console.log('[Auth Middleware] Verificando usuario en BD (ID:', decoded.id, ')...');
+    const [rows] = await db.execute(
+      'SELECT id, email, role, is_active FROM users WHERE id = ? LIMIT 1',
+      [decoded.id]
+    );
+
+    if (!rows || rows.length === 0) {
+      console.log('[Auth Middleware] ❌ Usuario no encontrado en BD');
+      return res.status(401).json({
+        success: false,
+        message: 'Tu cuenta ya no existe. Por favor, regístrate de nuevo.',
+        error: 'USER_NOT_FOUND'
+      });
+    }
+
+    const dbUser = rows[0];
+
+    if (!dbUser.is_active) {
+      console.log('[Auth Middleware] ❌ Usuario inactivo:', dbUser.email);
+      return res.status(403).json({
+        success: false,
+        message: 'Tu cuenta está desactivada. Contacta al administrador.',
+        error: 'USER_INACTIVE'
+      });
+    }
+
+    // Siempre usar los datos frescos de la BD, no del JWT
     req.user = {
-      id: decoded.id,
-      email: decoded.email,
-      role: decoded.role
+      id: dbUser.id,
+      email: dbUser.email,
+      role: dbUser.role
     };
 
-    console.log(`[Auth Middleware] ✅ Usuario autenticado: ${req.user.email} (ID: ${req.user.id}, Rol: ${req.user.role})`);
+    console.log(`[Auth Middleware] ✅ Usuario autenticado y activo: ${req.user.email} (ID: ${req.user.id}, Rol: ${req.user.role})`);
     console.log('[Auth Middleware] Token expira en:', new Date(decoded.exp * 1000).toISOString());
     next();
   } catch (err) {

@@ -246,8 +246,18 @@ exports.login = async (req, res, next) => {
       id: user.id, 
       email: user.email, 
       role: user.role,
+      is_active: user.is_active,
       hasPasswordHash: !!user.password_hash
     });
+
+    // Verificar si la cuenta está activa
+    if (!user.is_active) {
+      console.log('[Login Backend] ❌ Cuenta desactivada:', user.email);
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Tu cuenta está desactivada. Contacta al administrador.' 
+      });
+    }
 
     console.log('[Login Backend] Verificando contraseña...');
     const isMatch = await bcrypt.compare(password, user.password_hash);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthRateLimit } from '../hooks/useAuthRateLimit';
 import { getApiUrl } from '../config/api';
@@ -9,6 +9,7 @@ import './LoginPage.css';
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const { blocked, countdown, remaining, total, checkBeforeSubmit, recordAttempt, handleServer429 } = useAuthRateLimit('login');
   const [form, setForm] = useState({ email: '', password: '' });
@@ -87,7 +88,12 @@ const LoginPage = () => {
         console.log('[Login] Rol del usuario:', result.user?.role);
         await login(result.user, result.token || 'cookie-based');
 
-        if (result.user.role === 'repostero') {
+        // Redirigir a la ruta guardada por PrivateRoute (si existe) o al default por rol
+        const fromPath = location.state?.from;
+        if (fromPath) {
+          console.log('[Login] Redirigiendo a ruta guardada:', fromPath);
+          navigate(fromPath, { replace: true });
+        } else if (result.user.role === 'repostero') {
           console.log('[Login] Redirigiendo a /dashboard (repostero)');
           navigate('/dashboard');
         } else {
