@@ -56,18 +56,13 @@ const LoginPage = () => {
 
   const handleSubmit = async e => {
     e.preventDefault();
-    console.log('[LOGIN_FRONTEND] ========== INICIO LOGIN FRONTEND ==========');
-    console.log('[LOGIN_FRONTEND] Form data:', { email: form.email, hasPassword: !!form.password });
-    
     if (!form.email || !form.password) {
-      console.log('[LOGIN_FRONTEND] ❌ Campos faltantes');
       setError('Por favor completa todos los campos.');
       return;
     }
 
     const rlCheck = checkBeforeSubmit();
     if (!rlCheck.allowed) {
-      console.log('[LOGIN_FRONTEND] ❌ Rate limit local:', rlCheck.error);
       setError(rlCheck.error);
       return;
     }
@@ -77,60 +72,47 @@ const LoginPage = () => {
     setError('');
 
     try {
-      console.log('[LOGIN_FRONTEND] Obteniendo CSRF token...');
       const csrfToken = await getCsrfToken();
-      console.log('[LOGIN_FRONTEND] CSRF token obtenido:', csrfToken ? '✓' : '✗');
-      
       const headers = { 'Content-Type': 'application/json' };
       if (csrfToken) {
         headers['X-CSRF-Token'] = csrfToken;
+        console.log('[CSRF Frontend] Token added to headers:', csrfToken.substring(0, 8) + '...');
+      } else {
+        console.log('[CSRF Frontend] No token available, proceeding without CSRF header');
       }
 
-      const url = getApiUrl('/api/auth/login');
-      console.log('[LOGIN_FRONTEND] Haciendo request a:', url);
-      console.log('[LOGIN_FRONTEND] Headers:', { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken ? 'present' : 'missing' });
-
-      const response = await fetch(url, {
+      const response = await fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
         credentials: 'include',
         headers,
         body: JSON.stringify(form)
       });
 
-      console.log('[LOGIN_FRONTEND] Response status:', response.status);
-      console.log('[LOGIN_FRONTEND] Response headers:', Object.fromEntries(response.headers.entries()));
+      console.log('[CSRF Frontend] Login response status:', response.status);
 
       if (response.status === 429) {
-        console.log('[LOGIN_FRONTEND] ❌ Rate limit del servidor');
         setError(handleServer429(response));
         return;
       }
 
       const result = await response.json();
-      console.log('[LOGIN_FRONTEND] Response body:', result);
 
       if (response.ok && result.success) {
-        console.log('[LOGIN_FRONTEND] ✅ Login exitoso, guardando token...');
         login(result.user, result.token);
-        console.log('[LOGIN_FRONTEND] Token guardado en localStorage:', !!result.token);
 
         if (result.user.role === 'repostero') {
-          console.log('[LOGIN_FRONTEND] Redirigiendo a /dashboard');
           navigate('/dashboard');
         } else {
-          console.log('[LOGIN_FRONTEND] Redirigiendo a /');
           navigate('/');
         }
       } else {
-        console.log('[LOGIN_FRONTEND] ❌ Login fallido:', result.message);
         setError(result.message || 'Credenciales incorrectas. Por favor intenta de nuevo.');
       }
     } catch (err) {
-      console.error('[LOGIN_FRONTEND] ❌ ERROR:', err);
+      console.error('Login error:', err);
       setError('Error de conexión: No se pudo establecer contacto con el servidor. Verifica que el backend esté corriendo.');
     } finally {
       setLoading(false);
-      console.log('[LOGIN_FRONTEND] ========== FIN LOGIN FRONTEND ==========');
     }
   };
 

@@ -28,12 +28,14 @@ const isIPBlocked = (ip) => {
 
 // Middleware para verificar IP bloqueada
 const ipBlocker = (req, res, next) => {
+  // En desarrollo, desactivar bloqueo por IP
   if (process.env.NODE_ENV !== 'production') {
     return next();
   }
   
   const ip = getClientIP(req);
   
+  // Eximir a reposteros del bloqueo por IP
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
@@ -41,15 +43,15 @@ const ipBlocker = (req, res, next) => {
       const token = authHeader.slice(7);
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       if (decoded.role === 'repostero') {
-        console.log('[IP_BLOCKER] Eximiendo repostero del bloqueo - IP:', ip);
         return next();
       }
     } catch (error) {
+      // Continuar con verificación normal
     }
   }
   
   if (isIPBlocked(ip)) {
-    console.log('[IP_BLOCKER] ❌ IP BLOQUEADA:', ip, '| Ruta:', req.path);
+    console.log(`[SECURITY] Intento bloqueado desde IP: ${ip}`);
     return res.status(403).json({
       success: false,
       message: 'Tu IP ha sido temporalmente bloqueada por exceder los límites de seguridad.'
