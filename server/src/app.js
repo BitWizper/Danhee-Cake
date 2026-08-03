@@ -223,9 +223,17 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // Permitir cualquier subdominio de Cloudflare Tunnel (trycloudflare.com)
-    if (origin && origin.includes('.trycloudflare.com')) {
-      console.log(`[CORS] Allowing Cloudflare tunnel: ${origin}`);
+    // Allowlist explícita de subdominios trycloudflare.com (solo túneles específicos)
+    const ALLOWED_CLOUDFLARE_TUNNELS = [
+      ...(process.env.CLOUDFLARE_TUNNEL ? [process.env.CLOUDFLARE_TUNNEL] : []),
+      'observer-advance-lung-revolution.trycloudflare.com', // túnel actual
+      'surface-writers-apartments-mozilla.trycloudflare.com', // túnel anterior
+      'backgrounds-coast-real-wood.trycloudflare.com', // fallback anterior
+      'broken-defined-physiology-pirates.trycloudflare.com', // fallback anterior
+    ];
+    
+    if (ALLOWED_CLOUDFLARE_TUNNELS.some(tunnel => origin.includes(tunnel))) {
+      console.log(`[CORS] Allowing specific Cloudflare tunnel: ${origin}`);
       return callback(null, true);
     }
     
