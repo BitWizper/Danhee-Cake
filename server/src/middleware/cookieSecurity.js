@@ -55,7 +55,7 @@ const validateCookieFingerprint = (req, res, next) => {
     res.cookie('client_fingerprint', fingerprint, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'lax',
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días
       path: '/'
     });
@@ -77,7 +77,7 @@ const validateCookieFingerprint = (req, res, next) => {
     res.cookie('client_fingerprint', currentFingerprint, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'lax',
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días
       path: '/'
     });
