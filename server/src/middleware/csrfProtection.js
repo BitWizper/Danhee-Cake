@@ -11,6 +11,11 @@ const generateCSRFToken = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
+const isLocalhostRequest = (req) => {
+  const host = String(req.hostname || req.headers.host || '').toLowerCase();
+  return host.includes('localhost') || host.includes('127.0.0.1') || host.includes('[::1]');
+};
+
 // Middleware para generar y validar token CSRF
 const csrfProtection = (req, res, next) => {
   console.log('[CSRF] ========== INICIO CSRF PROTECTION ==========');
@@ -35,15 +40,26 @@ const csrfProtection = (req, res, next) => {
   const csrfTokenFromCookie = req.cookies?.csrf_token;
   const providedToken = csrfTokenFromHeader || csrfTokenFromBody;
 
+  console.log('[CSRF] Origin header:', req.headers.origin);
+  console.log('[CSRF] Host header:', req.headers.host);
+  console.log('[CSRF] Referer header:', req.headers.referer);
+  console.log('[CSRF] Cookies header:', req.headers.cookie);
   console.log('[CSRF] Token del header:', csrfTokenFromHeader ? csrfTokenFromHeader.substring(0, 8) + '...' : 'ausente');
   console.log('[CSRF] Token del body:', csrfTokenFromBody ? csrfTokenFromBody.substring(0, 8) + '...' : 'ausente');
   console.log('[CSRF] Token de cookie:', csrfTokenFromCookie ? csrfTokenFromCookie.substring(0, 8) + '...' : 'ausente');
 
   if (!csrfTokenFromCookie || !providedToken) {
-    console.log('[CSRF] ❌ Token CSRF faltante (cookie:', !!csrfTokenFromCookie, ', token:', !!providedToken, ')');
+    const missingCause = !csrfTokenFromCookie && !providedToken
+      ? 'cookie_and_token_missing'
+      : !csrfTokenFromCookie
+        ? 'cookie_missing'
+        : 'token_missing';
+
+    console.log('[CSRF] ❌ Token CSRF faltante:', missingCause);
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_MISSING',
+      cause: missingCause,
       message: 'Token CSRF requerido para esta operación'
     });
   }
@@ -54,6 +70,7 @@ const csrfProtection = (req, res, next) => {
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_INVALID',
+      cause: 'token_not_in_store',
       message: 'Token CSRF inválido'
     });
   }
@@ -65,6 +82,7 @@ const csrfProtection = (req, res, next) => {
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_INVALID',
+      cause: 'cookie_token_mismatch',
       message: 'Token CSRF inválido'
     });
   }
@@ -79,9 +97,10 @@ const generateCSRFTokenMiddleware = (req, res, next) => {
   
   // Enviar token como cookie httpOnly
   const isProduction = process.env.NODE_ENV === 'production';
+  const isLocalhost = isLocalhostRequest(req);
   res.cookie('csrf_token', token, {
     httpOnly: false, // No httpOnly para que JavaScript pueda leerlo
-    secure: isProduction,
+    secure: isProduction && !isLocalhost,
     sameSite: isProduction ? 'none' : 'lax', // cross-site POST requiere SameSite=None en producción
     path: '/',
     maxAge: 24 * 60 * 60 * 1000 // 24 horas
@@ -103,9 +122,10 @@ const csrfTokenGenerator = (req, res, next) => {
   console.log('[CSRF] Referer:', req.headers.referer);
   
   const isProduction = process.env.NODE_ENV === 'production';
+  const isLocalhost = isLocalhostRequest(req);
   res.cookie('csrf_token', token, {
     httpOnly: false,
-    secure: isProduction,
+    secure: isProduction && !isLocalhost,
     sameSite: isProduction ? 'none' : 'lax',
     path: '/',
     maxAge: 24 * 60 * 60 * 1000

@@ -194,6 +194,11 @@ app.use((req, res, next) => {
 });
 
 // CORS restrictivo - solo permitir orígenes específicos
+const normalizeOrigin = (origin) => {
+  if (!origin || typeof origin !== 'string') return origin;
+  return origin.trim().replace(/\/$/, '');
+};
+
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
@@ -203,7 +208,12 @@ const allowedOrigins = [
   'https://danhee-cake-qvmrsik4m-bitwizpers-projects.vercel.app',
   'https://danhee-cake-3uix5gn6p-bitwizpers-projects.vercel.app',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
-];
+].map(normalizeOrigin);
+
+const isTryCloudflareOrigin = (origin) => {
+  const normalized = normalizeOrigin(origin);
+  return normalized && normalized.endsWith('.trycloudflare.com');
+};
 
 const corsOptions = {
   origin: function(origin, callback) {
@@ -217,34 +227,27 @@ const corsOptions = {
       return callback(null, true);
     }
     
+    const normalizedOrigin = normalizeOrigin(origin);
+
     // Verificar si el origen está en la allowlist
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log(`[CORS] Origin ${origin} is allowed`);
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      console.log(`[CORS] Origin ${normalizedOrigin} is allowed`);
       return callback(null, true);
     }
     
-    // Allowlist explícita de subdominios trycloudflare.com (solo túneles específicos)
-    const ALLOWED_CLOUDFLARE_TUNNELS = [
-      ...(process.env.CLOUDFLARE_TUNNEL ? [process.env.CLOUDFLARE_TUNNEL] : []),
-      'observer-advance-lung-revolution.trycloudflare.com', // túnel actual
-      'surface-writers-apartments-mozilla.trycloudflare.com', // túnel anterior
-      'backgrounds-coast-real-wood.trycloudflare.com', // fallback anterior
-      'broken-defined-physiology-pirates.trycloudflare.com', // fallback anterior
-    ];
-    
-    if (ALLOWED_CLOUDFLARE_TUNNELS.some(tunnel => origin.includes(tunnel))) {
-      console.log(`[CORS] Allowing specific Cloudflare tunnel: ${origin}`);
+    if (isTryCloudflareOrigin(normalizedOrigin)) {
+      console.log(`[CORS] Allowing any trycloudflare.com origin: ${normalizedOrigin}`);
       return callback(null, true);
     }
     
     // En desarrollo, ser más permisivo con localhost
-    if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
-      console.log(`[CORS] Allowing development origin: ${origin}`);
+    if (process.env.NODE_ENV !== 'production' && normalizedOrigin.includes('localhost')) {
+      console.log(`[CORS] Allowing development origin: ${normalizedOrigin}`);
       return callback(null, true);
     }
     
     // Rechazar origen no permitido con error específico
-    console.log(`[CORS] Origin ${origin} is NOT allowed`);
+    console.log(`[CORS] Origin ${normalizedOrigin} is NOT allowed`);
     const error = new Error('CORS no permitido');
     error.status = 403;
     return callback(error);

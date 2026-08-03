@@ -17,22 +17,6 @@ const LoginPage = () => {
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
   const getCsrfToken = async () => {
-    // Verificar si hay un token cacheado válido
-    const cachedToken = localStorage.getItem('csrf_token');
-    const cachedTime = localStorage.getItem('csrf_token_time');
-    const CACHE_DURATION = 60 * 60 * 1000; // 1 hora
-
-    if (cachedToken && cachedTime) {
-      const tokenAge = Date.now() - parseInt(cachedTime);
-      if (tokenAge < CACHE_DURATION) {
-        // Validación básica: token debe ser string de 64 caracteres hex
-        if (typeof cachedToken === 'string' && cachedToken.length === 64 && /^[a-f0-9]{64}$/i.test(cachedToken)) {
-          console.log('[CSRF Frontend Login] Using cached token');
-          return cachedToken;
-        }
-      }
-    }
-
     try {
       const response = await fetch(getApiUrl('/api/auth/csrf-token'), {
         method: 'GET',
@@ -40,13 +24,6 @@ const LoginPage = () => {
       });
       const data = await response.json();
       console.log('[CSRF Frontend Login] Token received:', data.csrf_token ? data.csrf_token.substring(0, 8) + '...' : 'null');
-      
-      // Cachear el token
-      if (data.csrf_token) {
-        localStorage.setItem('csrf_token', data.csrf_token);
-        localStorage.setItem('csrf_token_time', Date.now().toString());
-      }
-      
       return data.csrf_token;
     } catch (err) {
       console.error('[CSRF Frontend Login] Error obteniendo CSRF token:', err);
