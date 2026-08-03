@@ -3,6 +3,7 @@ services:
     build: ./server
     ports:
       - "4000:4000"
+      - "5005:5005"
     env_file:
       - ./server/.env
       - ./docker.env
@@ -24,7 +25,7 @@ services:
       - CSP_CONNECT_SRC=${CSP_CONNECT_SRC:-https://*.vercel.app}
       
     volumes:
-      # - ./server/src:/app/src # Desactivado en prod para evitar sobreescritura de código local
+      - ./server/src:/app/src
       - ./server/uploads:/app/uploads
       - /app/node_modules
       - /app/rag/chroma
