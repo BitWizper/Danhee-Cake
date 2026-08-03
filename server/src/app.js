@@ -506,12 +506,13 @@ app.use('/api', validateAllParameters);
 app.use('/api', apiGuard);
 app.use('/api', apiFuzzingGuard);
 app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.path} | IP: ${req.ip} | Origin: ${req.headers.origin || 'N/A'}`);
+  
   res.on('finish', () => {
-    const status = res.statusCode || 500;
-    if (status >= 400) {
-      logAttack(req, 'request_failed', { status });
-    }
+    console.log(`[${timestamp}] ${req.method} ${req.path} → ${res.statusCode} (${Date.now() - new Date(timestamp).getTime()}ms)`);
   });
+  
   next();
 });
 app.use(sanitizeQueryParams);

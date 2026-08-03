@@ -37,23 +37,38 @@ const sanitizeInput = (input) => {
 };
 
 exports.register = async (req, res, next) => {
+  console.log('[REGISTER] ========== INICIO REGISTER ==========');
+  console.log('[REGISTER] IP:', req.ip, '| User-Agent:', req.headers['user-agent']?.substring(0, 50));
+  console.log('[REGISTER] Body recibido:', { 
+    name: req.body.name, 
+    email: req.body.email, 
+    role: req.body.role || 'cliente',
+    hasPassword: !!req.body.password 
+  });
+  console.log('[REGISTER] Headers:', { origin: req.headers.origin, referer: req.headers.referer });
+  
   const { name, email, password, role, address, business_name, location, specialty, bio } = req.body;
 
   try {
-    // Validar campos requeridos
+    console.log('[REGISTER] Validando campos requeridos...');
     if (!name || !email || !password) {
+      console.log('[REGISTER] ❌ FALLO: Campos faltantes - name:', !!name, 'email:', !!email, 'password:', !!password);
       return res.status(400).json({ success: false, message: 'Todos los campos son obligatorios.' });
     }
 
-    // Validar formato de email
+    console.log('[REGISTER] Validando formato de email...');
     if (!isValidEmail(email)) {
+      console.log('[REGISTER] ❌ FALLO: Email inválido:', email);
       return res.status(400).json({ success: false, message: 'Formato de correo electrónico inválido.' });
     }
+    console.log('[REGISTER] ✓ Email válido');
 
-    // Validar complejidad de contraseña
+    console.log('[REGISTER] Validando complejidad de contraseña...');
     if (!isValidPassword(password)) {
+      console.log('[REGISTER] ❌ FALLO: Contraseña débil (longitud:', password.length + ')');
       return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 8 caracteres e incluir letras y números.' });
     }
+    console.log('[REGISTER] ✓ Contraseña válida');
 
     // Validar role contra whitelist estricta (CRÍTICO para prevenir escalación de privilegios)
     const allowedRoles = ['cliente', 'repostero'];
@@ -96,61 +111,69 @@ exports.register = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'El nombre no puede estar vacío.' });
     }
 
-    // Verificar si el usuario ya existe
+    console.log('[REGISTER] Verificando si usuario ya existe...');
     const [existingUser] = await db.execute('SELECT id FROM users WHERE email = ?', [sanitizedEmail]);
     if (existingUser.length > 0) {
-      console.log('[Register] Usuario ya existe:', sanitizedEmail);
+      console.log('[REGISTER] ❌ FALLO: Usuario ya existe:', sanitizedEmail);
       return res.status(400).json({
         success: false,
         message: 'No se pudo completar el registro. Verifica tus datos e intenta de nuevo.'
       });
     }
+    console.log('[REGISTER] ✓ Email disponible');
 
     console.log('[Register] Usuario no existe, procediendo a crear:', { name: sanitizedName, email: sanitizedEmail, role: userRole });
 
-    // Hashear la contraseña
+    console.log('[REGISTER] Hasheando contraseña...');
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    console.log('[REGISTER] ✓ Contraseña hasheada');
 
-    console.log('[Register] Contraseña hasheada, insertando usuario...');
-
-    // Insertar usuario con consultas parametrizadas y role validado
+    console.log('[REGISTER] Insertando usuario en BD...');
     const [userResult] = await db.execute(
       'INSERT INTO users (name, email, password_hash, role, address) VALUES (?, ?, ?, ?, ?)',
       [sanitizedName, sanitizedEmail, hashedPassword, userRole, sanitizedAddress]
     );
 
     const userId = userResult.insertId;
-    console.log('[Register] Usuario insertado con ID:', userId);
+    console.log('[REGISTER] ✓ Usuario insertado con ID:', userId);
 
-    // Si es repostero, crear perfil
     if (userRole === 'repostero') {
-      console.log('[Register] Creando perfil de repostero para usuario:', userId);
+      console.log('[REGISTER] Creando perfil de repostero para usuario:', userId);
       await db.execute(
         'INSERT INTO baker_profiles (user_id, business_name, location, specialty, bio) VALUES (?, ?, ?, ?, ?)',
         [userId, sanitizedBusinessName || sanitizedName, sanitizedLocation, sanitizedSpecialty, sanitizedBio]
       );
-      console.log('[Register] Perfil de repostero creado');
+      console.log('[REGISTER] ✓ Perfil de repostero creado');
     }
 
-    console.log('[Register] Registro completado exitosamente');
+    console.log('[REGISTER] ✅ REGISTER EXITOSO para usuario:', sanitizedEmail, '| Rol:', userRole, '| ID:', userId);
+    console.log('[REGISTER] ========== FIN REGISTER ==========');
+    
     res.status(201).json({
       success: true,
       message: 'Usuario registrado exitosamente. Verifica tu correo si es necesario antes de continuar.'
     });
   } catch (err) {
+    console.error('[REGISTER] ❌ ERROR EN REGISTER:', err.message);
+    console.error('[REGISTER] Stack:', err.stack);
     next(err);
   }
 };
 
 exports.login = async (req, res, next) => {
-  // Aceptar email o username como identificador de login
+  console.log('[LOGIN] ========== INICIO LOGIN ==========');
+  console.log('[LOGIN] IP:', req.ip, '| User-Agent:', req.headers['user-agent']?.substring(0, 50));
+  console.log('[LOGIN] Body recibido:', { email: req.body.email, username: req.body.username ? '[PROVIDED]' : '[MISSING]' });
+  console.log('[LOGIN] Headers:', { origin: req.headers.origin, referer: req.headers.referer });
+  
   const { email, username, password } = req.body;
   const rawIdentifier = (email || username || '').toString().trim();
 
   try {
-    // Validar campos requeridos
+    console.log('[LOGIN] Validando campos requeridos...');
     if (!rawIdentifier || !password) {
+      console.log('[LOGIN] ❌ FALLO: Campos faltantes - identifier:', !!rawIdentifier, 'password:', !!password);
       return res.status(400).json({ success: false, message: 'Email/username y contraseña son obligatorios.' });
     }
 
@@ -167,8 +190,9 @@ exports.login = async (req, res, next) => {
       [isEmailLike ? normalizedIdentifier : normalizedIdentifier, normalizedIdentifier]
     );
 
+    console.log('[LOGIN] Buscando usuario en BD...');
     if (users.length === 0) {
-      // Mensaje genérico para prevenir enumeración de usuarios
+      console.log('[LOGIN] ❌ FALLO: Usuario no encontrado para:', rawIdentifier.substring(0, 20));
       return res.status(401).json({ 
         success: false, 
         message: 'Credenciales inválidas. Verifica tus datos e intenta de nuevo.' 
@@ -176,37 +200,43 @@ exports.login = async (req, res, next) => {
     }
 
     const user = users[0];
+    console.log('[LOGIN] ✓ Usuario encontrado:', { id: user.id, email: user.email, role: user.role });
 
-    // Verificar contraseña
+    console.log('[LOGIN] Verificando contraseña...');
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      // Mensaje genérico idéntico al de usuario no encontrado para prevenir enumeración
+      console.log('[LOGIN] ❌ FALLO: Contraseña incorrecta para usuario:', user.email);
       return res.status(401).json({ 
         success: false, 
         message: 'Credenciales inválidas. Verifica tus datos e intenta de nuevo.' 
       });
     }
+    console.log('[LOGIN] ✓ Contraseña verificada correctamente');
 
-    // Generar tokens
+    console.log('[LOGIN] Generando tokens JWT...');
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
     );
+    console.log('[LOGIN] ✓ Access token generado (expira en:', ACCESS_TOKEN_EXPIRES_IN + ')');
 
     const refreshToken = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       REFRESH_TOKEN_SECRET,
       { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
     );
+    console.log('[LOGIN] ✓ Refresh token generado (expira en:', REFRESH_TOKEN_EXPIRES_IN + ')');
 
     const refreshTokenExpiryMs = parseRefreshExpiry(REFRESH_TOKEN_EXPIRES_IN);
     const expiresAt = new Date(Date.now() + refreshTokenExpiryMs).toISOString().slice(0, 19).replace('T', ' ');
 
+    console.log('[LOGIN] Guardando refresh token en BD...');
     await db.execute(
       'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
       [user.id, refreshToken, expiresAt]
     );
+    console.log('[LOGIN] ✓ Refresh token guardado en BD');
 
     // Enviar tokens como cookies httpOnly para mayor seguridad
     const isProduction = process.env.NODE_ENV === 'production';
@@ -238,13 +268,23 @@ exports.login = async (req, res, next) => {
       })
     };
 
+    console.log('[LOGIN] Estableciendo cookies...');
     res.cookie('access_token', token, cookieOptions);
     res.cookie('refresh_token', refreshToken, refreshCookieOptions);
+    console.log('[LOGIN] ✓ Cookies establecidas:', { 
+      access_token_domain: cookieOptions.domain || 'current', 
+      access_token_sameSite: cookieOptions.sameSite,
+      refresh_token_domain: refreshCookieOptions.domain || 'current',
+      refresh_token_sameSite: refreshCookieOptions.sameSite
+    });
 
+    console.log('[LOGIN] ✅ LOGIN EXITOSO para usuario:', user.email, '| Rol:', user.role);
+    console.log('[LOGIN] ========== FIN LOGIN ==========');
+    
     res.json({
       success: true,
-      token, // Mantener por compatibilidad temporal
-      refresh_token: refreshToken, // Mantener por compatibilidad temporal
+      token,
+      refresh_token: refreshToken,
       user: {
         id: user.id,
         name: user.name,
@@ -253,6 +293,8 @@ exports.login = async (req, res, next) => {
       }
     });
   } catch (err) {
+    console.error('[LOGIN] ❌ ERROR EN LOGIN:', err.message);
+    console.error('[LOGIN] Stack:', err.stack);
     next(err);
   }
 };

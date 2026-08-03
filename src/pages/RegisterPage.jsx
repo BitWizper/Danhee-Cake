@@ -64,13 +64,23 @@ const RegisterPage = () => {
 
   const handleSubmit = async e => {
     e.preventDefault();
+    console.log('[REGISTER_FRONTEND] ========== INICIO REGISTER FRONTEND ==========');
+    console.log('[REGISTER_FRONTEND] Form data:', { 
+      name: form.name, 
+      email: form.email, 
+      role: userType,
+      hasPassword: !!form.password 
+    });
+    
     if (!form.name || !form.email || !form.password) {
+      console.log('[REGISTER_FRONTEND] ❌ Campos faltantes');
       setError('Por favor completa los campos obligatorios.');
       return;
     }
 
     const rlCheck = checkBeforeSubmit();
     if (!rlCheck.allowed) {
+      console.log('[REGISTER_FRONTEND] ❌ Rate limit local:', rlCheck.error);
       setError(rlCheck.error);
       return;
     }
@@ -80,36 +90,49 @@ const RegisterPage = () => {
     setError('');
 
     try {
+      console.log('[REGISTER_FRONTEND] Obteniendo CSRF token...');
       const csrfToken = await getCsrfToken();
+      console.log('[REGISTER_FRONTEND] CSRF token obtenido:', csrfToken ? '✓' : '✗');
+      
       const headers = { 'Content-Type': 'application/json' };
       if (csrfToken) {
         headers['X-CSRF-Token'] = csrfToken;
       }
 
-      const response = await fetch(getApiUrl('/api/auth/register'), {
+      const url = getApiUrl('/api/auth/register');
+      console.log('[REGISTER_FRONTEND] Haciendo request a:', url);
+
+      const response = await fetch(url, {
         method: 'POST',
         credentials: 'include',
         headers,
         body: JSON.stringify({ ...form, role: userType })
       });
 
+      console.log('[REGISTER_FRONTEND] Response status:', response.status);
+
       if (response.status === 429) {
+        console.log('[REGISTER_FRONTEND] ❌ Rate limit del servidor');
         setError(handleServer429(response));
         return;
       }
 
       const result = await response.json();
+      console.log('[REGISTER_FRONTEND] Response body:', result);
 
       if (response.ok && result.success) {
+        console.log('[REGISTER_FRONTEND] ✅ Register exitoso, redirigiendo a /login');
         navigate('/login');
       } else {
+        console.log('[REGISTER_FRONTEND] ❌ Register fallido:', result.message);
         setError(result.message || 'Error al crear la cuenta. Revisa los datos ingresados.');
       }
     } catch (err) {
-      console.error('Register error:', err);
+      console.error('[REGISTER_FRONTEND] ❌ ERROR:', err);
       setError('Error de conexión: No se pudo contactar con el servidor. Reintenta en unos momentos.');
     } finally {
       setLoading(false);
+      console.log('[REGISTER_FRONTEND] ========== FIN REGISTER FRONTEND ==========');
     }
   };
 
