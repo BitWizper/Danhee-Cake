@@ -13,22 +13,29 @@ const db = require('../config/db');
  *   req.user = { id, email, role, iat, exp }
  */
 const authMiddleware = (req, res, next) => {
+  console.log('[Auth Middleware] ========== INICIO AUTH MIDDLEWARE ==========');
+  console.log('[Auth Middleware] Path:', req.path);
+  console.log('[Auth Middleware] Method:', req.method);
+  
   try {
-    // Obtener token de header Authorization o cookie
     const authHeader = req.headers['authorization'];
     const cookieToken = req.cookies?.access_token;
     
+    console.log('[Auth Middleware] Auth header presente?', !!authHeader);
+    console.log('[Auth Middleware] Cookie access_token presente?', !!cookieToken);
+    
     let token = null;
 
-    // Prioridad: header Authorization > cookie
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
+      console.log('[Auth Middleware] Token obtenido de Authorization header');
     } else if (cookieToken) {
       token = cookieToken;
+      console.log('[Auth Middleware] Token obtenido de cookie');
     }
 
-    // Verificar que existe un token
     if (!token) {
+      console.log('[Auth Middleware] ❌ No se encontró token');
       return res.status(401).json({
         success: false,
         message: 'Acceso denegado. Token requerido.',
@@ -36,23 +43,25 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
-    // Verificar y decodificar el token con algoritmo explícito
+    console.log('[Auth Middleware] Verificando token JWT...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {
-      algorithms: ['HS256'] // Solo permitir HS256, prevenir alg=none attacks
+      algorithms: ['HS256']
     });
 
-    // Adjuntar el usuario decodificado a la request
     req.user = {
       id: decoded.id,
       email: decoded.email,
       role: decoded.role
     };
 
-    console.log(`[Auth] ✅ Usuario autenticado: ${req.user.email} (ID: ${req.user.id}, Rol: ${req.user.role})`);
+    console.log(`[Auth Middleware] ✅ Usuario autenticado: ${req.user.email} (ID: ${req.user.id}, Rol: ${req.user.role})`);
+    console.log('[Auth Middleware] Token expira en:', new Date(decoded.exp * 1000).toISOString());
     next();
   } catch (err) {
-    // Manejar errores específicos de JWT
+    console.error('[Auth Middleware] ❌ Error en autenticación:', err.name);
+    
     if (err.name === 'TokenExpiredError') {
+      console.log('[Auth Middleware] ❌ Token expirado');
       return res.status(401).json({
         success: false,
         message: 'Token expirado. Por favor, inicia sesión nuevamente.',
@@ -61,6 +70,7 @@ const authMiddleware = (req, res, next) => {
     }
 
     if (err.name === 'JsonWebTokenError') {
+      console.log('[Auth Middleware] ❌ Token inválido:', err.message);
       return res.status(401).json({
         success: false,
         message: 'Token inválido. Por favor, inicia sesión nuevamente.',
@@ -69,6 +79,7 @@ const authMiddleware = (req, res, next) => {
     }
 
     if (err.name === 'NotBeforeError') {
+      console.log('[Auth Middleware] ❌ Token no válido aún');
       return res.status(401).json({
         success: false,
         message: 'Token no válido aún.',
@@ -76,8 +87,7 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
-    // Otros errores
-    console.error('[Auth] Error en autenticación:', err);
+    console.error('[Auth Middleware] Error inesperado:', err);
     next(err);
   }
 };

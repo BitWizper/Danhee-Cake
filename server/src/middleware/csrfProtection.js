@@ -13,27 +13,34 @@ const generateCSRFToken = () => {
 
 // Middleware para generar y validar token CSRF
 const csrfProtection = (req, res, next) => {
-  // Solo aplicar a métodos que modifican estado
+  console.log('[CSRF] ========== INICIO CSRF PROTECTION ==========');
+  console.log('[CSRF] Method:', req.method);
+  console.log('[CSRF] Path:', req.path);
+  
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    console.log('[CSRF] ⏩ Skip (método seguro)');
     return next();
   }
 
   const isAuthMutationRoute = req.path === '/auth/login' || req.path === '/auth/register';
+  console.log('[CSRF] Es ruta auth mutation?', isAuthMutationRoute);
 
-  // En desarrollo, desactivar CSRF para el resto de rutas, pero mantenerlo para login/register
   if (!isAuthMutationRoute && process.env.NODE_ENV !== 'production') {
-    console.log('[CSRF] CSRF protection disabled in development for non-auth routes');
+    console.log('[CSRF] ⏩ CSRF desactivado en desarrollo para ruta no-auth');
     return next();
   }
 
-  // Obtener token del header o del body
   const csrfTokenFromHeader = req.headers['x-csrf-token'];
   const csrfTokenFromBody = req.body?.csrf_token;
   const csrfTokenFromCookie = req.cookies?.csrf_token;
   const providedToken = csrfTokenFromHeader || csrfTokenFromBody;
 
+  console.log('[CSRF] Token del header:', csrfTokenFromHeader ? csrfTokenFromHeader.substring(0, 8) + '...' : 'ausente');
+  console.log('[CSRF] Token del body:', csrfTokenFromBody ? csrfTokenFromBody.substring(0, 8) + '...' : 'ausente');
+  console.log('[CSRF] Token de cookie:', csrfTokenFromCookie ? csrfTokenFromCookie.substring(0, 8) + '...' : 'ausente');
+
   if (!csrfTokenFromCookie || !providedToken) {
-    console.log('[CSRF] CSRF token missing or cookie missing');
+    console.log('[CSRF] ❌ Token CSRF faltante (cookie:', !!csrfTokenFromCookie, ', token:', !!providedToken, ')');
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_MISSING',
@@ -42,7 +49,8 @@ const csrfProtection = (req, res, next) => {
   }
 
   if (!csrfTokens.has(csrfTokenFromCookie)) {
-    console.log('[CSRF] CSRF token not found in server store');
+    console.log('[CSRF] ❌ Token no encontrado en store del servidor');
+    console.log('[CSRF] Total tokens en store:', csrfTokens.size);
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_INVALID',
@@ -51,7 +59,9 @@ const csrfProtection = (req, res, next) => {
   }
 
   if (csrfTokenFromCookie !== providedToken) {
-    console.log('[CSRF] CSRF token mismatch');
+    console.log('[CSRF] ❌ Mismatch entre cookie y token enviado');
+    console.log('[CSRF] Cookie token:', csrfTokenFromCookie.substring(0, 8) + '...');
+    console.log('[CSRF] Provided token:', providedToken.substring(0, 8) + '...');
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_INVALID',
@@ -59,7 +69,7 @@ const csrfProtection = (req, res, next) => {
     });
   }
 
-  console.log('[CSRF] Token validated successfully');
+  console.log('[CSRF] ✅ Token validado correctamente');
   next();
 };
 

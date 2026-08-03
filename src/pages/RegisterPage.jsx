@@ -64,13 +64,28 @@ const RegisterPage = () => {
 
   const handleSubmit = async e => {
     e.preventDefault();
+    console.log('[Register] ========== INICIO SUBMIT ==========');
+    console.log('[Register] User type:', userType);
+    console.log('[Register] Form data:', { 
+      name: form.name, 
+      email: form.email, 
+      password: '***',
+      address: form.address || '(vacío)',
+      business_name: form.business_name || '(vacío)',
+      location: form.location || '(vacío)',
+      specialty: form.specialty || '(vacío)',
+      bio: form.bio || '(vacío)'
+    });
+    
     if (!form.name || !form.email || !form.password) {
+      console.log('[Register] ❌ Campos obligatorios vacíos');
       setError('Por favor completa los campos obligatorios.');
       return;
     }
 
     const rlCheck = checkBeforeSubmit();
     if (!rlCheck.allowed) {
+      console.log('[Register] ⚠️ Rate limit bloqueado:', rlCheck.error);
       setError(rlCheck.error);
       return;
     }
@@ -80,36 +95,63 @@ const RegisterPage = () => {
     setError('');
 
     try {
+      console.log('[Register] Obteniendo CSRF token...');
       const csrfToken = await getCsrfToken();
+      console.log('[Register] CSRF token obtenido:', csrfToken ? '✅' : '❌');
+      
       const headers = { 'Content-Type': 'application/json' };
       if (csrfToken) {
         headers['X-CSRF-Token'] = csrfToken;
+        console.log('[Register] CSRF token agregado a headers');
       }
 
-      const response = await fetch(getApiUrl('/api/auth/register'), {
+      const payload = { ...form, role: userType };
+      console.log('[Register] Payload a enviar:', { ...payload, password: '***' });
+
+      console.log('[Register] Enviando petición POST a /api/auth/register...');
+      const apiUrl = getApiUrl('/api/auth/register');
+      console.log('[Register] URL completa:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         credentials: 'include',
         headers,
-        body: JSON.stringify({ ...form, role: userType })
+        body: JSON.stringify(payload)
       });
 
+      console.log('[Register] Respuesta recibida - Status:', response.status);
+      console.log('[Register] Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (response.status === 429) {
+        console.log('[Register] ⚠️ Rate limit del servidor (429)');
         setError(handleServer429(response));
         return;
       }
 
       const result = await response.json();
+      console.log('[Register] Resultado del servidor:', { 
+        success: result.success, 
+        message: result.message
+      });
 
       if (response.ok && result.success) {
+        console.log('[Register] ✅ Registro exitoso');
         navigate('/login');
       } else {
+        console.log('[Register] ❌ Registro fallido:', result.message);
         setError(result.message || 'Error al crear la cuenta. Revisa los datos ingresados.');
       }
     } catch (err) {
-      console.error('Register error:', err);
+      console.error('[Register] ❌ ERROR EN REGISTER:', err);
+      console.error('[Register] Error details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      });
       setError('Error de conexión: No se pudo contactar con el servidor. Reintenta en unos momentos.');
     } finally {
       setLoading(false);
+      console.log('[Register] ========== FIN SUBMIT ==========');
     }
   };
 

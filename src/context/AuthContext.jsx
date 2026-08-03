@@ -10,34 +10,49 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Verificar sesión llamando al endpoint de usuario actual
+    console.log('[AuthContext] ========== INICIANDO CHECK SESSION ==========');
     const checkSession = async () => {
-      // Preload CSRF token to ensure cookie and header are available for subsequent mutating requests
       try {
+        console.log('[AuthContext] Obteniendo CSRF token inicial...');
         await getCsrfToken();
+        console.log('[AuthContext] CSRF token obtenido ✅');
       } catch (err) {
-        console.warn('No se pudo obtener CSRF token durante init:', err);
+        console.warn('[AuthContext] ⚠️ No se pudo obtener CSRF token durante init:', err.message);
       }
       try {
-        const response = await fetch(getApiUrl('/api/auth/me'), {
+        const apiUrl = getApiUrl('/api/auth/me');
+        console.log('[AuthContext] Verificando sesión en:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
           method: 'GET',
-          credentials: 'include', // Importante para enviar cookies httpOnly
+          credentials: 'include',
         });
+
+        console.log('[AuthContext] Response status /api/auth/me:', response.status);
 
         if (response.ok) {
           const data = await response.json();
+          console.log('[AuthContext] ✅ Sesión válida. Usuario:', data.user?.email, 'Rol:', data.user?.role);
           setUser(data.user);
-          setToken('cookie-based'); // Indicar que usamos cookies
+          setToken('cookie-based');
         } else {
+          console.log('[AuthContext] ❌ Sesión inválida o no autenticada (status:', response.status, ')');
+          const errorData = await response.json().catch(() => ({}));
+          console.log('[AuthContext] Error response:', errorData);
           setUser(null);
           setToken(null);
         }
       } catch (error) {
-        console.error('Error verificando sesión:', error);
+        console.error('[AuthContext] ❌ ERROR verificando sesión:', error);
+        console.error('[AuthContext] Error details:', {
+          name: error.name,
+          message: error.message
+        });
         setUser(null);
         setToken(null);
       } finally {
         setLoading(false);
+        console.log('[AuthContext] ========== FIN CHECK SESSION ==========');
       }
     };
 
@@ -45,30 +60,40 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (userData, userToken) => {
-    // Guardar datos del usuario en localStorage (solo datos no sensibles)
+    console.log('[AuthContext] login() llamado con usuario:', userData?.email, 'Rol:', userData?.role);
     setUser(userData);
     setToken(userToken || 'cookie-based');
     localStorage.setItem('user', JSON.stringify(userData));
-    // NO guardar el token en localStorage - ahora está en cookie httpOnly
+    console.log('[AuthContext] ✅ Usuario guardado en estado y localStorage');
   };
 
   const logout = async () => {
+    console.log('[AuthContext] logout() llamado');
     try {
-      // Llamar al endpoint de logout para limpiar cookies en el servidor
+      console.log('[AuthContext] Llamando a /api/auth/logout...');
       const headers = await addCsrfToHeaders({ 'Content-Type': 'application/json' });
-      await fetch(getApiUrl('/api/auth/logout'), {
+      const response = await fetch(getApiUrl('/api/auth/logout'), {
         method: 'POST',
         credentials: 'include',
         headers,
         body: JSON.stringify({ refresh_token: 'from_cookie' }),
       });
+      console.log('[AuthContext] Logout response status:', response.status);
+      if (response.ok) {
+        console.log('[AuthContext] ✅ Logout exitoso en servidor');
+      } else {
+        const data = await response.json().catch(() => ({}));
+        console.log('[AuthContext] ⚠️ Logout response no-OK:', data);
+      }
     } catch (error) {
-      console.error('Error en logout:', error);
+      console.error('[AuthContext] ❌ Error en logout:', error);
     } finally {
+      console.log('[AuthContext] Limpiando estado local y localStorage...');
       setUser(null);
       setToken(null);
       localStorage.removeItem('user');
       localStorage.removeItem('conversation_id');
+      console.log('[AuthContext] ✅ Logout completado');
     }
   };
 
