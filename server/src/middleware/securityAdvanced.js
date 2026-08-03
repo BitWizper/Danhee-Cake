@@ -123,17 +123,12 @@ const XSS_PATTERNS = [
 
 // Patrones de ataque RCE (más específicos para evitar falsos positivos)
 const RCE_PATTERNS = [
-  /\|\s*\w+/i,
-  /&&\s*\w+/i,
   /\$\([^)]+\)/i,
   /`[^`]+`/i,
   /\$\{[^}]+\}/i,
   /<\?php/i,
   /<\?=/i
-].filter((pattern, index) => {
-  // Excluir patrón ;\s*\w+ que causa falsos positivos en URLs con query params
-  return true;
-});
+];
 
 // Función para generar fingerprint del dispositivo
 function generateDeviceFingerprint(req) {

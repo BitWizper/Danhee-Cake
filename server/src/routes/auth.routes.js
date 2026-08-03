@@ -89,7 +89,9 @@ router.post('/refresh', ipBlocker, publicLimiter, authLimiter, validateAllParame
 router.post('/logout', ipBlocker, publicLimiter, authLimiter, validateAllParameters, validateRefreshToken, handleValidationErrors, csrfProtection, authController.logout);
 router.get('/me', ipBlocker, publicLimiter, authMiddleware, authController.getMe);
 router.get('/csrf-token', csrfTokenGenerator, (req, res) => {
-  res.json({ csrf_token: req.cookies?.csrf_token || res.getHeader('X-CSRF-Token') });
+  const csrfToken = res.getHeader('X-CSRF-Token');
+  console.log('[CSRF] /csrf-token issuing token:', csrfToken ? `${csrfToken.substring(0, 8)}...` : 'null');
+  res.json({ csrf_token: csrfToken });
 });
 
 module.exports = router;
