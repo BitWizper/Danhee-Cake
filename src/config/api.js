@@ -8,8 +8,29 @@ const API_URL = import.meta.env.VITE_BASE_URL ||
 export const API_BASE_URL = API_URL;
 
 export const getApiUrl = (endpoint) => {
-  // Prevenir inyección de URLs absolutas externas
+  // Permitir URLs absolutas de dominios de imágenes legítimos
+  const allowedImageDomains = [
+    'i.pinimg.com',
+    'images.unsplash.com',
+    'imgur.com',
+    'i.imgur.com',
+    'cdn.shopify.com',
+    'res.cloudinary.com',
+    'cloudinary.com'
+  ];
+
   if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    try {
+      const url = new URL(endpoint);
+      const isAllowedDomain = allowedImageDomains.some(domain => url.hostname === domain || url.hostname.endsWith('.' + domain));
+      
+      if (isAllowedDomain) {
+        return endpoint;
+      }
+    } catch (e) {
+      // Si no es URL válida, continuar con el flujo normal
+    }
+    
     const baseOrigin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
     const baseUrl = API_BASE_URL || baseOrigin;
     

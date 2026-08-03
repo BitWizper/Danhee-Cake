@@ -5,6 +5,7 @@ const { authMiddleware, authorize, optionalAuth } = require('../middleware/auth'
 const { bakersLimiter, readLimiter, writeLimiter, ipBlocker } = require('../middleware/rateLimiter');
 const upload = require('../middleware/upload');
 const { uploadWithSignatureCheck } = require('../middleware/upload');
+const uploadToCloudinary = require('../middleware/uploadToCloudinary');
 const { body, param, query } = require('express-validator');
 const handleValidationErrors = require('../middleware/validationHandler');
 const { validateAllParameters } = require('../middleware/parameterValidator');
@@ -178,6 +179,7 @@ router.post('/cakes',
   authMiddleware,
   authorize('repostero'),
   uploadWithSignatureCheck('image'),
+  uploadToCloudinary,
   validateAllParameters,
   validateCakePostBody,
   handleValidationErrors,
@@ -190,6 +192,7 @@ router.put('/cakes/:id',
   authMiddleware,
   authorize('repostero'),
   uploadWithSignatureCheck('image'),
+  uploadToCloudinary,
   validateAllParameters,
   validateCakePutBody,
   handleValidationErrors,

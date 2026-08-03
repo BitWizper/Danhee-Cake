@@ -10,12 +10,15 @@ const normalizeImageUrl = (imageUrl) => {
     return imageUrl;
   }
   
-  // Si es una ruta relativa de uploads, construir URL segura con token temporal
+  // Si es una ruta relativa de uploads (legacy), construir URL segura con token temporal
   let filename = imageUrl;
   if (imageUrl.includes('/uploads/')) {
     filename = imageUrl.split('/uploads/').pop();
   } else if (imageUrl.startsWith('/uploads/')) {
     filename = imageUrl.replace('/uploads/', '');
+  } else {
+    // No es URL completa ni ruta de uploads, retornar tal cual
+    return imageUrl;
   }
   
   // Generar token temporal firmado para acceso seguro a la imagen

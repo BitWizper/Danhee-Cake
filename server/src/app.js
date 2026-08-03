@@ -367,23 +367,20 @@ app.use('/api', (req, res, next) => {
   return csrfProtection(req, res, next);
 });
 
-// Endpoint seguro para servir imágenes con token temporal
+// Endpoint seguro para servir imágenes con token temporal (LEGACY - mantener para compatibilidad)
 app.get('/api/images/:filename', (req, res) => {
   const { filename } = req.params;
   const { token, expires } = req.query;
   
-  // Validar parámetros
   if (!filename || !token || !expires) {
     return res.status(400).json({ success: false, message: 'Parámetros inválidos' });
   }
   
-  // Validar que el token no haya expirado
   const currentTime = Date.now();
   if (parseInt(expires) < currentTime) {
     return res.status(403).json({ success: false, message: 'Token expirado' });
   }
   
-  // Validar la firma del token
   const tokenData = `${filename}|${expires}`;
   
   if (!process.env.JWT_SECRET) {
@@ -401,22 +398,18 @@ app.get('/api/images/:filename', (req, res) => {
     return res.status(403).json({ success: false, message: 'Token inválido' });
   }
   
-  // Validar el nombre del archivo para prevenir path traversal
   const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '');
   if (sanitizedFilename !== filename) {
     return res.status(400).json({ success: false, message: 'Nombre de archivo inválido' });
   }
   
-  // Construir ruta segura del archivo
   const filePath = path.join(__dirname, '..', 'uploads', sanitizedFilename);
   
-  // Verificar que el archivo existe y está dentro del directorio uploads
   const uploadsDir = path.join(__dirname, '..', 'uploads');
   if (!filePath.startsWith(uploadsDir)) {
     return res.status(403).json({ success: false, message: 'Acceso denegado' });
   }
   
-  // Servir el archivo si existe
   fs.access(filePath, fs.constants.F_OK, (err) => {
     if (err) {
       return res.status(404).json({ success: false, message: 'Imagen no encontrada' });
@@ -433,30 +426,8 @@ app.get('/api/images/:filename', (req, res) => {
   });
 });
 
-// Mantener el endpoint estático para compatibilidad, pero con restricciones
-app.use('/uploads', (req, res, next) => {
-  // Solo permitir acceso si viene del mismo origen (prevenir hotlinking externo)
-  const origin = req.headers.origin || req.headers.referer;
-  const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'https://danhee-cake.vercel.app',
-    process.env.FRONTEND_URL
-  ].filter(Boolean);
-  
-  // Si no hay origin/referer o no está en la lista permitida, bloquear
-  if (!origin || !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
-    return res.status(403).json({ success: false, message: 'Acceso no autorizado' });
-  }
-  
-  next();
-}, (req, res, next) => {
-  // Agregar headers CORS para archivos estáticos (imágenes)
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  next();
-}, express.static('uploads'));
+// Endpoint de uploads locales eliminado - ahora se usa Cloudinary
+// Las imágenes se almacenan y sirven desde Cloudinary CDN
 
 // Ruta para servir medios protegidos (p.ej. videos) desde `public` o `dist`.
 // Requiere `X-MEDIA-KEY` header o query `?key=` con valor en env `MEDIA_KEY`,

@@ -25,11 +25,6 @@ const obfuscatePII = (text) => {
 
 const normalizeImageUrl = (imageUrl) => {
   if (!imageUrl) return imageUrl;
-  if (imageUrl.startsWith('/uploads/')) return imageUrl;
-  if (imageUrl.includes('/uploads/')) {
-    const filename = imageUrl.split('/uploads/').pop();
-    return `/uploads/${filename}`;
-  }
   return imageUrl;
 };
 
@@ -302,8 +297,8 @@ exports.addCake = async (req, res, next) => {
 
     // Obtener la ruta de la imagen si se subió un archivo
     let imageUrl = null;
-    if (req.file) {
-      imageUrl = `/uploads/${req.file.filename}`;
+    if (req.cloudinaryUrl) {
+      imageUrl = req.cloudinaryUrl;
     }
 
     const [result] = await db.execute(
@@ -385,9 +380,9 @@ exports.updateCake = async (req, res, next) => {
     const [cakes] = await db.execute('SELECT image_url FROM cakes WHERE id = ? AND baker_id = ?', [sanitizedId, bakerId]);
     if (cakes.length === 0) return res.status(403).json({ success: false, message: 'No tienes permiso o el pastel no existe.' });
 
-    let imageUrl = normalizeImageUrl(cakes[0].image_url);
-    if (req.file) {
-      imageUrl = `/uploads/${req.file.filename}`;
+    let imageUrl = cakes[0].image_url;
+    if (req.cloudinaryUrl) {
+      imageUrl = req.cloudinaryUrl;
     }
 
     await db.execute(
