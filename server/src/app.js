@@ -226,7 +226,9 @@ const corsOptions = {
     // Allowlist explícita de subdominios trycloudflare.com (solo túneles específicos)
     const ALLOWED_CLOUDFLARE_TUNNELS = [
       ...(process.env.CLOUDFLARE_TUNNEL ? [process.env.CLOUDFLARE_TUNNEL] : []),
-      'backgrounds-coast-real-wood.trycloudflare.com', // fallback actual
+      'observer-advance-lung-revolution.trycloudflare.com', // túnel actual
+      'surface-writers-apartments-mozilla.trycloudflare.com', // túnel anterior
+      'backgrounds-coast-real-wood.trycloudflare.com', // fallback anterior
       'broken-defined-physiology-pirates.trycloudflare.com', // fallback anterior
     ];
     
