@@ -89,12 +89,17 @@ const RegisterPage = () => {
       const apiUrl = getApiUrl('/api/auth/register');
       console.log('[Register] URL completa:', apiUrl);
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         credentials: 'include',
         headers,
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       console.log('[Register] Respuesta recibida - Status:', response.status);
       console.log('[Register] Response headers:', Object.fromEntries(response.headers.entries()));
@@ -102,6 +107,12 @@ const RegisterPage = () => {
       if (response.status === 429) {
         console.log('[Register] ⚠️ Rate limit del servidor (429)');
         setError(handleServer429(response));
+        return;
+      }
+
+      if (response.status === 524 || response.status === 504) {
+        console.log('[Register] ⚠️ Timeout de servidor/túnel (524/504)');
+        setError('El servidor o el túnel tardó demasiado en responder (Timeout 524/504). Reintenta en unos momentos.');
         return;
       }
 
@@ -128,7 +139,11 @@ const RegisterPage = () => {
         message: err.message,
         stack: err.stack
       });
-      setError('Error de conexión: No se pudo contactar con el servidor. Reintenta en unos momentos.');
+      if (err.name === 'AbortError') {
+        setError('La solicitud de registro excedió el tiempo límite (Timeout). Por favor reintenta.');
+      } else {
+        setError('Error de conexión: No se pudo contactar con el servidor. Reintenta en unos momentos.');
+      }
     } finally {
       setLoading(false);
       console.log('[Register] ========== FIN SUBMIT ==========');

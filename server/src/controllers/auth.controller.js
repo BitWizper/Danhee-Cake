@@ -36,6 +36,15 @@ const sanitizeInput = (input) => {
     .substring(0, 100);       // Limitar longitud
 };
 
+const runWithTimeout = (promise, ms = 12000, timeoutMessage = 'Database operation timed out') => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(timeoutMessage)), ms)
+    )
+  ]);
+};
+
 exports.register = async (req, res, next) => {
   console.log('[Register Backend] ========== INICIO REGISTER ==========');
   console.log('[Register Backend] IP:', req.ip || req.connection?.remoteAddress);
@@ -109,8 +118,13 @@ exports.register = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'El nombre no puede estar vacío.' });
     }
 
-    console.log('[Register Backend] Verificando si usuario ya existe...');
-    const [existingUser] = await db.execute('SELECT id FROM users WHERE email = ?', [sanitizedEmail]);
+    console.log('[Register Backend] Verificando si usuario ya existe en la base de datos...');
+    const [existingUser] = await runWithTimeout(
+      db.execute('SELECT id FROM users WHERE email = ?', [sanitizedEmail]),
+      12000,
+      'Timeout consultando disponibilidad de usuario en la base de datos'
+    );
+
     if (existingUser.length > 0) {
       console.log('[Register Backend] ❌ Usuario ya existe:', sanitizedEmail);
       return res.status(400).json({
@@ -127,9 +141,13 @@ exports.register = async (req, res, next) => {
     console.log('[Register Backend] ✅ Contraseña hasheada');
 
     console.log('[Register Backend] Insertando usuario en BD...');
-    const [userResult] = await db.execute(
-      'INSERT INTO users (name, email, password_hash, role, address) VALUES (?, ?, ?, ?, ?)',
-      [sanitizedName, sanitizedEmail, hashedPassword, userRole, sanitizedAddress]
+    const [userResult] = await runWithTimeout(
+      db.execute(
+        'INSERT INTO users (name, email, password_hash, role, address) VALUES (?, ?, ?, ?, ?)',
+        [sanitizedName, sanitizedEmail, hashedPassword, userRole, sanitizedAddress]
+      ),
+      12000,
+      'Timeout insertando nuevo usuario en la base de datos'
     );
 
     const userId = userResult.insertId;
@@ -137,9 +155,13 @@ exports.register = async (req, res, next) => {
 
     if (userRole === 'repostero') {
       console.log('[Register Backend] Creando perfil de repostero para usuario:', userId);
-      await db.execute(
-        'INSERT INTO baker_profiles (user_id, business_name, location, specialty, bio) VALUES (?, ?, ?, ?, ?)',
-        [userId, sanitizedBusinessName || sanitizedName, sanitizedLocation, sanitizedSpecialty, sanitizedBio]
+      await runWithTimeout(
+        db.execute(
+          'INSERT INTO baker_profiles (user_id, business_name, location, specialty, bio) VALUES (?, ?, ?, ?, ?)',
+          [userId, sanitizedBusinessName || sanitizedName, sanitizedLocation, sanitizedSpecialty, sanitizedBio]
+        ),
+        12000,
+        'Timeout creando perfil de repostero en la base de datos'
       );
       console.log('[Register Backend] ✅ Perfil de repostero creado');
     }
@@ -157,6 +179,15 @@ exports.register = async (req, res, next) => {
       code: err.code,
       sqlState: err.sqlState
     });
+
+    if (err.message && err.message.toLowerCase().includes('timeout')) {
+      return res.status(504).json({
+        success: false,
+        error_code: 'DATABASE_TIMEOUT',
+        message: 'El servidor tardó demasiado en responder la consulta. Por favor reintenta en unos momentos.'
+      });
+    }
+
     next(err);
   }
 };

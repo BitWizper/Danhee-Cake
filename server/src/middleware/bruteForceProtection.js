@@ -126,8 +126,8 @@ const bruteForceProtection = (options = {}) => {
         res.setHeader('X-Auth-Attempts-Remaining', Math.max(0, maxAttempts - updatedInfo.count));
       }
       
-      // Si es exitoso, resetear contador
-      if (res.statusCode === 200 && data.success === true) {
+      // Si es exitoso (200 OK o 201 Created), resetear contador
+      if (res.statusCode >= 200 && res.statusCode < 300 && data.success === true) {
         info.count = 0;
         info.attempts = [];
         info.blocked = false;

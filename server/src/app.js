@@ -97,9 +97,8 @@ const app = express();
 // Desactivar header X-Powered-By a nivel de Express
 app.disable('x-powered-by');
 
-// Configurar confianza en proxies de forma estricta para evitar spoofing de IP.
-// Solo aceptamos X-Forwarded-* cuando provienen de proxies de confianza explícitos.
-app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+// Configurar confianza en proxies para túneles y reverse proxies (Cloudflare, Vercel, Nginx)
+app.set('trust proxy', process.env.TRUST_PROXY || 1);
 
 // Bloquear accesos sensibles y manejar OPTIONS de forma temprana
 // Cookie parser para leer cookies httpOnly
@@ -573,12 +572,19 @@ app.use('/chat', attackDetector);
 app.use('/admin', validateHostHeader, ipBlocker, attackDetector);
 
 // Rutas (rate limiting específico aplicado en archivos de rutas)
-app.use('/api/auth', require('./routes/auth.routes'));
+// Montamos auth.routes en dos prefijos para soportar proxies/túneles que puedan reescribir la URL.
+app.use(['/api/auth', '/auth'], require('./routes/auth.routes'));
 app.use('/api/categories', require('./routes/categories.routes'));
 app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
 app.use('/api/appointments', require('./routes/appointments.routes'));
 app.use('/api/payments', require('./routes/payments.routes'));
+
+// Ruta raíz de API para diagnóstico básico y evitar 404 confusos en /api
+app.get('/api', (req, res) => {
+  res.json({ success: true, message: 'API root. Use /api/auth/csrf-token or /api/health' });
+});
+
 // Endpoint de streaming específico para chat con rate limiting (permite usuarios no autenticados)
 app.post('/api/chat/stream', chatLimiter, clientChatGuard, streamChatbot);
 // Aplicar guardrail específico para clientes (no afecta a reposteros)
@@ -717,3 +723,7 @@ const server = app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
   console.log(`🤖 RAG service: ${process.env.RAG_SERVICE_URL || 'http://rag-service:5001'}`);
 });
+
+// Configuración de timeouts de socket para compatibilidad con Cloudflare y reverse proxies
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
