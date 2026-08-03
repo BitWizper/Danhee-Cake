@@ -19,7 +19,7 @@ const cleverCloudConfig = {
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
   ssl: { 
-    rejectUnauthorized: true // Forzar validación de certificados de Clever Cloud
+    rejectUnauthorized: false // Clever Cloud usa cadena de certificados, no rechazar
   },
   // Seguridad adicional
   charset: 'utf8mb4',

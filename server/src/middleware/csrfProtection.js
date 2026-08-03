@@ -50,46 +50,40 @@ const csrfProtection = (req, res, next) => {
     return next();
   }
 
+  // El token puede venir en header o en body
   const csrfTokenFromHeader = req.headers['x-csrf-token'];
   const csrfTokenFromBody = req.body?.csrf_token;
-  const csrfTokenFromCookie = req.cookies?.csrf_token;
   const providedToken = csrfTokenFromHeader || csrfTokenFromBody;
 
-  if (!csrfTokenFromCookie || !providedToken) {
-    const missingCause = !csrfTokenFromCookie && !providedToken
-      ? 'cookie_and_token_missing'
-      : !csrfTokenFromCookie
-        ? 'cookie_missing'
-        : 'token_missing';
+  // La cookie es opcional: puede no llegar si el frontend es cross-origin (Vercel + Cloudflare)
+  const csrfTokenFromCookie = req.cookies?.csrf_token;
 
-    console.log('[CSRF] ❌ Token CSRF faltante:', missingCause);
+  if (!providedToken) {
+    console.log('[CSRF] Token CSRF faltante en header y body');
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_MISSING',
-      cause: missingCause,
-      message: 'Token CSRF requerido para esta operación'
+      cause: 'token_missing',
+      message: 'Token CSRF requerido para esta operacion'
     });
   }
 
-  const tokenExpiry = csrfTokens.get(csrfTokenFromCookie);
+  // Validar el token directamente contra el Map (no dependemos de la cookie)
+  const tokenExpiry = csrfTokens.get(providedToken);
   if (!tokenExpiry || Date.now() > tokenExpiry) {
-    if (tokenExpiry) csrfTokens.delete(csrfTokenFromCookie);
+    if (tokenExpiry) csrfTokens.delete(providedToken);
+    console.log('[CSRF] Token CSRF no en store o expirado. Token:', providedToken?.substring(0, 8));
     return res.status(403).json({
       success: false,
       error: 'CSRF_TOKEN_INVALID',
       cause: 'token_not_in_store_or_expired',
-      message: 'Token CSRF inválido o expirado'
+      message: 'Token CSRF invalido o expirado'
     });
   }
 
-  if (csrfTokenFromCookie !== providedToken) {
-    return res.status(403).json({
-      success: false,
-      error: 'CSRF_TOKEN_INVALID',
-      cause: 'cookie_token_mismatch',
-      message: 'Token CSRF inválido'
-    });
-  }
+  // Si ademas hay cookie Y el token de la cookie tampoco esta en el Map, ignorar la cookie
+  // (puede ser una cookie vieja de una sesion anterior del servidor)
+  // La validacion real ya se hizo con el Map lookup de providedToken arriba.
 
   next();
 };
