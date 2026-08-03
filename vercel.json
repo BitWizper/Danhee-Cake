@@ -11,7 +11,7 @@
       "destination": "/assets/$1"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!assets/|api/).*)",
       "destination": "/index.html"
     }
   ],
