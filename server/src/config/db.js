@@ -220,8 +220,8 @@ const safeQuery = async (sql, params) => {
 // Use actualPool dynamically for better compatibility and fallback support
 pool.execute = async function executeWithSafety(sql, params) {
   return safeExecute(sql, params, (s, p) => {
-    if (actualPool === pool) return originalPoolExecute(s, p);
-    return actualPool.execute(s, p);
+    if (actualPool === pool) return originalPoolQuery(s, p);
+    return actualPool.query(s, p);
   });
 };
 

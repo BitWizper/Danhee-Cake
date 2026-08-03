@@ -32,6 +32,13 @@ const FIELD_PATTERNS = {
   password: /^.{8,128}$/ // Mínimo 8 caracteres, máximo 128
 };
 
+const FIELD_ERROR_MESSAGES = {
+  email: 'El formato de correo electrónico no es válido',
+  phone: 'El formato de teléfono no es válido',
+  username: 'El nombre de usuario debe tener entre 3 y 50 caracteres alfanuméricos',
+  password: 'La contraseña debe tener al menos 8 caracteres'
+};
+
 /**
  * Validar longitud de un campo
  */
@@ -41,7 +48,7 @@ const validateFieldLength = (fieldName, value) => {
   if (value && value.length > limit) {
     return {
       valid: false,
-      error: `Field '${fieldName}' exceeds maximum length of ${limit} characters`,
+      error: `El campo '${fieldName}' excede la longitud máxima de ${limit} caracteres`,
       field: fieldName,
       providedLength: value.length,
       maxLength: limit
@@ -60,7 +67,7 @@ const validateFieldPattern = (fieldName, value) => {
   if (pattern && value && !pattern.test(value)) {
     return {
       valid: false,
-      error: `Field '${fieldName}' does not match required pattern`,
+      error: FIELD_ERROR_MESSAGES[fieldName] || `El formato del campo '${fieldName}' no es válido`,
       field: fieldName
     };
   }
@@ -140,7 +147,7 @@ const validateAndSanitizeObject = (obj, req) => {
         
         errors.push({
           valid: false,
-          error: `Suspicious content detected in field '${key}'`,
+          error: `Se ha detectado contenido no permitido en el campo '${key}'`,
           field: key,
           suspiciousType: suspicious.type
         });
@@ -181,7 +188,7 @@ const inputSanitizer = (options = {}) => {
           return res.status(400).json({
             success: false,
             error_code: 'INVALID_QUERY_PARAMS',
-            message: 'Invalid query parameters',
+            message: queryResult.errors.length > 0 ? queryResult.errors[0].error : 'Invalid query parameters',
             errors: queryResult.errors
           });
         }
@@ -199,7 +206,7 @@ const inputSanitizer = (options = {}) => {
           return res.status(400).json({
             success: false,
             error_code: 'INVALID_BODY',
-            message: 'Invalid request body',
+            message: bodyResult.errors.length > 0 ? bodyResult.errors[0].error : 'Invalid request body',
             errors: bodyResult.errors
           });
         }
@@ -217,7 +224,7 @@ const inputSanitizer = (options = {}) => {
           return res.status(400).json({
             success: false,
             error_code: 'INVALID_PARAMS',
-            message: 'Invalid URL parameters',
+            message: paramsResult.errors.length > 0 ? paramsResult.errors[0].error : 'Invalid URL parameters',
             errors: paramsResult.errors
           });
         }
