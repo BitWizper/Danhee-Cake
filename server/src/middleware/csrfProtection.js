@@ -16,18 +16,32 @@ const isLocalhostRequest = (req) => {
   return host.includes('localhost') || host.includes('127.0.0.1') || host.includes('[::1]');
 };
 
+const getEffectiveRoutePath = (req) => {
+  const baseUrl = typeof req.baseUrl === 'string' ? req.baseUrl : '';
+  const path = typeof req.path === 'string' ? req.path : '';
+  return `${baseUrl}${path}`;
+};
+
 // Middleware para generar y validar token CSRF
 const csrfProtection = (req, res, next) => {
   console.log('[CSRF] ========== INICIO CSRF PROTECTION ==========');
   console.log('[CSRF] Method:', req.method);
   console.log('[CSRF] Path:', req.path);
+  console.log('[CSRF] BaseUrl:', req.baseUrl);
   
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     console.log('[CSRF] ⏩ Skip (método seguro)');
     return next();
   }
 
-  const isAuthMutationRoute = req.path === '/auth/login' || req.path === '/auth/register';
+  const routePath = getEffectiveRoutePath(req);
+  const isAuthMutationRoute = [
+    '/auth/login',
+    '/auth/register',
+    '/api/auth/login',
+    '/api/auth/register'
+  ].includes(routePath);
+  console.log('[CSRF] Effective route path:', routePath);
   console.log('[CSRF] Es ruta auth mutation?', isAuthMutationRoute);
 
   if (!isAuthMutationRoute && process.env.NODE_ENV !== 'production') {
@@ -136,9 +150,19 @@ const csrfTokenGenerator = (req, res, next) => {
   next();
 };
 
+const addCsrfToken = (token) => {
+  csrfTokens.add(token);
+};
+
+const clearCsrfTokens = () => {
+  csrfTokens.clear();
+};
+
 module.exports = {
   csrfProtection,
   generateCSRFTokenMiddleware,
   csrfTokenGenerator,
-  generateCSRFToken
+  generateCSRFToken,
+  addCsrfToken,
+  clearCsrfTokens
 };
