@@ -19,7 +19,7 @@ const cleverCloudConfig = {
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
   ssl: { 
-    rejectUnauthorized: false // Aceptar certificados autofirmados de Clever Cloud (mantiene encriptación SSL)
+    rejectUnauthorized: true // Forzar validación de certificados de Clever Cloud
   },
   // Seguridad adicional
   charset: 'utf8mb4',
@@ -92,8 +92,8 @@ const SUSPICIOUS_SQL_PATTERNS = [
   /alter\s+table/i,
   /create\s+table/i,
   // /insert\s+into/i, // Permitido para operaciones legítimas (refresh tokens, registros)
-  /delete\s+from/i,
-  /update\s+\w+\s+set/i,
+  // /delete\s+from/i, // Permitido para borrar citas, posts, etc.
+  // /update\s+\w+\s+set/i, // Permitido para actualizar estado de pasteles/citas
   /grant\s+/i,
   /revoke\s+/i,
   /information_schema/i,
@@ -259,7 +259,7 @@ const testConnection = async (poolInstance, poolName) => {
     console.log('   - Validación de queries activa');
     console.log('   - Detección de patrones sospechosos activa');
     if (poolName === 'Clever Cloud') {
-      console.log('   - Certificado Clever Cloud aceptado (rejectUnauthorized: false)');
+      console.log('   - Certificado Clever Cloud verificado (rejectUnauthorized: true)');
     }
     conn.release();
     return true;

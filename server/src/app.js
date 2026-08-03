@@ -141,8 +141,8 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    if (isTryCloudflareOrigin(normalizedOrigin)) {
-      console.log(`[CORS] Allowing any trycloudflare.com origin: ${normalizedOrigin}`);
+    if (process.env.NODE_ENV !== 'production' && isTryCloudflareOrigin(normalizedOrigin)) {
+      console.log(`[CORS] Allowing trycloudflare.com origin in dev: ${normalizedOrigin}`);
       return callback(null, true);
     }
     
@@ -445,7 +445,7 @@ app.use('/uploads', (req, res, next) => {
   ].filter(Boolean);
   
   // Si no hay origin/referer o no está en la lista permitida, bloquear
-  if (!origin || !allowedOrigins.some(allowed => origin.includes(allowed.replace(/^https?:\/\//, '')))) {
+  if (!origin || !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
     return res.status(403).json({ success: false, message: 'Acceso no autorizado' });
   }
   
@@ -571,7 +571,7 @@ app.use('/admin', validateHostHeader, ipBlocker, attackDetector);
 
 // Rutas (rate limiting específico aplicado en archivos de rutas)
 // Montamos auth.routes en dos prefijos para soportar proxies/túneles que puedan reescribir la URL.
-app.use(['/api/auth', '/auth'], require('./routes/auth.routes'));
+app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/categories', require('./routes/categories.routes'));
 app.use('/api/cakes', require('./routes/cakes.routes'));
 app.use('/api/bakers', require('./routes/bakers.routes'));
@@ -707,7 +707,7 @@ app.post('/api/admin/unblock-ip', authMiddleware, authorize('admin'), (req, res)
     }
     
     unblockIP(ip);
-    res.json({ success: true, message: `IP ${ip} desbloqueada correctamente` });
+    res.json({ success: true, message: 'IP desbloqueada correctamente' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error desbloqueando IP' });
   }

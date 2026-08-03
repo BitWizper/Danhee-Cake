@@ -16,7 +16,7 @@ const getStoredUser = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => getStoredUser());
-  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+  const [token, setToken] = useState('cookie-based');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -75,8 +75,6 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
     setToken(normalizedToken);
     localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('token', normalizedToken);
-    localStorage.setItem('auth_mode', normalizedToken === 'cookie-based' ? 'cookie-based' : 'token');
     console.log('[AuthContext] ✅ Usuario guardado en estado y localStorage');
   };
 
@@ -105,8 +103,6 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setToken(null);
       localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      localStorage.removeItem('auth_mode');
       localStorage.removeItem('conversation_id');
       console.log('[AuthContext] ✅ Logout completado');
     }

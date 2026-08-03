@@ -283,25 +283,27 @@ exports.createGuest = async (req, res, next) => {
         });
       }
 
-      // Si hay usuario autenticado, usar su ID; si no, crear usuario temporal
       let finalClientId;
       if (authenticatedUserId) {
         finalClientId = authenticatedUserId;
         console.log(`[Appointment] ✅ Usando ID de usuario autenticado: ${finalClientId}`);
       } else {
-        // Crear un usuario temporal de tipo invitado para mantener la integridad referencial
-        const guestEmail = `guest-${Date.now()}-${crypto.randomBytes(4).toString('hex')}@local.invalid`;
-        const guestPassword = `Guest${Date.now()}A1!`;
-        const guestName = 'Invitado';
-        const hashedGuestPassword = await bcrypt.hash(guestPassword, 10);
-
-        const [guestUser] = await db.execute(
-          'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
-          [guestName, guestEmail, hashedGuestPassword, 'cliente']
-        );
-
-        finalClientId = guestUser.insertId;
-        console.log(`[Appointment] ✅ Creado cliente temporal: ${finalClientId}`);
+        // Reutilizar un único usuario invitado para no llenar la base de datos
+        const guestEmail = 'guest_user@local.invalid';
+        const [existingGuests] = await db.execute('SELECT id FROM users WHERE email = ? LIMIT 1', [guestEmail]);
+        
+        if (existingGuests.length > 0) {
+          finalClientId = existingGuests[0].id;
+          console.log(`[Appointment] ✅ Reutilizando cliente invitado: ${finalClientId}`);
+        } else {
+          const hashedGuestPassword = await bcrypt.hash('GuestDefaultPass1!', 10);
+          const [guestUser] = await db.execute(
+            'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
+            ['Invitado', guestEmail, hashedGuestPassword, 'cliente']
+          );
+          finalClientId = guestUser.insertId;
+          console.log(`[Appointment] ✅ Creado cliente invitado base: ${finalClientId}`);
+        }
       }
 
       const [result] = await db.execute(

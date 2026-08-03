@@ -8,9 +8,22 @@ const API_URL = import.meta.env.VITE_BASE_URL ||
 export const API_BASE_URL = API_URL;
 
 export const getApiUrl = (endpoint) => {
-  // Si el endpoint ya es una URL completa, retornarla tal cual
+  // Prevenir inyección de URLs absolutas externas
   if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
-    return endpoint;
+    const baseOrigin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+    const baseUrl = API_BASE_URL || baseOrigin;
+    
+    if (baseUrl && endpoint.startsWith(baseUrl)) {
+      return endpoint;
+    }
+    
+    console.warn('[Security] Bloqueada solicitud a URL externa:', endpoint);
+    try {
+      const url = new URL(endpoint);
+      endpoint = url.pathname + url.search;
+    } catch (e) {
+      return '/';
+    }
   }
 
   const baseOrigin = typeof window !== 'undefined' && window.location?.origin

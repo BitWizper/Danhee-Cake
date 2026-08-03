@@ -7,9 +7,24 @@ export const CartProvider = ({ children }) => {
 
   // Cargar carrito desde localStorage al montar
   useEffect(() => {
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) {
-      setCartItems(JSON.parse(savedCart));
+    try {
+      const savedCart = localStorage.getItem('cart');
+      if (savedCart) {
+        const parsed = JSON.parse(savedCart);
+        if (Array.isArray(parsed)) {
+          const validItems = parsed.filter(item => 
+            item && 
+            typeof item === 'object' && 
+            item.id && 
+            !isNaN(Number(item.price)) && 
+            !isNaN(Number(item.quantity))
+          );
+          setCartItems(validItems);
+        }
+      }
+    } catch (error) {
+      console.warn('Datos de carrito inválidos en localStorage:', error);
+      localStorage.removeItem('cart');
     }
   }, []);
 

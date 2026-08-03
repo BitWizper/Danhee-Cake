@@ -303,7 +303,7 @@ exports.addCake = async (req, res, next) => {
     // Obtener la ruta de la imagen si se subió un archivo
     let imageUrl = null;
     if (req.file) {
-      imageUrl = `http://localhost:4000/uploads/${req.file.filename}`;
+      imageUrl = `/uploads/${req.file.filename}`;
     }
 
     const [result] = await db.execute(

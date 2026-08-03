@@ -12,28 +12,25 @@ const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
-// Validación de contraseña (mínimo 8 caracteres, alfanuméricos)
+// Validación de contraseña (mínimo 8 caracteres, mayúscula, minúscula, número)
 const isValidPassword = (password) => {
   if (!password || password.length < 8) {
     return false;
   }
-  const hasLetter = /[a-zA-Z]/.test(password);
-  const hasNumber = /[0-9]/.test(password);
-  return hasLetter && hasNumber;
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password);
 };
 
-// Sanitización de input contra SQL Injection
+// Sanitización de input contra SQL Injection (relajada para evitar corrupción de texto legítimo)
 const sanitizeInput = (input) => {
   if (typeof input !== 'string') return input;
-  // Eliminar caracteres SQL peligrosos
+  // Eliminar comentarios SQL maliciosos, pero mantener comillas para texto normal
   return input
-    .replace(/['";\\]/g, '') // Eliminar comillas, backslash
     .replace(/--/g, '')      // Eliminar comentarios SQL
     .replace(/\/\*/g, '')     // Eliminar inicio de comentario
     .replace(/\*\//g, '')     // Eliminar fin de comentario
     .replace(/@@/g, '')       // Eliminar variables SQL
     .trim()
-    .substring(0, 100);       // Limitar longitud
+    .substring(0, 1000);      // Permitir hasta 1000 caracteres (para bios, descripciones)
 };
 
 const runWithTimeout = (promise, ms = 6000, timeoutMessage = 'Database operation timed out') => {
@@ -340,8 +337,6 @@ exports.login = async (req, res, next) => {
     
     res.json({
       success: true,
-      token,
-      refresh_token: refreshToken,
       user: {
         id: user.id,
         name: user.name,
@@ -464,9 +459,7 @@ exports.refreshToken = async (req, res, next) => {
 
     console.log('[RefreshToken Backend] ========== REFRESH TOKEN COMPLETADO ==========');
     res.json({
-      success: true,
-      token,
-      refresh_token: newRefreshToken
+      success: true
     });
   } catch (err) {
     console.error('[RefreshToken Backend] ❌ ERROR EN REFRESH TOKEN:', err.name);

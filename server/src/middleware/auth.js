@@ -148,15 +148,11 @@ const authorize = (...roles) => async (req, res, next) => {
     next();
   } catch (error) {
     console.error('[Auth] Error verificando rol en base de datos:', error);
-    // En caso de error de BD, fallback al rol del JWT (con advertencia)
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Acceso denegado'
-      });
-    }
-    console.warn('[Auth] ⚠️ Usando rol del JWT como fallback (BD no disponible)');
-    next();
+    // En caso de error de BD, rechazar la solicitud en lugar de usar fallback a JWT
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor al verificar permisos.'
+    });
   }
 };
 
@@ -168,10 +164,17 @@ const authorize = (...roles) => async (req, res, next) => {
 const optionalAuth = (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
-
+    const cookieToken = req.cookies?.access_token;
+    
+    let token = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      token = authHeader.split(' ')[1];
+    } else if (cookieToken) {
+      token = cookieToken;
+    }
+
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
       req.user = {
         id: decoded.id,
         email: decoded.email,
