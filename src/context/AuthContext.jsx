@@ -54,7 +54,6 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // Llamar al endpoint de logout para limpiar cookies en el servidor
       const headers = await addCsrfToHeaders({ 'Content-Type': 'application/json' });
       await fetch(getApiUrl('/api/auth/logout'), {
         method: 'POST',
@@ -68,6 +67,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setToken(null);
       localStorage.removeItem('user');
+      localStorage.removeItem('token');
       localStorage.removeItem('conversation_id');
     }
   };

@@ -356,12 +356,14 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/api', (req, res, next) => {
   const publicPaths = [
     '/chat/stream',
+    '/auth/login',
+    '/auth/register',
     '/auth/refresh',
     '/auth/csrf-token'
   ];
   
   if (publicPaths.some(path => req.path === path)) {
-    return next(); // Saltar CSRF protection para endpoints públicos
+    return next();
   }
   return csrfProtection(req, res, next);
 });

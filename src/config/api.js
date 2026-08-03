@@ -1,9 +1,10 @@
 // Configuración de API URL
-// Prioridad: VITE_BASE_URL (variable de entorno) > proxy relativo (desarrollo) > producción
+// En producción usa URLs relativas (proxy en vercel.json)
+// En desarrollo usa proxy de Vite o URL absoluta si está configurada
 const API_URL = import.meta.env.VITE_BASE_URL || 
   ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? ''
-    : window.location.origin);
+    : '');
 
 export const API_BASE_URL = API_URL;
 
