@@ -68,6 +68,12 @@ const SessionBanner = () => {
   );
 };
 
+const ChatBotWrapper = () => {
+  const { user } = useAuth();
+  if (!user || user.role !== 'cliente') return null;
+  return <ChatBot />;
+};
+
 const App = () => {
   return (
     <AuthProvider>
@@ -179,7 +185,7 @@ const App = () => {
 
           {/* Footer en todas las páginas */}
           <Footer />
-          <ChatBot />
+          <ChatBotWrapper />
         </BrowserRouter>
       </CartProvider>
     </AuthProvider>
