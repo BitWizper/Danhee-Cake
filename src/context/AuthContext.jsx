@@ -4,9 +4,19 @@ import { addCsrfToHeaders, getCsrfToken } from '../utils/csrfHelper';
 
 const AuthContext = createContext();
 
+const getStoredUser = () => {
+  try {
+    const rawUser = localStorage.getItem('user');
+    return rawUser ? JSON.parse(rawUser) : null;
+  } catch (error) {
+    console.warn('[AuthContext] No se pudo leer el usuario guardado:', error);
+    return null;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+  const [user, setUser] = useState(() => getStoredUser());
+  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,11 +69,14 @@ export const AuthProvider = ({ children }) => {
     checkSession();
   }, []);
 
-  const login = async (userData, userToken) => {
+  const login = (userData, userToken) => {
     console.log('[AuthContext] login() llamado con usuario:', userData?.email, 'Rol:', userData?.role);
+    const normalizedToken = userToken || 'cookie-based';
     setUser(userData);
-    setToken(userToken || 'cookie-based');
+    setToken(normalizedToken);
     localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('token', normalizedToken);
+    localStorage.setItem('auth_mode', normalizedToken === 'cookie-based' ? 'cookie-based' : 'token');
     console.log('[AuthContext] ✅ Usuario guardado en estado y localStorage');
   };
 
@@ -92,6 +105,8 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setToken(null);
       localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('auth_mode');
       localStorage.removeItem('conversation_id');
       console.log('[AuthContext] ✅ Logout completado');
     }

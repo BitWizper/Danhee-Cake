@@ -1,6 +1,6 @@
 // Configuración de API URL
 // Prioridad: VITE_BASE_URL (variable de entorno) > proxy relativo (desarrollo) > producción
-const API_URL = import.meta.env.VITE_BASE_URL || 
+const API_URL = import.meta.env.VITE_BASE_URL ||
   ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? ''
     : window.location.origin);
@@ -12,12 +12,17 @@ export const getApiUrl = (endpoint) => {
   if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
     return endpoint;
   }
-  
-  // Si el endpoint empieza con /api/, usar la URL base configurada
+
+  const baseOrigin = typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : '';
+  const baseUrl = API_BASE_URL || baseOrigin;
+
+  // Si el endpoint empieza con /api/, usar la URL base configurada o el origen actual
   if (endpoint.startsWith('/api/')) {
-    return `${API_BASE_URL}${endpoint}`;
+    return baseUrl ? `${baseUrl}${endpoint}` : endpoint;
   }
-  
+
   // Si no empieza con /api/, agregarlo
-  return `${API_BASE_URL}/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  return baseUrl ? `${baseUrl}/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}` : `/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 };

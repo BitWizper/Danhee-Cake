@@ -120,7 +120,7 @@ const LoginPage = () => {
       if (response.ok && result.success) {
         console.log('[Login] ✅ Login exitoso para:', result.user?.email);
         console.log('[Login] Rol del usuario:', result.user?.role);
-        login(result.user, result.token);
+        await login(result.user, result.token || 'cookie-based');
 
         if (result.user.role === 'repostero') {
           console.log('[Login] Redirigiendo a /dashboard (repostero)');

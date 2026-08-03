@@ -136,6 +136,9 @@ const RegisterPage = () => {
 
       if (response.ok && result.success) {
         console.log('[Register] ✅ Registro exitoso');
+        if (userType === 'repostero') {
+          console.log('[Register] Redirigiendo al login para que el repostero inicie sesión');
+        }
         navigate('/login');
       } else {
         console.log('[Register] ❌ Registro fallido:', result.message);
