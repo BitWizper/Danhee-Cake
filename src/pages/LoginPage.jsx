@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthRateLimit } from '../hooks/useAuthRateLimit';
 import { getApiUrl } from '../config/api';
+import { getCsrfToken } from '../utils/csrfHelper';
 import Button from '../components/ui/Button';
 import './LoginPage.css';
 
@@ -15,21 +16,6 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const getCsrfToken = async () => {
-    try {
-      const response = await fetch(getApiUrl('/api/auth/csrf-token'), {
-        method: 'GET',
-        credentials: 'include',
-      });
-      const data = await response.json();
-      console.log('[CSRF Frontend Login] Token received:', data.csrf_token ? data.csrf_token.substring(0, 8) + '...' : 'null');
-      return data.csrf_token;
-    } catch (err) {
-      console.error('[CSRF Frontend Login] Error obteniendo CSRF token:', err);
-      return null;
-    }
-  };
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -66,6 +52,8 @@ const LoginPage = () => {
         console.log('[CSRF Frontend] No token available, proceeding without CSRF header');
       }
 
+      const loginPayload = { ...form, csrf_token: csrfToken || undefined };
+
       console.log('[Login] Enviando petición POST a /api/auth/login...');
       const apiUrl = getApiUrl('/api/auth/login');
       console.log('[Login] URL completa:', apiUrl);
@@ -74,7 +62,7 @@ const LoginPage = () => {
         method: 'POST',
         credentials: 'include',
         headers,
-        body: JSON.stringify(form)
+        body: JSON.stringify(loginPayload)
       });
 
       console.log('[Login] Respuesta recibida - Status:', response.status);

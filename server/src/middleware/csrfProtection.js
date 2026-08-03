@@ -50,8 +50,8 @@ const csrfProtection = (req, res, next) => {
     return next();
   }
 
-  // El token puede venir en header o en body
-  const csrfTokenFromHeader = req.headers['x-csrf-token'];
+  // El token puede venir en header (usando req.get para insensibilidad a mayúsculas) o en body
+  const csrfTokenFromHeader = req.get ? req.get('X-CSRF-Token') : (req.headers['x-csrf-token'] || req.headers['X-CSRF-Token']);
   const csrfTokenFromBody = req.body?.csrf_token;
   const providedToken = csrfTokenFromHeader || csrfTokenFromBody;
 

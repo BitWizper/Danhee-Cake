@@ -6,17 +6,17 @@
 export const AUTH_RATE_LIMITS = {
   login: {
     storageKey: 'auth_rl_login',
-    maxAttempts: 5,
+    maxAttempts: 20,
     windowMs: 15 * 60 * 1000,
     blockDuration: 15 * 60 * 1000,
-    cooldownMs: 2000,
+    cooldownMs: 1000,
   },
   register: {
     storageKey: 'auth_rl_register',
-    maxAttempts: 3,
+    maxAttempts: 15,
     windowMs: 60 * 60 * 1000,
     blockDuration: 60 * 60 * 1000,
-    cooldownMs: 3000,
+    cooldownMs: 1000,
   },
 };
 

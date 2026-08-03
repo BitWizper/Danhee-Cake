@@ -95,10 +95,10 @@ const createLimiter = (options = {}) => {
   });
 };
 
-// Rate limiters - Ajustados para defender contra atacantes profesionales
+// Rate limiters - Ajustados para dar mayor margen a la navegación del usuario
 exports.authLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 5, // Reducido de 10 a 5
+  max: 20, // Aumentado de 5 a 20 para dar más tolerancia durante el inicio de sesión
   skipSuccessfulRequests: false,
   message: {
     success: false,
@@ -107,8 +107,8 @@ exports.authLimiter = createLimiter({
 });
 
 exports.registerLimiter = createLimiter({
-  windowMs: 60 * 60 * 1000, // Aumentado a 1 hora
-  max: 3, // Reducido de 8 a 3
+  windowMs: 60 * 60 * 1000,
+  max: 15, // Aumentado de 3 a 15 para dar más margen al formulario de registro
   message: {
     success: false,
     message: 'Demasiados intentos de registro. Por favor, espera 1 hora antes de intentar de nuevo.'

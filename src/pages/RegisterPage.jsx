@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthRateLimit } from '../hooks/useAuthRateLimit';
 import { getApiUrl } from '../config/api';
+import { getCsrfToken } from '../utils/csrfHelper';
 import Button from '../components/ui/Button';
 import './LoginPage.css';
 
@@ -23,21 +24,6 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false);
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const getCsrfToken = async () => {
-    try {
-      const response = await fetch(getApiUrl('/api/auth/csrf-token'), {
-        method: 'GET',
-        credentials: 'include',
-      });
-      const data = await response.json();
-      console.log('[CSRF Frontend Register] Token received:', data.csrf_token ? data.csrf_token.substring(0, 8) + '...' : 'null');
-      return data.csrf_token;
-    } catch (err) {
-      console.error('[CSRF Frontend Register] Error obteniendo CSRF token:', err);
-      return null;
-    }
-  };
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -82,7 +68,7 @@ const RegisterPage = () => {
         console.log('[Register] CSRF token agregado a headers');
       }
 
-      const payload = { ...form, role: userType };
+      const payload = { ...form, role: userType, csrf_token: csrfToken || undefined };
       console.log('[Register] Payload a enviar:', { ...payload, password: '***' });
 
       console.log('[Register] Enviando petición POST a /api/auth/register...');
