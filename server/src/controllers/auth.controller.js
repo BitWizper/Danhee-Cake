@@ -307,8 +307,8 @@ exports.login = async (req, res, next) => {
     
     const cookieOptions = {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       path: '/',
       maxAge: 15 * 60 * 1000,
       domain: cookieDomain,
@@ -319,8 +319,8 @@ exports.login = async (req, res, next) => {
 
     const refreshCookieOptions = {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       path: '/',
       maxAge: refreshTokenExpiryMs,
       domain: cookieDomain,
@@ -449,16 +449,16 @@ exports.refreshToken = async (req, res, next) => {
     const isProduction = process.env.NODE_ENV === 'production';
     const cookieOptions = {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       path: '/',
       maxAge: 15 * 60 * 1000
     };
 
     const refreshCookieOptions = {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       path: '/',
       maxAge: refreshTokenExpiryMs
     };

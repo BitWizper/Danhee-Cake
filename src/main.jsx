@@ -16,16 +16,29 @@ window.fetch = async (input, init = {}) => {
       url.includes('trycloudflare.com/api/')
     )
 
+    if (isApiCall) {
+      console.log('[Fetch Interceptor] ========== PETICIÓN API ==========');
+      console.log('[Fetch Interceptor] URL:', url);
+      console.log('[Fetch Interceptor] Method:', init?.method || 'GET');
+      console.log('[Fetch Interceptor] Headers:', init?.headers);
+      console.log('[Fetch Interceptor] Credentials:', init?.credentials);
+      console.log('[Fetch Interceptor] Cookies disponibles:', document.cookie);
+    }
+
     if (isApiCall && init?.headers) {
       const initCopy = { ...init }
       initCopy.headers = new Headers(initCopy.headers)
       if (!initCopy.headers.has('X-Requested-With')) {
         initCopy.headers.set('X-Requested-With', 'XMLHttpRequest')
       }
-      return originalFetch(input, initCopy)
+      console.log('[Fetch Interceptor] Headers finales:', initCopy.headers);
+      const response = await originalFetch(input, initCopy);
+      console.log('[Fetch Interceptor] Response status:', response.status);
+      console.log('[Fetch Interceptor] Response headers:', response.headers);
+      return response;
     }
   } catch (error) {
-    console.warn('Error al preparar la petición de autenticación:', error)
+    console.warn('[Fetch Interceptor] Error al preparar la petición de autenticación:', error);
   }
 
   return originalFetch(input, init)

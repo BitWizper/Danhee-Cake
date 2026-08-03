@@ -93,12 +93,10 @@ const generateCSRFTokenMiddleware = (req, res, next) => {
   const token = generateCSRFToken();
   
   // Enviar token como cookie httpOnly
-  const isProduction = process.env.NODE_ENV === 'production';
-  const isLocalhost = isLocalhostRequest(req);
   res.cookie('csrf_token', token, {
     httpOnly: false, // No httpOnly para que JavaScript pueda leerlo
-    secure: isProduction && !isLocalhost,
-    sameSite: 'lax', // Protección frente a cross-site POST
+    secure: true,
+    sameSite: 'none',
     path: '/',
     maxAge: 24 * 60 * 60 * 1000 // 24 horas
   });
@@ -115,12 +113,10 @@ const csrfTokenGenerator = (req, res, next) => {
   cleanExpiredTokens();
   csrfTokens.set(token, Date.now() + CSRF_TTL);
   
-  const isProduction = process.env.NODE_ENV === 'production';
-  const isLocalhost = isLocalhostRequest(req);
   res.cookie('csrf_token', token, {
     httpOnly: false,
-    secure: isProduction && !isLocalhost,
-    sameSite: 'lax',
+    secure: true,
+    sameSite: 'none',
     path: '/',
     maxAge: 24 * 60 * 60 * 1000
   });

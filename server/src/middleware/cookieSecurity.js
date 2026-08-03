@@ -28,8 +28,8 @@ const getSecureCookieOptions = (req, maxAge, isProduction = false) => {
   
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict',
+    secure: true,
+    sameSite: 'none',
     path: '/',
     maxAge: maxAge,
     domain: cookieDomain,
@@ -50,12 +50,11 @@ const validateCookieFingerprint = (req, res, next) => {
   if (!storedFingerprint) {
     // Primer acceso, generar y guardar fingerprint
     const fingerprint = generateClientFingerprint(req);
-    const isProduction = process.env.NODE_ENV === 'production';
     
     res.cookie('client_fingerprint', fingerprint, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días
       path: '/'
     });
@@ -73,11 +72,10 @@ const validateCookieFingerprint = (req, res, next) => {
     req.fingerprintMismatch = true;
     
     // Actualizar el fingerprint pero mantener la sesión activa
-    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('client_fingerprint', currentFingerprint, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días
       path: '/'
     });

@@ -38,6 +38,9 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     console.log('[AuthContext] ========== INICIANDO CHECK SESSION ==========');
+    console.log('[AuthContext] Usuario en localStorage:', getStoredUser());
+    console.log('[AuthContext] Cookies disponibles:', document.cookie);
+    
     const checkSession = async () => {
       try {
         console.log('[AuthContext] Obteniendo CSRF token inicial...');
@@ -49,6 +52,7 @@ export const AuthProvider = ({ children }) => {
       try {
         const apiUrl = getApiUrl('/api/auth/me');
         console.log('[AuthContext] Verificando sesión en:', apiUrl);
+        console.log('[AuthContext] Cookies antes de fetch:', document.cookie);
         
         const response = await fetch(apiUrl, {
           method: 'GET',
@@ -56,17 +60,32 @@ export const AuthProvider = ({ children }) => {
         });
 
         console.log('[AuthContext] Response status /api/auth/me:', response.status);
+        console.log('[AuthContext] Response headers:', response.headers);
+        
+        const responseText = await response.text();
+        console.log('[AuthContext] Response body:', responseText);
 
         if (response.ok) {
-          const data = await response.json();
+          const data = JSON.parse(responseText);
           console.log('[AuthContext] ✅ Sesión válida. Usuario:', data.user?.email, 'Rol:', data.user?.role);
           // Actualizar estado con datos frescos de la BD
           setUser(data.user);
           setToken('cookie-based');
           localStorage.setItem('user', JSON.stringify(data.user));
         } else {
-          const errorData = await response.json().catch(() => ({}));
+          let errorData = {};
+          try {
+            errorData = JSON.parse(responseText);
+          } catch (e) {
+            console.warn('[AuthContext] No se pudo parsear response como JSON');
+          }
           console.log('[AuthContext] ❌ Sesión inválida (status:', response.status, ')', errorData);
+          console.log('[AuthContext] Error details:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData.error,
+            message: errorData.message
+          });
 
           // 403 = cuenta desactivada; 401 = sin sesión / cuenta eliminada
           if (response.status === 403 && errorData.error === 'USER_INACTIVE') {
@@ -80,6 +99,7 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error('[AuthContext] ❌ ERROR verificando sesión:', error.name, error.message);
+        console.error('[AuthContext] Error stack:', error.stack);
         // Error de red — mantener el estado local para no bloquear al usuario offline
         setLoading(false);
         return;
