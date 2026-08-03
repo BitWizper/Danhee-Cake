@@ -36,7 +36,7 @@ const sanitizeInput = (input) => {
     .substring(0, 100);       // Limitar longitud
 };
 
-const runWithTimeout = (promise, ms = 12000, timeoutMessage = 'Database operation timed out') => {
+const runWithTimeout = (promise, ms = 6000, timeoutMessage = 'Database operation timed out') => {
   return Promise.race([
     promise,
     new Promise((_, reject) =>
@@ -121,7 +121,7 @@ exports.register = async (req, res, next) => {
     console.log('[Register Backend] Verificando si usuario ya existe en la base de datos...');
     const [existingUser] = await runWithTimeout(
       db.execute('SELECT id FROM users WHERE email = ?', [sanitizedEmail]),
-      12000,
+      6000,
       'Timeout consultando disponibilidad de usuario en la base de datos'
     );
 
@@ -146,7 +146,7 @@ exports.register = async (req, res, next) => {
         'INSERT INTO users (name, email, password_hash, role, address) VALUES (?, ?, ?, ?, ?)',
         [sanitizedName, sanitizedEmail, hashedPassword, userRole, sanitizedAddress]
       ),
-      12000,
+      6000,
       'Timeout insertando nuevo usuario en la base de datos'
     );
 
@@ -160,7 +160,7 @@ exports.register = async (req, res, next) => {
           'INSERT INTO baker_profiles (user_id, business_name, location, specialty, bio) VALUES (?, ?, ?, ?, ?)',
           [userId, sanitizedBusinessName || sanitizedName, sanitizedLocation, sanitizedSpecialty, sanitizedBio]
         ),
-        12000,
+        6000,
         'Timeout creando perfil de repostero en la base de datos'
       );
       console.log('[Register Backend] ✅ Perfil de repostero creado');

@@ -15,7 +15,7 @@ const cleverCloudConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  connectTimeout: 60000,
+  connectTimeout: 8000,
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
   ssl: { 
@@ -79,6 +79,9 @@ console.log(`📦 DB_NAME usado en conexión: ${config.database}`);
 console.log(`👤 DB_USER usado en conexión: ${config.user}`);
 
 const pool = mysql2.createPool(config);
+const originalPoolQuery = pool.query.bind(pool);
+const originalPoolExecute = pool.execute.bind(pool);
+let actualPool = pool;
 
 // Patrones sospechosos en queries SQL
 const SUSPICIOUS_SQL_PATTERNS = [
@@ -202,11 +205,11 @@ const safeExecute = async (sql, params, runner = null) => {
     }
   }
 
-  if (typeof runner === 'function') {
-    return runner(sql, params);
-  }
-
-  return pool.execute(sql, params);
+  const queryFn = runner || ((s, p) => {
+    if (actualPool === pool) return originalPoolQuery(s, p);
+    return actualPool.query(s, p);
+  });
+  return queryFn(sql, params);
 };
 
 // Wrapper seguro para query
@@ -214,16 +217,19 @@ const safeQuery = async (sql, params) => {
   return safeExecute(sql, params);
 };
 
-const originalExecute = pool.execute.bind(pool);
-const originalQuery = pool.query.bind(pool);
-
-// Use pool.query instead of pool.execute for better compatibility with Clever Cloud
+// Use actualPool dynamically for better compatibility and fallback support
 pool.execute = async function executeWithSafety(sql, params) {
-  return safeExecute(sql, params, originalQuery);
+  return safeExecute(sql, params, (s, p) => {
+    if (actualPool === pool) return originalPoolExecute(s, p);
+    return actualPool.execute(s, p);
+  });
 };
 
 pool.query = async function queryWithSafety(sql, params) {
-  return safeExecute(sql, params, originalQuery);
+  return safeExecute(sql, params, (s, p) => {
+    if (actualPool === pool) return originalPoolQuery(s, p);
+    return actualPool.query(s, p);
+  });
 };
 
 // Función para obtener información de la conexión (solo para debugging)
@@ -240,7 +246,7 @@ const getConnectionInfo = () => {
 };
 
 // Test de conexión con fallback automático
-let actualPool = pool;
+// actualPool is already initialized above
 let fallbackAttempted = false;
 
 const testConnection = async (poolInstance, poolName) => {

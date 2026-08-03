@@ -11,7 +11,7 @@ const crypto = require('crypto');
 const { securityLogger, getSecurityStats } = require('./middleware/securityLogger');
 const { fileUploadValidator } = require('./middleware/fileUploadValidator');
 const { ipRateLimiter, apiRateLimiter, getRateLimitStats } = require('./middleware/ipRateLimiter');
-const { bruteForceProtection, loginBruteForceProtection, getBruteForceStats } = require('./middleware/bruteForceProtection');
+const { loginBruteForceProtection, registerBruteForceProtection, getBruteForceStats } = require('./middleware/bruteForceProtection');
 const { inputSanitizer } = require('./middleware/inputSanitizer');
 const httpsEnforcer = require('./middleware/httpsEnforcer');
 let rootPackage = {};
@@ -100,9 +100,80 @@ app.disable('x-powered-by');
 // Configurar confianza en proxies para túneles y reverse proxies (Cloudflare, Vercel, Nginx)
 app.set('trust proxy', process.env.TRUST_PROXY || 1);
 
-// Bloquear accesos sensibles y manejar OPTIONS de forma temprana
+// CORS restrictivo - solo permitir orígenes específicos
+const normalizeOrigin = (origin) => {
+  if (!origin || typeof origin !== 'string') return origin;
+  return origin.trim().replace(/\/$/, '');
+};
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:4000',
+  'https://danhee-cake.vercel.app',
+  'https://danhee-cake-sage.vercel.app',
+  'https://danhee-cake-3zzal4zyl-bitwizpers-projects.vercel.app',
+  'https://danhee-cake-qvmrsik4m-bitwizpers-projects.vercel.app',
+  'https://danhee-cake-3uix5gn6p-bitwizpers-projects.vercel.app',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
+].map(normalizeOrigin);
+
+const isTryCloudflareOrigin = (origin) => {
+  const normalized = normalizeOrigin(origin);
+  return normalized && normalized.endsWith('.trycloudflare.com');
+};
+
+const corsOptions = {
+  origin: function(origin, callback) {
+    console.log(`[CORS] Request from origin: ${origin}`);
+    console.log(`[CORS] NODE_ENV: ${process.env.NODE_ENV}`);
+    
+    // Permitir requests sin origin (curl, healthchecks, server-to-server, túnel Cloudflare)
+    if (!origin) {
+      console.log('[CORS] No origin present, allowing (curl/healthcheck/tunnel)');
+      return callback(null, true);
+    }
+    
+    const normalizedOrigin = normalizeOrigin(origin);
+
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      console.log(`[CORS] Origin ${normalizedOrigin} is allowed`);
+      return callback(null, true);
+    }
+    
+    if (isTryCloudflareOrigin(normalizedOrigin)) {
+      console.log(`[CORS] Allowing any trycloudflare.com origin: ${normalizedOrigin}`);
+      return callback(null, true);
+    }
+    
+    if (process.env.NODE_ENV !== 'production' && normalizedOrigin.includes('localhost')) {
+      console.log(`[CORS] Allowing development origin: ${normalizedOrigin}`);
+      return callback(null, true);
+    }
+    
+    console.log(`[CORS] Origin ${normalizedOrigin} is NOT allowed`);
+    const error = new Error('CORS no permitido');
+    error.status = 403;
+    return callback(error);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS', 'HEAD', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token'],
+  exposedHeaders: ['Content-Length', 'Content-Type', 'Set-Cookie'],
+  maxAge: 86400,
+  optionsSuccessStatus: 204,
+  preflightContinue: false
+};
+
 // Cookie parser para leer cookies httpOnly
 app.use(cookieParser());
+
+// CORS restrictivo
+app.use(cors(corsOptions));
+
+// Body parser al inicio para que req.body esté disponible de inmediato sin colgar streams
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Detectar manipulación de cookies antes de procesar cualquier request
 app.use(detectCookieTampering);
@@ -192,77 +263,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS restrictivo - solo permitir orígenes específicos
-const normalizeOrigin = (origin) => {
-  if (!origin || typeof origin !== 'string') return origin;
-  return origin.trim().replace(/\/$/, '');
-};
-
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'https://danhee-cake.vercel.app',
-  'https://danhee-cake-sage.vercel.app',
-  'https://danhee-cake-3zzal4zyl-bitwizpers-projects.vercel.app',
-  'https://danhee-cake-qvmrsik4m-bitwizpers-projects.vercel.app',
-  'https://danhee-cake-3uix5gn6p-bitwizpers-projects.vercel.app',
-  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
-].map(normalizeOrigin);
-
-const isTryCloudflareOrigin = (origin) => {
-  const normalized = normalizeOrigin(origin);
-  return normalized && normalized.endsWith('.trycloudflare.com');
-};
-
-const corsOptions = {
-  origin: function(origin, callback) {
-    console.log(`[CORS] Request from origin: ${origin}`);
-    console.log(`[CORS] NODE_ENV: ${process.env.NODE_ENV}`);
-    
-    // Permitir requests sin origin (curl, healthchecks, server-to-server, túnel Cloudflare)
-    // Esto es necesario porque el túnel puede no enviar header Origin en algunos casos
-    if (!origin) {
-      console.log('[CORS] No origin present, allowing (curl/healthcheck/tunnel)');
-      return callback(null, true);
-    }
-    
-    const normalizedOrigin = normalizeOrigin(origin);
-
-    // Verificar si el origen está en la allowlist
-    if (allowedOrigins.includes(normalizedOrigin)) {
-      console.log(`[CORS] Origin ${normalizedOrigin} is allowed`);
-      return callback(null, true);
-    }
-    
-    if (isTryCloudflareOrigin(normalizedOrigin)) {
-      console.log(`[CORS] Allowing any trycloudflare.com origin: ${normalizedOrigin}`);
-      return callback(null, true);
-    }
-    
-    // En desarrollo, ser más permisivo con localhost
-    if (process.env.NODE_ENV !== 'production' && normalizedOrigin.includes('localhost')) {
-      console.log(`[CORS] Allowing development origin: ${normalizedOrigin}`);
-      return callback(null, true);
-    }
-    
-    // Rechazar origen no permitido con error específico
-    console.log(`[CORS] Origin ${normalizedOrigin} is NOT allowed`);
-    const error = new Error('CORS no permitido');
-    error.status = 403;
-    return callback(error);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS', 'HEAD', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token'],
-  exposedHeaders: ['Content-Length', 'Content-Type', 'Set-Cookie'],
-  maxAge: 86400, // 24 horas de caché para preflight requests
-  optionsSuccessStatus: 204, // Responder con 204 para OPTIONS exitosos
-  // Asegurar que Access-Control-Allow-Credentials se envíe siempre
-  preflightContinue: false
-};
-
-app.use(cors(corsOptions));
-
 // Middleware manual para asegurar que OPTIONS preflight envíen credentials header
 app.options(/.*/, (req, res, next) => {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -342,9 +342,7 @@ const sanitizeQueryParams = (req, res, next) => {
   next();
 };
 
-// Body parser ANTES de rate limiters y CSRF para que puedan leer el body
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+// Sanitización de parámetros query para prevenir SQLi en GET
 
 // Rate limiting de auth
 app.use('/api/auth/login', authLimiter);
@@ -352,7 +350,7 @@ app.use('/api/auth/register', registerLimiter);
 
 // Brute force protection para auth
 app.use('/api/auth/login', loginBruteForceProtection);
-app.use('/api/auth/register', bruteForceProtection);
+app.use('/api/auth/register', registerBruteForceProtection);
 
 // Protección CSRF para las rutas API que modifican estado
 // Excluir endpoints públicos que usuarios no autenticados necesitan acceder
