@@ -340,16 +340,17 @@ const sanitizeQueryParams = (req, res, next) => {
   next();
 };
 
-// Rate limiting de auth ANTES del body parser para contar incluso si el JSON es inválido
+// Body parser ANTES de rate limiters y CSRF para que puedan leer el body
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Rate limiting de auth
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', registerLimiter);
 
 // Brute force protection para auth
 app.use('/api/auth/login', loginBruteForceProtection);
 app.use('/api/auth/register', bruteForceProtection);
-
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Protección CSRF para las rutas API que modifican estado
 // Excluir endpoints públicos que usuarios no autenticados necesitan acceder

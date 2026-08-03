@@ -79,9 +79,12 @@ const ipRateLimiter = (options = {}) => {
     const ip = req.ip || req.connection.remoteAddress;
     const info = getIpInfo(ip);
     
+    console.log('[IPRateLimiter] IP:', ip, 'Count:', info.count, 'Max:', maxRequests, 'Blocked:', info.blocked);
+    
     // Verificar si la IP está bloqueada
     if (info.blocked && Date.now() < info.blockUntil) {
       const remainingTime = Math.ceil((info.blockUntil - Date.now()) / 1000);
+      console.log('[IPRateLimiter] ❌ IP bloqueada:', ip, 'Tiempo restante:', remainingTime, 's');
       
       return res.status(429).json({
         success: false,
@@ -100,6 +103,7 @@ const ipRateLimiter = (options = {}) => {
       info.blocked = true;
       info.blockUntil = Date.now() + (5 * 60 * 1000);
       
+      console.log('[IPRateLimiter] ❌ IP excedió límite:', ip, 'Count:', info.count);
       logRateLimit(req, maxRequests);
       
       return res.status(429).json({
@@ -109,6 +113,8 @@ const ipRateLimiter = (options = {}) => {
         retry_after: 300
       });
     }
+    
+    console.log('[IPRateLimiter] ✅ IP permitida:', ip, 'Count:', info.count);
     
     // Agregar headers de rate limiting
     res.setHeader('X-RateLimit-Limit', maxRequests);

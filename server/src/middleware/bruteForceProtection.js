@@ -93,9 +93,12 @@ const bruteForceProtection = (options = {}) => {
     const ip = req.ip || req.connection.remoteAddress;
     const info = getAttemptInfo(ip);
     
+    console.log('[BruteForce] IP:', ip, 'Intentos:', info.count, 'Bloqueada:', info.blocked, 'BlockUntil:', info.blockUntil);
+    
     // Verificar si la IP está bloqueada
     if (info.blocked && Date.now() < info.blockUntil) {
       const remainingTime = Math.ceil((info.blockUntil - Date.now()) / 1000);
+      console.log('[BruteForce]  IP bloqueada por brute force:', ip, 'Tiempo restante:', remainingTime, 's');
       
       return res.status(429).json({
         success: false,
@@ -104,6 +107,8 @@ const bruteForceProtection = (options = {}) => {
         retry_after: remainingTime
       });
     }
+    
+    console.log('[BruteForce] ✅ IP permitida:', ip);
     
     // Agregar headers informativos
     res.setHeader('X-Auth-Attempts-Remaining', Math.max(0, maxAttempts - info.count));
