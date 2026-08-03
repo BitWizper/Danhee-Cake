@@ -160,7 +160,7 @@ exports.methodLimiter = createLimiter({
 
 exports.writeLimiter = createLimiter({
   windowMs: 10 * 60 * 1000,
-  max: 5, // Reducido de 10 a 5 (más crítico para prevenir ataques)
+  max: 25,
   skip: (req) => {
     const writeMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
     return !writeMethods.includes(req.method);
@@ -173,7 +173,7 @@ exports.writeLimiter = createLimiter({
 
 exports.readLimiter = createLimiter({
   windowMs: 1 * 60 * 1000,
-  max: 100, // Aumentado de 50 a 100 para UX normal
+  max: 150,
   skip: (req) => {
     const readMethods = ['GET', 'HEAD', 'OPTIONS'];
     return !readMethods.includes(req.method);
