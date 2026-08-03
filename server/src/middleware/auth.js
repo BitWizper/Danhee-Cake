@@ -16,13 +16,16 @@ const authMiddleware = async (req, res, next) => {
   console.log('[Auth Middleware] ========== INICIO AUTH MIDDLEWARE ==========');
   console.log('[Auth Middleware] Path:', req.path);
   console.log('[Auth Middleware] Method:', req.method);
+  console.log('[Auth Middleware] Headers:', JSON.stringify(req.headers, null, 2));
   
   try {
     const authHeader = req.headers['authorization'];
     const cookieToken = req.cookies?.access_token;
     
     console.log('[Auth Middleware] Auth header presente?', !!authHeader);
+    console.log('[Auth Middleware] Auth header value:', authHeader);
     console.log('[Auth Middleware] Cookie access_token presente?', !!cookieToken);
+    console.log('[Auth Middleware] Cookie access_token value:', cookieToken ? `${cookieToken.substring(0, 50)}...` : 'N/A');
     
     let token = null;
 
@@ -43,10 +46,18 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
+    console.log('[Auth Middleware] Token length:', token.length);
+    console.log('[Auth Middleware] Token starts with:', token.substring(0, 20));
+    console.log('[Auth Middleware] JWT_SECRET presente?', !!process.env.JWT_SECRET);
+    console.log('[Auth Middleware] JWT_SECRET length:', process.env.JWT_SECRET?.length);
+
     console.log('[Auth Middleware] Verificando token JWT...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: ['HS256']
     });
+
+    console.log('[Auth Middleware] ✅ Token decodificado exitosamente');
+    console.log('[Auth Middleware] Decoded payload:', decoded);
 
     // ── Verificación activa en BD ──────────────────────────────
     // El JWT puede ser válido pero el usuario puede haber sido eliminado
@@ -89,9 +100,14 @@ const authMiddleware = async (req, res, next) => {
     next();
   } catch (err) {
     console.error('[Auth Middleware] ❌ Error en autenticación:', err.name);
+    console.error('[Auth Middleware] Error message:', err.message);
+    console.error('[Auth Middleware] Error stack:', err.stack);
+    console.error('[Auth Middleware] Token que falló (primeros 100 chars):', token ? token.substring(0, 100) : 'N/A');
+    console.error('[Auth Middleware] JWT_SECRET usado (primeros 50 chars):', process.env.JWT_SECRET ? process.env.JWT_SECRET.substring(0, 50) : 'N/A');
     
     if (err.name === 'TokenExpiredError') {
       console.log('[Auth Middleware] ❌ Token expirado');
+      console.log('[Auth Middleware] Token expired at:', new Date(err.expiredAt * 1000).toISOString());
       return res.status(401).json({
         success: false,
         message: 'Token expirado. Por favor, inicia sesión nuevamente.',
@@ -101,6 +117,10 @@ const authMiddleware = async (req, res, next) => {
 
     if (err.name === 'JsonWebTokenError') {
       console.log('[Auth Middleware] ❌ Token inválido:', err.message);
+      console.log('[Auth Middleware] Posibles causas:');
+      console.log('[Auth Middleware]   1. Token mal formado o corrupto');
+      console.log('[Auth Middleware]   2. JWT_SECRET no coincide con el que firmó el token');
+      console.log('[Auth Middleware]   3. Token fue modificado en tránsito');
       return res.status(401).json({
         success: false,
         message: 'Token inválido. Por favor, inicia sesión nuevamente.',
