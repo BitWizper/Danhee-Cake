@@ -182,7 +182,7 @@ const httpSecurity = (req, res, next) => {
   }
   
   // 6. Validar método HTTP
-  const allowedMethods = ['GET', 'POST', 'OPTIONS', 'HEAD'];
+  const allowedMethods = ['GET', 'POST', 'OPTIONS', 'HEAD', 'PUT', 'DELETE', 'PATCH'];
   if (!allowedMethods.includes(req.method)) {
     logSecurityEvent('INVALID_HTTP_METHOD', {
       ip,
