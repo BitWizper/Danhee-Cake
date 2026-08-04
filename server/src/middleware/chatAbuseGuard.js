@@ -17,6 +17,22 @@ const state = {
   lastMessageTime: new Map() // Para cooldown entre mensajes
 };
 
+// Limpieza periódica cada 5 minutos en lugar de en cada request
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutos
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of state.chatRequests.entries()) {
+    if (value.expiresAt <= now) {
+      state.chatRequests.delete(key);
+    }
+  }
+  for (const [key, value] of state.chatBlocks.entries()) {
+    if (value.expiresAt <= now) {
+      state.chatBlocks.delete(key);
+    }
+  }
+}, CLEANUP_INTERVAL);
+
 const getUserKey = (req) => {
   const userId = req.user && req.user.id ? `user:${req.user.id}` : null;
   const ip = getClientIP(req);
@@ -40,9 +56,6 @@ const chatAbuseGuard = (req, res, next) => {
   const key = getUserKey(req);
   const ip = getClientIP(req);
   const message = req.body?.message || '';
-
-  cleanupExpired(state.chatRequests);
-  cleanupExpired(state.chatBlocks);
 
   const blocked = state.chatBlocks.get(key);
   if (blocked && blocked.expiresAt > now) {

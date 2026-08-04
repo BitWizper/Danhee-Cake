@@ -267,7 +267,7 @@ class CustomerAgent {
         return response;
     }
 
-    async processStreaming(conversationId, userMessage, clientId = null) {
+    async processStreaming(conversationId, userMessage, clientId = null, onToken = null) {
         if (clientId) {
             setCurrentClientId(clientId);
         }
@@ -276,6 +276,7 @@ class CustomerAgent {
         if (fixedResponse) {
             await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
             await db.addChatMessage(conversationId, 'assistant', fixedResponse, null, clientId);
+            if (onToken) onToken(fixedResponse);
             return { response: fixedResponse, wasBlocked: false };
         }
 
@@ -283,6 +284,7 @@ class CustomerAgent {
             await db.addChatMessage(conversationId, 'user', userMessage, null, clientId);
             const blockedMsg = 'Lo siento, no puedo procesar esa solicitud.';
             await db.addChatMessage(conversationId, 'assistant', blockedMsg, null, clientId);
+            if (onToken) onToken(blockedMsg);
             return { response: blockedMsg, wasBlocked: true };
         }
 
@@ -301,14 +303,19 @@ class CustomerAgent {
         ];
 
         try {
-            // Usar LangChain ChatOllama para streaming
+            // Streaming real token-por-token con callback
             const stream = await this.llm.stream(langchainMessages);
             
             let fullResponse = '';
+            const tokenCallback = onToken || null;
             
             for await (const chunk of stream) {
                 if (chunk.content) {
                     fullResponse += chunk.content;
+                    // Emitir token inmediatamente si hay callback
+                    if (tokenCallback) {
+                        tokenCallback(chunk.content);
+                    }
                 }
             }
 
@@ -318,8 +325,10 @@ class CustomerAgent {
             return { response: fullResponse, wasBlocked: false };
         } catch (e) {
             console.error(`[CustomerAgent] Error en streaming LangChain: ${e.message}`);
-            // Fallback a cliente directo
+            // Reintento único en caso de error transitorio
             try {
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1s antes de reintentar
+                
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
                 const formattedPrompt = messages.map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n\n');
                 const response = await ollamaClient.generate({
@@ -337,7 +346,7 @@ class CustomerAgent {
                 return { response: fullResponse, wasBlocked: false };
             } catch (fallbackError) {
                 console.error(`[CustomerAgent] Error en fallback streaming: ${fallbackError.message}`);
-                return { response: 'Error al procesar la solicitud.', wasBlocked: false };
+                return { response: 'Error al procesar la solicitud. Por favor, intenta de nuevo.', wasBlocked: false };
             }
         }
     }

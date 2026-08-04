@@ -32,7 +32,7 @@ class TaskRouter {
         }
     }
 
-    async routeStreaming(conversationId, userMessage, userRole, userId = null) {
+    async routeStreaming(conversationId, userMessage, userRole, userId = null, onToken = null) {
         if (!userRole) {
             userRole = 'cliente';
         }
@@ -40,9 +40,9 @@ class TaskRouter {
         const normalizedRole = userRole.toLowerCase().trim();
 
         if (normalizedRole === 'repostero' || normalizedRole === 'baker' || normalizedRole === 'reposteros') {
-            return await this.bakerAgent.processStreaming(conversationId, userMessage, userId);
+            return await this.bakerAgent.processStreaming(conversationId, userMessage, userId, onToken);
         } else {
-            return await this.customerAgent.processStreaming(conversationId, userMessage, userId);
+            return await this.customerAgent.processStreaming(conversationId, userMessage, userId, onToken);
         }
     }
 

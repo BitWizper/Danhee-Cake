@@ -150,15 +150,27 @@ function checkRepeatMessages(userId, message) {
   return { valid: true };
 }
 
-// Función para calcular similitud entre strings (algoritmo simple)
+// Función para calcular similitud entre strings (algoritmo optimizado)
+// Limita la longitud a 200 caracteres para evitar O(n*m) con mensajes muy largos
 function calculateSimilarity(str1, str2) {
   if (str1 === str2) return 1;
-  if (str1.length === 0 || str2.length === 0) return 0;
   
-  const longer = str1.length > str2.length ? str1 : str2;
-  const shorter = str1.length > str2.length ? str2 : str1;
+  // Limitar longitud para rendimiento
+  const MAX_LENGTH = 200;
+  const s1 = str1.length > MAX_LENGTH ? str1.substring(0, MAX_LENGTH) : str1;
+  const s2 = str2.length > MAX_LENGTH ? str2.substring(0, MAX_LENGTH) : str2;
+  
+  if (s1.length === 0 || s2.length === 0) return 0;
+  
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
   
   if (longer.length === 0) return 1;
+  
+  // Si la diferencia de longitud es mayor al 30%, no son similares
+  if ((longer.length - shorter.length) / longer.length > 0.3) {
+    return 0;
+  }
   
   const costs = [];
   for (let i = 0; i <= longer.length; i++) {

@@ -222,7 +222,7 @@ class BakerAgent {
         return response;
     }
 
-    async processStreaming(conversationId, userMessage, bakerUserId = null) {
+    async processStreaming(conversationId, userMessage, bakerUserId = null, onToken = null) {
         if (bakerUserId) {
             setCurrentClientId(bakerUserId);
         }
@@ -231,6 +231,7 @@ class BakerAgent {
             await db.addChatMessage(conversationId, 'user', userMessage, null, bakerUserId);
             const blockedMsg = 'Lo siento, no puedo procesar esa solicitud.';
             await db.addChatMessage(conversationId, 'assistant', blockedMsg, null, bakerUserId);
+            if (onToken) onToken(blockedMsg);
             return { response: blockedMsg, wasBlocked: true };
         }
 
@@ -249,7 +250,7 @@ class BakerAgent {
         ];
 
         try {
-            // Usar LangChain ChatOllama para streaming
+            // Streaming real token-por-token con callback
             const stream = await this.llm.stream(langchainMessages);
             
             let fullResponse = '';
@@ -257,6 +258,9 @@ class BakerAgent {
             for await (const chunk of stream) {
                 if (chunk.content) {
                     fullResponse += chunk.content;
+                    if (onToken) {
+                        onToken(chunk.content);
+                    }
                 }
             }
 
@@ -266,8 +270,10 @@ class BakerAgent {
             return { response: fullResponse, wasBlocked: false };
         } catch (e) {
             console.error(`[BakerAgent] Error en streaming LangChain: ${e.message}`);
-            // Fallback a cliente directo
+            // Reintento único en caso de error transitorio
             try {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
                 const formattedPrompt = messages.map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n\n');
                 const options = getOllamaOptions();
@@ -286,7 +292,7 @@ class BakerAgent {
                 return { response: fullResponse, wasBlocked: false };
             } catch (fallbackError) {
                 console.error(`[BakerAgent] Error en fallback streaming: ${fallbackError.message}`);
-                return { response: 'Error al procesar la solicitud.', wasBlocked: false };
+                return { response: 'Error al procesar la solicitud. Por favor, intenta de nuevo.', wasBlocked: false };
             }
         }
     }

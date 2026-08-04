@@ -581,17 +581,21 @@ function ChatBot() {
               setLoadingState({ status: "", message: "" });
               // Sanitizar antes de concatenar para prevenir acumulación de contenido malicioso
               fullBotResponse += sanitizeMessageAdvanced(data.content);
-              setChat((prev) => {
-                const updated = [...prev];
-                const index = updated.findIndex((msg) => msg.id === botMessageId);
-                if (index !== -1) {
-                  updated[index] = {
-                    ...updated[index],
-                    text: sanitizeMessageAdvanced(fullBotResponse),
-                  };
-                }
-                return updated;
-              });
+              
+              // Actualizar cada 5 tokens para mejor rendimiento (batching)
+              if (fullBotResponse.length % 20 < 5) {
+                setChat((prev) => {
+                  const updated = [...prev];
+                  const index = updated.findIndex((msg) => msg.id === botMessageId);
+                  if (index !== -1) {
+                    updated[index] = {
+                      ...updated[index],
+                      text: sanitizeMessageAdvanced(fullBotResponse),
+                    };
+                  }
+                  return updated;
+                });
+              }
             } else if (data.type === "error") {
               setLoadingState({ status: "", message: "" });
               fullBotResponse = data.content;
@@ -627,6 +631,21 @@ function ChatBot() {
             console.error("Error al parsear stream token:", e);
           }
         }
+      }
+
+      // Actualización final para asegurar que el texto completo se muestre
+      if (fullBotResponse) {
+        setChat((prev) => {
+          const updated = [...prev];
+          const index = updated.findIndex((msg) => msg.id === botMessageId);
+          if (index !== -1) {
+            updated[index] = {
+              ...updated[index],
+              text: sanitizeMessageAdvanced(fullBotResponse),
+            };
+          }
+          return updated;
+        });
       }
 
       // Mitigación de seguridad: verificar rol antes de disparar evento custom

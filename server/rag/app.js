@@ -254,12 +254,12 @@ app.post('/chat/stream', authenticateRAGRequest, async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     
-    // Configurar timeout razonable para el streaming (30 segundos)
+    // Configurar timeout razonable para el streaming (90 segundos para respuestas complejas)
     const streamTimeout = setTimeout(() => {
         console.error('[app] Stream timeout exceeded for conversation:', conversation_id);
-        res.write(`data: ${JSON.stringify({ type: 'error', content: 'Stream timeout - request took too long' })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'error', content: 'Tiempo de espera agotado. Por favor intenta de nuevo.' })}\n\n`);
         res.end();
-    }, 30000);
+    }, 90000);
     
     // Enviar heartbeat cada 15 segundos para mantener la conexión viva
     const heartbeatInterval = setInterval(() => {
@@ -275,11 +275,17 @@ app.post('/chat/stream', authenticateRAGRequest, async (req, res) => {
             return;
         }
         
+        // Callback para streaming token-por-token
+        const onToken = (token) => {
+            res.write(`data: ${JSON.stringify({ type: 'token', content: token })}\n\n`);
+        };
+        
         const result = await taskRouter.routeStreaming(
             conversation_id,
             user_message,
             user_role || 'cliente',
-            user_id || null
+            user_id || null,
+            onToken
         );
 
         console.error('[app] /chat/stream result:', {
