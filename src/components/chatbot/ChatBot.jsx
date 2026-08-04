@@ -626,38 +626,39 @@ function ChatBot() {
                   lastUpdateTime = now;
                 }
               } else if (data.type === "error") {
-              setLoadingState({ status: "", message: "" });
-              fullBotResponse = data.content;
-              setChat((prev) => {
-                const updated = [...prev];
-                const index = updated.findIndex((msg) => msg.id === botMessageId);
-                if (index !== -1) {
-                  updated[index] = {
-                    ...updated[index],
-                    text: sanitizeMessageAdvanced(fullBotResponse),
-                  };
-                }
-                return updated;
-              });
-            } else if (typeof data.response === "string" || typeof data.content === "string") {
-              const responseText = typeof data.response === "string" ? data.response : data.content;
-              setLoadingState({ status: "", message: "" });
-              // Sanitizar antes de concatenar para prevenir acumulación de contenido malicioso
-              fullBotResponse += sanitizeMessageAdvanced(responseText);
-              setChat((prev) => {
-                const updated = [...prev];
-                const index = updated.findIndex((msg) => msg.id === botMessageId);
-                if (index !== -1) {
-                  updated[index] = {
-                    ...updated[index],
-                    text: sanitizeMessageAdvanced(fullBotResponse),
-                  };
-                }
-                return updated;
-              });
+                setLoadingState({ status: "", message: "" });
+                fullBotResponse = data.content;
+                setChat((prev) => {
+                  const updated = [...prev];
+                  const index = updated.findIndex((msg) => msg.id === botMessageId);
+                  if (index !== -1) {
+                    updated[index] = {
+                      ...updated[index],
+                      text: sanitizeMessageAdvanced(fullBotResponse),
+                    };
+                  }
+                  return updated;
+                });
+              } else if (typeof data.response === "string" || typeof data.content === "string") {
+                const responseText = typeof data.response === "string" ? data.response : data.content;
+                setLoadingState({ status: "", message: "" });
+                // Sanitizar antes de concatenar para prevenir acumulación de contenido malicioso
+                fullBotResponse += sanitizeMessageAdvanced(responseText);
+                setChat((prev) => {
+                  const updated = [...prev];
+                  const index = updated.findIndex((msg) => msg.id === botMessageId);
+                  if (index !== -1) {
+                    updated[index] = {
+                      ...updated[index],
+                      text: sanitizeMessageAdvanced(fullBotResponse),
+                    };
+                  }
+                  return updated;
+                });
+              }
+            } catch (e) {
+              console.error("Error al parsear stream token:", e);
             }
-          } catch (e) {
-            console.error("Error al parsear stream token:", e);
           }
         }
       }
