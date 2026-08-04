@@ -4,10 +4,7 @@
  */
 
 const db = require('../db-config');
-const { quitarAcentos, extraerTextoPdf, getCurrentClientId, lockClientId } = require('./common-tools');
-
-let lastSearchResult = {};
-let lastContext = {};
+const { quitarAcentos, extraerTextoPdf, getCurrentClientId, lockClientId, getLastSearchResult, setLastSearchResult, getLastContext, setLastContext } = require('./common-tools');
 
 function coincideNombre(busqueda, targetName) {
     if (!busqueda || !targetName) return false;
@@ -174,15 +171,15 @@ async function consultarCatalogoPasteles(categoria = '', contextoAnterior = '') 
         const categoriaLower = categoria.toLowerCase();
         const categoriaNormalizada = quitarAcentos(categoriaLower);
         filtrados = pasteles.filter(p => 
-            categoriaNormalizada in quitarAcentos(String(p.category_name || '').toLowerCase()) ||
-            categoriaLower in String(p.name || '').toLowerCase()
+            quitarAcentos(String(p.category_name || '').toLowerCase()).includes(categoriaNormalizada) ||
+            String(p.name || '').toLowerCase().includes(categoriaLower)
         );
         console.error(`[DEBUG] Pasteles filtrados por '${categoria}': ${filtrados.length}`);
     } else if (contextoAnterior) {
         const contextoNormalizado = quitarAcentos(contextoAnterior.toLowerCase());
         filtrados = pasteles.filter(p => 
-            contextoNormalizado in quitarAcentos(String(p.category_name || '').toLowerCase()) ||
-            contextoNormalizado in quitarAcentos(String(p.name || '').toLowerCase())
+            quitarAcentos(String(p.category_name || '').toLowerCase()).includes(contextoNormalizado) ||
+            quitarAcentos(String(p.name || '').toLowerCase()).includes(contextoNormalizado)
         );
     }
     
@@ -201,8 +198,10 @@ async function consultarCatalogoPasteles(categoria = '', contextoAnterior = '') 
         repostero: p.baker_name || 'No especificado'
     }));
     
-    lastSearchResult = { pasteles: resultado, categoria: categoria || contextoAnterior };
-    lastContext.ultimaCategoria = categoria || contextoAnterior;
+    setLastSearchResult({ pasteles: resultado, categoria: categoria || contextoAnterior });
+    const ctx = getLastContext();
+    ctx.ultimaCategoria = categoria || contextoAnterior;
+    setLastContext(ctx);
     
     return { 
         pasteles: resultado, 
@@ -355,8 +354,8 @@ async function obtenerPreciosPorCategoria(categoria = '', contextoAnterior = '')
     }
     
     const filtrados = todos.filter(p => 
-        categoriaBuscar.toLowerCase() in String(p.category_name || '').toLowerCase() ||
-        categoriaBuscar.toLowerCase() in String(p.name || '').toLowerCase()
+        String(p.category_name || '').toLowerCase().includes(categoriaBuscar.toLowerCase()) ||
+        String(p.name || '').toLowerCase().includes(categoriaBuscar.toLowerCase())
     );
     
     if (filtrados.length === 0) {
@@ -561,7 +560,7 @@ async function buscarPastelPorNombre(nombre, contextoAnterior = '') {
     
     for (const p of todos) {
         const nombrePastel = quitarAcentos(String(p.name || '').toLowerCase());
-        if (nombreLimpio in nombrePastel) {
+        if (nombrePastel.includes(nombreLimpio)) {
             encontrados.push(p);
         }
     }
@@ -570,7 +569,7 @@ async function buscarPastelPorNombre(nombre, contextoAnterior = '') {
         const contextoLimpio = quitarAcentos(contextoAnterior.toLowerCase());
         for (const p of todos) {
             const nombrePastel = quitarAcentos(String(p.name || '').toLowerCase());
-            if (contextoLimpio in nombrePastel && nombreLimpio in nombrePastel) {
+            if (nombrePastel.includes(contextoLimpio) && nombrePastel.includes(nombreLimpio)) {
                 encontrados.push(p);
             }
         }
@@ -589,8 +588,10 @@ async function buscarPastelPorNombre(nombre, contextoAnterior = '') {
         calificacion: p.rating || 0
     }));
     
-    lastContext.ultimosPasteles = resultado;
-    lastContext.ultimaBusquedaNombre = nombre;
+    const ctx = getLastContext();
+    ctx.ultimosPasteles = resultado;
+    ctx.ultimaBusquedaNombre = nombre;
+    setLastContext(ctx);
     
     const lista = resultado.map(r => 
         `• **${r.nombre}** - $${r.precio.toFixed(2)} MXN\n  🏢 Empresa: ${r.empresa}\n  📂 Categoría: ${r.categoria}\n  ⭐ Calificación: ${r.calificacion}`
@@ -665,7 +666,7 @@ async function consultarHorariosRepostero(bakerId = null, nombrePastel = '', nom
         const termClean = quitarAcentos(termSearch).toLowerCase();
         const allCakes = await db.getCakes();
         for (const c of allCakes) {
-            if (c.name && termClean in quitarAcentos(c.name).toLowerCase()) {
+            if (c.name && quitarAcentos(c.name).toLowerCase().includes(termClean)) {
                 const cakeBakerId = c.baker_id;
                 bakerObj = allBakers.find(b => b.id === cakeBakerId);
                 if (bakerObj) break;
@@ -675,7 +676,7 @@ async function consultarHorariosRepostero(bakerId = null, nombrePastel = '', nom
         if (!bakerObj) {
             bakerObj = allBakers.find(b => {
                 const bname = quitarAcentos(String(b.business_name || '')).toLowerCase();
-                return termClean in bname || bname in termClean;
+                return bname.includes(termClean) || termClean.includes(bname);
             });
         }
     }
@@ -695,22 +696,39 @@ async function consultarHorariosRepostero(bakerId = null, nombrePastel = '', nom
     };
 }
 
-function calcularPrecioPersonalizado(tamanio, relleno, decoracion) {
-    const preciosBase = { 'pequeño': 350, 'mediano': 550, 'grande': 850 };
+async function calcularPrecioPersonalizado(tamanio, relleno, decoracion) {
+    // Obtener precios reales de la BD
+    const todos = await db.getCakes();
+    const preciosExistentes = todos.filter(p => p.price).map(p => parseFloat(p.price));
+    
+    const precioPromedio = preciosExistentes.length > 0 
+        ? preciosExistentes.reduce((a, b) => a + b, 0) / preciosExistentes.length 
+        : 550;
+    
+    const precioMin = preciosExistentes.length > 0 ? Math.min(...preciosExistentes) : 350;
+    const precioMax = preciosExistentes.length > 0 ? Math.max(...preciosExistentes) : 850;
+    
+    // Calcular estimado basado en tamaño relativo al promedio
+    const multiplicadorTamanio = { 'pequeño': 0.7, 'mediano': 1.0, 'grande': 1.4 };
+    const base = precioPromedio * (multiplicadorTamanio[tamanio.toLowerCase()] || 1.0);
+    
+    // Extras estimados
     const extraRelleno = { 'vainilla': 0, 'chocolate': 50, 'fresas': 80, 'dulce de leche': 70 };
     const extraDecoracion = { 'fondant': 150, 'buttercream': 80, 'flores': 120, 'minimalista': 50 };
     
-    const base = preciosBase[tamanio.toLowerCase()] || 550;
     const extraR = extraRelleno[relleno.toLowerCase()] || 60;
     const extraD = extraDecoracion[decoracion.toLowerCase()] || 100;
+    
+    const precioEstimado = Math.round(base + extraR + extraD);
     
     return {
         tamanio,
         relleno,
         decoracion,
-        precioEstimado: base + extraR + extraD,
+        precioEstimado,
+        rangoReal: { min: precioMin, max: precioMax, promedio: Math.round(precioPromedio) },
         moneda: 'MXN',
-        nota: 'Precio estimado en Danhee Cake. El final puede variar según complejidad.'
+        nota: `Precio estimado basado en ${preciosExistentes.length} pasteles en nuestro catálogo. El precio final puede variar según complejidad.`
     };
 }
 
@@ -777,8 +795,8 @@ async function recomendarPastel(ocasion, presupuesto = '', estilo = '', contexto
     const ocasionNormalizada = quitarAcentos(ocasionLower);
     
     let pastelesFiltrados = todosPasteles.filter(p => 
-        ocasionNormalizada in quitarAcentos(String(p.category_name || '').toLowerCase()) ||
-        ocasionLower in String(p.name || '').toLowerCase()
+        quitarAcentos(String(p.category_name || '').toLowerCase()).includes(ocasionNormalizada) ||
+        String(p.name || '').toLowerCase().includes(ocasionLower)
     );
     
     if (presupuesto && pastelesFiltrados.length > 0) {
@@ -845,14 +863,14 @@ async function consultarOrigenPastel(nombrePastel, contextoAnterior = '') {
     
     const nombreLimpio = quitarAcentos(nombreBuscar).toLowerCase();
     let encontrados = todos.filter(p => 
-        nombreLimpio in quitarAcentos(String(p.name || '')).toLowerCase()
+        quitarAcentos(String(p.name || '')).toLowerCase().includes(nombreLimpio)
     );
     
     if (encontrados.length === 0) {
         encontrados = todos.filter(p => 
             p.business_name && (
-                nombreLimpio in quitarAcentos(String(p.business_name)).toLowerCase() ||
-                quitarAcentos(String(p.business_name)).toLowerCase() in nombreLimpio
+                quitarAcentos(String(p.business_name)).toLowerCase().includes(nombreLimpio) ||
+                nombreLimpio.includes(quitarAcentos(String(p.business_name)).toLowerCase())
             )
         );
     }
@@ -948,7 +966,7 @@ async function buscarPastelesPorRangoPrecio(precio, condicion, contextoAnterior 
     }));
     
     const lista = pastelesMostrados.slice(0, 10).map(p => 
-        `• ${p.nombre} - $${p.precision} MXN (Empresa: ${p.empresa})`
+        `• ${p.nombre} - $${p.precio} MXN (Empresa: ${p.empresa})`
     ).join('\n');
     
     return {
@@ -978,13 +996,13 @@ async function consultarPastelesPorCategoria(categoria = '', contextoAnterior = 
     const categoriaNormalizada = quitarAcentos(categoriaBuscar.toLowerCase().trim());
     
     let filtrados = todos.filter(p => 
-        categoriaNormalizada in quitarAcentos(String(p.category_name || '').toLowerCase())
+        quitarAcentos(String(p.category_name || '').toLowerCase()).includes(categoriaNormalizada)
     );
     
     if (filtrados.length === 0) {
         filtrados = todos.filter(p => 
-            categoriaNormalizada in quitarAcentos(String(p.name || '').toLowerCase()) ||
-            categoriaNormalizada in quitarAcentos(String(p.description || '').toLowerCase())
+            quitarAcentos(String(p.name || '').toLowerCase()).includes(categoriaNormalizada) ||
+            quitarAcentos(String(p.description || '').toLowerCase()).includes(categoriaNormalizada)
         );
     }
     
@@ -1007,8 +1025,10 @@ async function consultarPastelesPorCategoria(categoria = '', contextoAnterior = 
         categoria: p.category_name || 'Sin categoría'
     }));
     
-    lastSearchResult = { encontrados: resultado, categoria: categoriaBuscar };
-    lastContext.ultimaCategoria = categoriaBuscar;
+    setLastSearchResult({ encontrados: resultado, categoria: categoriaBuscar });
+    const ctx2 = getLastContext();
+    ctx2.ultimaCategoria = categoriaBuscar;
+    setLastContext(ctx2);
     
     const lista = resultado.map(p => 
         `• **${p.nombre}** - $${p.precio.toFixed(0)} MXN (Empresa: ${p.empresa})`
@@ -1144,13 +1164,14 @@ async function consultarDetallePastelPorId(pastelId = null, nombrePastel = null,
 async function mostrarOpciones(contexto = '', contextoAnterior = '') {
     const contextoBuscar = contexto || contextoAnterior;
     
-    if (lastSearchResult.encontrados && lastSearchResult.encontrados.length > 0) {
-        const lista = lastSearchResult.encontrados.slice(0, 10).map(p => 
+    const lsr = getLastSearchResult();
+    if (lsr.encontrados && lsr.encontrados.length > 0) {
+        const lista = lsr.encontrados.slice(0, 10).map(p => 
             `• **${p.nombre}** - $${p.precio} MXN (Empresa: ${p.empresa})`
         ).join('\n');
         return {
             mensaje: `Aquí están las opciones que tenemos disponibles:\n\n${lista}`,
-            opciones: lastSearchResult.encontrados
+            opciones: lsr.encontrados
         };
     }
     
@@ -1195,7 +1216,9 @@ async function consultarEmpresasPorUbicacion(ubicacion, contextoAnterior = '') {
         ubicacion: r.location
     }));
     
-    lastContext.ultimasEmpresas = resultado;
+    const ctx3 = getLastContext();
+    ctx3.ultimasEmpresas = resultado;
+    setLastContext(ctx3);
     const lista = resultado.map(emp => 
         `• **${emp.nombreNegocio}** - ${emp.ubicacion}`
     ).join('\n');
@@ -1232,7 +1255,9 @@ async function consultarPastelesPorEmpresa(empresa, contextoAnterior = '') {
         categoria: p.category_name || 'Sin categoría'
     }));
     
-    lastContext.ultimosPasteles = resultado;
+    const ctx4 = getLastContext();
+    ctx4.ultimosPasteles = resultado;
+    setLastContext(ctx4);
     const lista = resultado.map(pastel => 
         `• **${pastel.nombre}** - $${pastel.precio} MXN - ${pastel.categoria}`
     ).join('\n');
@@ -1339,6 +1364,6 @@ module.exports = {
     consultarPastelesPorEmpresa,
     consultarMisCitas,
     consultarMisDisenos,
-    lastSearchResult,
-    lastContext
+    getLastSearchResult,
+    getLastContext
 };

@@ -269,10 +269,11 @@ class BakerAgent {
             // Fallback a cliente directo
             try {
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
+                const formattedPrompt = messages.map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n\n');
                 const options = getOllamaOptions();
                 const response = await ollamaClient.generate({
                     model: 'llama3.2:latest',
-                    prompt: JSON.stringify(messages),
+                    prompt: formattedPrompt,
                     options: options,
                     stream: false
                 });

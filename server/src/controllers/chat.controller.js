@@ -1,5 +1,6 @@
 // controllers/chat.controller.js
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { sanitizeString } = require('../middleware/inputValidator');
 
 const SUSPICIOUS_CHAT_PATTERN = /(<script|<\/script|javascript:|on\w+\s*=|data:text\/html|union\s+select|or\s+1\s*=\s*1|sleep\s*\(|benchmark\s*\(|--|\/\*|\*\/|%3c|%3e|&#x|\\x[0-9a-f]{2}|\.\.)/i;
@@ -83,7 +84,7 @@ const askChatbot = async (req, res) => {
 
   try {
     const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
-    const conversationId = req.body.conversation_id || `conv_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const conversationId = req.body.conversation_id || (crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
     
     if (!process.env.RAG_SERVICE_URL) {
       console.warn('[Chat DEBUG] RAG_SERVICE_URL no está configurado; usando fallback http://rag-service:5001');
@@ -292,18 +293,10 @@ const streamChatbot = async (req, res) => {
 
   try {
     const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
-    const conversationId = sanitizedConversationId || `conv_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const conversationId = sanitizedConversationId || (crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
     
     if (!process.env.RAG_SERVICE_URL) {
       console.warn('[Node Stream] RAG_SERVICE_URL no está configurado; usando fallback http://rag-service:5001');
-    }
-    // TEMPORALMENTE: Si no hay RAG service, responder con mensaje de error amigable
-    if (!ragUrl) {
-      console.warn("[Node Stream] RAG_SERVICE_URL no configurado, respondiendo con mensaje de servicio no disponible");
-      res.write(`data: ${JSON.stringify({ type: "error", content: "El servicio de chat no está disponible en este momento. Por favor intenta más tarde." })}\n\n`);
-      clearTimeout(timeoutId);
-      clearInterval(heartbeatInterval);
-      return res.end();
     }
     
     // Llamar al endpoint de stream del RAG service con timeout

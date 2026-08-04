@@ -258,8 +258,10 @@ class CustomerAgent {
 
         const hasForbidden = forbiddenPhrases.some(phrase => responseLower.includes(phrase));
         
-        if (hasForbidden && response.length < 200) {
-            return 'Lo siento, no encontré información específica sobre eso en mi base de datos. ¿Te gustaría que te ayude con otra consulta sobre pasteles o citas de degustación?';
+        // Solo reemplazar si la respuesta es muy corta (menos de 100 chars) y contiene frases prohibidas
+        // Esto permite respuestas honestas más largas que explican por qué no saben algo
+        if (hasForbidden && response.length < 100) {
+            return 'Lo siento, no encontré información específica sobre eso en mi base de datos. ¿Te gustaría que te ayude con otra consulta sobre pasteles, precios o agendar una cita de degustación?';
         }
 
         return response;
@@ -319,9 +321,10 @@ class CustomerAgent {
             // Fallback a cliente directo
             try {
                 const messages = [...chatHistory, { role: 'user', content: userMessage }];
+                const formattedPrompt = messages.map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n\n');
                 const response = await ollamaClient.generate({
                     model: 'llama3.2:latest',
-                    prompt: JSON.stringify(messages),
+                    prompt: formattedPrompt,
                     options: getOllamaOptionsCliente(),
                     stream: false
                 });

@@ -127,7 +127,7 @@ export const isValidUUID = (id) => {
 };
 
 export const isValidConversationId = (id) => {
-  if (!id) return true;
+  if (!id || typeof id !== 'string') return false;
   return isValidUUID(id);
 };
 
@@ -403,10 +403,8 @@ export const sanitizeMessageAdvanced = (message) => {
 
   let sanitized = message;
 
-  // Decodificar entidades HTML múltiples veces para evitar double-encoding bypass
-  for (let i = 0; i < 3; i++) {
-    sanitized = decodeHTMLEntities(sanitized);
-  }
+  // Decodificar entidades HTML una sola vez para evitar corrupción de contenido legítimo
+  sanitized = decodeHTMLEntities(sanitized);
 
   // Normalizar whitespace
   sanitized = sanitized.replace(/\s+/g, ' ');

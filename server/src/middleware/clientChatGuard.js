@@ -19,6 +19,7 @@ const CLIENT_CHAT_CONFIG = {
 // Almacenamiento en memoria para rate limiting por usuario
 const userMessageHistory = new Map();
 const lastMessageTime = new Map();
+const userRateLimitTimestamps = new Map();
 
 // Patrones de ataque específicos para chat (más restrictivos que el WAF general)
 const CHAT_ATTACK_PATTERNS = [
@@ -100,7 +101,7 @@ function validateMessageLength(message) {
   return { valid: true };
 }
 
-// Función para verificar cooldown entre mensajes
+// Función para verificar cooldown entre mensajes (solo verifica, no actualiza)
 function checkCooldown(userId) {
   const now = Date.now();
   const lastTime = lastMessageTime.get(userId);
@@ -113,8 +114,12 @@ function checkCooldown(userId) {
     };
   }
   
-  lastMessageTime.set(userId, now);
   return { valid: true };
+}
+
+// Función para registrar el timestamp del mensaje (llamar después de todas las validaciones)
+function recordMessageTime(userId) {
+  lastMessageTime.set(userId, Date.now());
 }
 
 // Función para verificar mensajes repetidos
@@ -179,18 +184,22 @@ function calculateSimilarity(str1, str2) {
 // Función para verificar rate limiting por usuario
 function checkUserRateLimit(userId) {
   const now = Date.now();
-  const history = userMessageHistory.get(userId) || [];
+  const timestamps = userRateLimitTimestamps.get(userId) || [];
   
-  // Filtrar mensajes del último minuto
-  const recentMessages = history.filter(timestamp => now - timestamp < 60000);
+  // Filtrar timestamps del último minuto
+  const recentTimestamps = timestamps.filter(ts => now - ts < 60000);
   
-  if (recentMessages.length >= CLIENT_CHAT_CONFIG.maxRequestsPerMinute) {
+  if (recentTimestamps.length >= CLIENT_CHAT_CONFIG.maxRequestsPerMinute) {
     return {
       valid: false,
       reason: 'RATE_LIMIT_EXCEEDED',
       message: `Has excedido el límite de ${CLIENT_CHAT_CONFIG.maxRequestsPerMinute} mensajes por minuto`
     };
   }
+  
+  // Registrar este request
+  recentTimestamps.push(now);
+  userRateLimitTimestamps.set(userId, recentTimestamps);
   
   return { valid: true };
 }
@@ -334,6 +343,9 @@ const clientChatGuard = (req, res, next) => {
   
   req.body.message = sanitizedMessage;
   
+  // Registrar timestamp después de que todas las validaciones pasaron
+  recordMessageTime(identifier);
+  
   console.log('[clientChatGuard] Validación de seguridad completada para:', role || 'no autenticado');
   next();
 };
@@ -342,5 +354,6 @@ module.exports = {
   clientChatGuard,
   validateMessageLength,
   detectChatAttackPatterns,
-  CLIENT_CHAT_CONFIG
+  CLIENT_CHAT_CONFIG,
+  recordMessageTime
 };

@@ -353,7 +353,7 @@ function ChatBot() {
     };
     
     initChat();
-  }, [user]);
+  }, [user, loadConversationHistory]);
 
   useEffect(() => {
     if (open) {

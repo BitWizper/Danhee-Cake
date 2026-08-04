@@ -593,6 +593,11 @@ async function getClientDesigns(clientId) {
 }
 
 async function deleteChatConversation(conversationId = null, clientId = null) {
+    if (!conversationId && !clientId) {
+        console.error('[db-config] deleteChatConversation: se requiere conversationId o clientId');
+        return false;
+    }
+    
     const conn = await getConnection();
     if (!conn) return false;
     

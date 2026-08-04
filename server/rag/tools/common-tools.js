@@ -3,12 +3,13 @@
  * Versión JavaScript/Node.js equivalente a common_tools.py
  */
 
+const pdfParse = require('pdf-parse');
+const path = require('path');
+const fs = require('fs');
+
 // Async-local storage para almacenar client_id por request de petición
 const { AsyncLocalStorage } = require('async_hooks');
 const asyncLocalStorage = new AsyncLocalStorage();
-
-// Variable para asegurar que el client_id solo se establezca una vez por solicitud
-let clientIdLocked = false;
 
 function getCurrentClientId() {
     const store = asyncLocalStorage.getStore();
@@ -16,7 +17,11 @@ function getCurrentClientId() {
 }
 
 function setCurrentClientId(value) {
-    const store = asyncLocalStorage.getStore() || {};
+    const store = asyncLocalStorage.getStore();
+    if (!store) {
+        asyncLocalStorage.run({ clientId: value }, () => {});
+        return;
+    }
     
     // Si el client_id ya está establecido, no permitir sobrescribirlo (security hardening)
     if (store.clientId !== undefined && store.clientId !== null) {
@@ -25,7 +30,6 @@ function setCurrentClientId(value) {
     }
     
     store.clientId = value;
-    asyncLocalStorage.enterWith(store);
 }
 
 // Función para bloquear el client_id después de establecerlo (para herramientas sensibles)
@@ -60,10 +64,28 @@ function jsonSerial(obj) {
     return obj;
 }
 
-// Variables de contexto globales compartidas
-let lastSearchResult = {};
+// Variables de contexto por-request (almacenadas en AsyncLocalStorage)
+function getLastSearchResult() {
+    const store = asyncLocalStorage.getStore();
+    return store ? (store.lastSearchResult || {}) : {};
+}
+
+function setLastSearchResult(value) {
+    const store = asyncLocalStorage.getStore();
+    if (store) store.lastSearchResult = value;
+}
+
+function getLastContext() {
+    const store = asyncLocalStorage.getStore();
+    return store ? (store.lastContext || {}) : {};
+}
+
+function setLastContext(value) {
+    const store = asyncLocalStorage.getStore();
+    if (store) store.lastContext = value;
+}
+
 let pdfCache = {};
-let lastContext = {};
 
 const RESPONSE_CACHE = new Map();
 const RESPONSE_CACHE_TTL_SECONDS = 15;  // Reducido para más dinamismo
@@ -94,11 +116,26 @@ function shouldSkipRag(question) {
 
     const words = q.split(/\s+/);
     const keywords = [
-        'pastel', 'cake', 'cita', 'repostero', 'precio', 'categoria',
-        'disponibilidad', 'pedido', 'comprar', 'buscar', 'catalogo',
-        'catálogo', 'ayuda', 'información', 'pregunta', 'dias', 'días',
+        'pastel', 'cake', 'cita', 'repostero', 'precio', 'categoria', 'categoría',
+        'disponibilidad', 'pedido', 'comprar', 'buscar', 'catalogo', 'catálogo',
+        'ayuda', 'información', 'informacion', 'pregunta', 'dias', 'días',
         'horario', 'horarios', 'abren', 'atienden', 'abierto', 'atencion', 'atención',
-        'red', 'velvet', 'cumpleaños', 'cumpleanos', 'boda'
+        'red', 'velvet', 'cumpleaños', 'cumpleanos', 'boda', 'bodas',
+        'ingredientes', 'sabores', 'relleno', 'decoracion', 'decoración',
+        'tamaño', 'tamano', 'mediano', 'grande', 'pequeño', 'pequeno',
+        'entrega', 'pago', 'cancelacion', 'cancelación', 'politica', 'política',
+        'diabetico', 'diabético', 'vegano', 'vegana', 'sin gluten', 'alergeno', 'alérgeno',
+        'aniversario', 'graduacion', 'graduación', 'baby shower', 'corporativo',
+        'xv años', 'quinceañera', 'quinceanera', 'recomendacion', 'recomendación',
+        'agendar', 'reservar', 'degustacion', 'degustación', 'muestra',
+        'empresa', 'negocio', 'negocio', 'local', 'direccion', 'dirección',
+        'contacto', 'telefono', 'teléfono', 'whatsapp', 'email', 'correo',
+        'opiniones', 'reseñas', 'resenas', 'calificacion', 'calificación',
+        'portafolio', 'portfolio', 'trabajos', 'galeria', 'galería',
+        'personalizado', 'personalizada', 'diseno', 'diseño', 'custom',
+        'cuanto', 'cuánto', 'costo', 'cotizacion', 'cotización', 'presupuesto',
+        'cuando', 'cuándo', 'disponible', 'rapido', 'rápido', 'urgente',
+        'donde', 'dónde', 'ubicacion', 'ubicación', 'zona', 'colonia'
     ];
     if (keywords.some(keyword => q.includes(keyword))) {
         return false;
@@ -326,12 +363,32 @@ function obtenerRespuestaFija(pregunta) {
     return null;
 }
 
-function extraerTextoPdf(nombreArchivo) {
-    // Placeholder - en una implementación real necesitarías una librería como pdf-parse
-    // Por ahora retornamos un mensaje indicando que esta función necesita implementación
-    return {
-        mensaje: `La función extraerTextoPdf necesita implementación con una librería como pdf-parse para '${nombreArchivo}'.`
-    };
+async function extraerTextoPdf(nombreArchivo) {
+    try {
+        const pdfDir = path.join(__dirname, '..', 'docs');
+        const filePath = path.join(pdfDir, nombreArchivo);
+        
+        // Prevenir path traversal
+        if (!filePath.startsWith(pdfDir)) {
+            return { mensaje: 'Nombre de archivo inválido.' };
+        }
+        
+        if (!fs.existsSync(filePath)) {
+            return { mensaje: `El archivo '${nombreArchivo}' no se encontró en el directorio de documentos.` };
+        }
+        
+        const dataBuffer = fs.readFileSync(filePath);
+        const data = await pdfParse(dataBuffer);
+        
+        return {
+            texto: data.text,
+            paginas: data.numpages,
+            mensaje: `Texto extraído de '${nombreArchivo}' (${data.numpages} páginas).`
+        };
+    } catch (e) {
+        console.error(`[extraerTextoPdf] Error: ${e.message}`);
+        return { mensaje: `Error al procesar el PDF: ${e.message}` };
+    }
 }
 
 function verificarRegistroUsuario(email = null) {
@@ -612,16 +669,18 @@ function checkGuardrails(prompt) {
         if (pattern.test(promptLower)) return true;
     }
     
-for (const pattern of codePatterns) {
-    if (pattern.test(promptLower)) return true;
-}
-    
-return false;
+    return false;
 }
 
 module.exports = {
     setCurrentClientId,
     getCurrentClientId,
+    lockClientId,
+    isClientIdLocked,
+    getLastSearchResult,
+    setLastSearchResult,
+    getLastContext,
+    setLastContext,
     quitarAcentos,
     normalizeQuestion,
     getCachedResponse,
@@ -635,5 +694,6 @@ module.exports = {
     checkGuardrails,
     detectarFormalidad,
     detectCycle,
-    removeRepeatedGreetings
+    removeRepeatedGreetings,
+    extraerTextoPdf
 };
