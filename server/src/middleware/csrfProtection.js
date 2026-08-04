@@ -134,11 +134,24 @@ const clearCsrfTokens = () => {
   csrfTokens.clear();
 };
 
+const conditionalCsrfProtection = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const cookieToken = req.cookies?.access_token;
+  const hasAuth = (authHeader && authHeader.startsWith('Bearer ')) || cookieToken;
+
+  if (!hasAuth) {
+    return next();
+  }
+
+  return csrfProtection(req, res, next);
+};
+
 module.exports = {
   csrfProtection,
   generateCSRFTokenMiddleware,
   csrfTokenGenerator,
   generateCSRFToken,
   addCsrfToken,
-  clearCsrfTokens
+  clearCsrfTokens,
+  conditionalCsrfProtection
 };

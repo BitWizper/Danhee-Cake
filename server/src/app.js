@@ -88,7 +88,7 @@ const { validateHostHeader } = require('./middleware/hostValidator');
 const browserOriginGuard = require('./middleware/browserOriginGuard');
 const requestGuard = require('./middleware/requestGuard');
 const { authMiddleware, authorize } = require('./middleware/auth');
-const { csrfProtection, csrfTokenGenerator } = require('./middleware/csrfProtection');
+const { csrfProtection, csrfTokenGenerator, conditionalCsrfProtection } = require('./middleware/csrfProtection');
 const { validateCookieFingerprint, detectCookieTampering, requireReauthOnFingerprintMismatch } = require('./middleware/cookieSecurity');
 
 
@@ -576,7 +576,7 @@ app.get('/api', (req, res) => {
 });
 
 // Endpoint de streaming específico para chat con rate limiting (permite usuarios no autenticados)
-app.post('/api/chat/stream', chatLimiter, clientChatGuard, streamChatbot);
+app.post('/api/chat/stream', conditionalCsrfProtection, chatLimiter, clientChatGuard, streamChatbot);
 // Aplicar guardrail específico para clientes (no afecta a reposteros)
 app.use('/api/chat', clientChatGuard, chatRoutes);
 

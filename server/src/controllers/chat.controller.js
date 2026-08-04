@@ -6,6 +6,46 @@ const db = require('../config/db');
 
 const SUSPICIOUS_CHAT_PATTERN = /(<script|<\/script|javascript:|on\w+\s*=|data:text\/html|union\s+select|or\s+1\s*=\s*1|sleep\s*\(|benchmark\s*\(|--|\/\*|\*\/|%3c|%3e|&#x|\\x[0-9a-f]{2}|\.\.)/i;
 
+const RAG_ERROR_PATTERNS = [
+  /error al procesar la solicitud/i,
+  /no puedo responder esa pregunta/i,
+  /contenido bloqueado/i,
+  /política de seguridad/i,
+  /no permitido/i
+];
+
+const isRagErrorResponse = (content) => {
+  return RAG_ERROR_PATTERNS.some(pattern => pattern.test(content));
+};
+
+const extractContentFromStreamLine = (line) => {
+  const match = line.match(/data:\s*(\{.*\})/);
+  if (!match) return '';
+  try {
+    const parsed = JSON.parse(match[1]);
+    return parsed.content || '';
+  } catch {
+    return '';
+  }
+};
+
+const processStreamLine = (line) => {
+  const match = line.match(/data:\s*(\{.*\})/);
+  if (!match) return line;
+  
+  try {
+    const parsed = JSON.parse(match[1]);
+    
+    if ((parsed.type === 'response' || parsed.type === 'error') && isRagErrorResponse(parsed.content || '')) {
+      parsed.was_blocked = true;
+    }
+    
+    return `data: ${JSON.stringify(parsed)}`;
+  } catch {
+    return line;
+  }
+};
+
 const validateChatText = (value, maxLength = 2000, fieldName = 'mensaje') => {
   if (value === null || value === undefined) {
     return { ok: true, sanitized: '' };
@@ -61,6 +101,20 @@ const saveConversationOwnership = async (conversationId, clientId) => {
   }
 };
 
+const sanitizeClientId = (value) => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return String(Math.floor(value));
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d+$/.test(trimmed) && parseInt(trimmed, 10) > 0) {
+      return trimmed;
+    }
+  }
+  return '';
+};
+
 const verifyConversationOwnership = async (conversationId, clientId) => {
   if (!conversationId || !clientId) return false;
   
@@ -76,21 +130,26 @@ const verifyConversationOwnership = async (conversationId, clientId) => {
   }
 };
 
-const askChatbot = async (req, res) => {
-  return res.status(410).json({
-    error: "GONE",
-    message: "Este endpoint ha sido descontinuado. Use POST /api/chat/stream para el chatbot."
-  });
+const checkConversationExists = async (conversationId) => {
+  if (!conversationId) return false;
+  try {
+    const [rows] = await db.execute(
+      'SELECT conversation_id FROM chat_sessions WHERE conversation_id = ?',
+      [conversationId]
+    );
+    return rows.length > 0;
+  } catch (error) {
+    console.error('[Chat] Error verificando existencia de conversación:', error.message);
+    return false;
+  }
 };
 
 const getChatHistory = async (req, res) => {
   const { conversation_id, client_id } = req.query;
 
   const conversationValidation = validateChatText(conversation_id, 100, 'conversation_id');
-  const clientValidation = validateChatText(client_id, 100, 'client_id');
-
   const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
-  let sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
+  const sanitizedClientId = sanitizeClientId(client_id);
 
   const authenticatedUserId = getAuthenticatedUserId(req);
 
@@ -98,11 +157,9 @@ const getChatHistory = async (req, res) => {
     return res.status(401).json({ error: "No autorizado", message: "Token requerido" });
   }
 
-  if (!sanitizedClientId && authenticatedUserId) {
-    sanitizedClientId = authenticatedUserId.toString();
-  }
+  const effectiveClientId = sanitizedClientId || authenticatedUserId.toString();
 
-  if (!sanitizedConversationId && !sanitizedClientId) {
+  if (!sanitizedConversationId && !effectiveClientId) {
     return res.status(400).json({ error: "Se requiere conversation_id o client_id" });
   }
 
@@ -112,6 +169,10 @@ const getChatHistory = async (req, res) => {
   }
 
   if (sanitizedConversationId) {
+    const exists = await checkConversationExists(sanitizedConversationId);
+    if (!exists) {
+      return res.status(404).json({ error: "Conversación no encontrada" });
+    }
     const isOwner = await verifyConversationOwnership(sanitizedConversationId, authenticatedUserId);
     if (!isOwner) {
       console.log(`[Chat History] IDOR bloqueado: user ${authenticatedUserId} intentando acceder a conversation_id ${sanitizedConversationId}`);
@@ -128,7 +189,7 @@ const getChatHistory = async (req, res) => {
         headers: { "X-RAG-Secret": process.env.RAG_SERVICE_SECRET }
       });
     } else {
-      response = await fetch(`${ragUrl}/chat/history?client_id=${encodeURIComponent(sanitizedClientId)}`, {
+      response = await fetch(`${ragUrl}/chat/history?client_id=${encodeURIComponent(effectiveClientId)}`, {
         headers: { "X-RAG-Secret": process.env.RAG_SERVICE_SECRET }
       });
     }
@@ -148,17 +209,12 @@ const getChatHistory = async (req, res) => {
     const data = await response.json();
     
     const sanitizedMessages = (data.messages || []).map(msg => ({
-      id: msg.id,
       role: msg.role,
-      content: msg.content,
-      timestamp: msg.timestamp || msg.created_at,
-      conversation_id: msg.conversation_id
+      content: msg.content
     }));
 
     return res.json({
-      conversation_id: data.conversation_id,
-      messages: sanitizedMessages,
-      count: sanitizedMessages.length
+      messages: sanitizedMessages
     });
   } catch (error) {
     console.error("[Node Server] No se pudo conectar con el historial RAG:", error.message);
@@ -275,7 +331,7 @@ const streamChatbot = async (req, res) => {
         const { done, value } = await reader.read();
         if (done) {
           if (streamBuffer.trim()) {
-            res.write(streamBuffer);
+            res.write(processStreamLine(streamBuffer));
           }
           break;
         }
@@ -287,7 +343,7 @@ const streamChatbot = async (req, res) => {
 
         for (const line of lines) {
           if (line.trim()) {
-            res.write(`${line}\n\n`);
+            res.write(`${processStreamLine(line)}\n\n`);
           }
         }
       }
@@ -312,10 +368,8 @@ const deleteChatHistory = async (req, res) => {
   const { conversation_id, client_id } = req.body;
 
   const conversationValidation = validateChatText(conversation_id, 100, 'conversation_id');
-  const clientValidation = validateChatText(client_id, 100, 'client_id');
-
   const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
-  const sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
+  const sanitizedClientId = sanitizeClientId(client_id);
 
   if (!sanitizedConversationId && !sanitizedClientId) {
     return res.status(400).json({ error: "Se requiere conversation_id o client_id para eliminar el historial" });
@@ -333,6 +387,10 @@ const deleteChatHistory = async (req, res) => {
   }
 
   if (sanitizedConversationId) {
+    const exists = await checkConversationExists(sanitizedConversationId);
+    if (!exists) {
+      return res.status(404).json({ error: "Conversación no encontrada" });
+    }
     const isOwner = await verifyConversationOwnership(sanitizedConversationId, authenticatedUserId);
     if (!isOwner) {
       console.log(`[Chat Delete] IDOR bloqueado: user ${authenticatedUserId} intentando eliminar conversation_id ${sanitizedConversationId}`);
@@ -381,4 +439,4 @@ const deleteChatHistory = async (req, res) => {
   }
 };
 
-module.exports = { askChatbot, streamChatbot, getChatHistory, deleteChatHistory };
+module.exports = { streamChatbot, getChatHistory, deleteChatHistory };
