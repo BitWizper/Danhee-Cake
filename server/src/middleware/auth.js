@@ -211,7 +211,7 @@ const authorize = (...roles) => async (req, res, next) => {
  * Útil para endpoints que pueden funcionar con o sin autenticación.
  * Si hay token válido, adjunta el usuario; si no, continúa con req.user = null.
  */
-const optionalAuth = (req, res, next) => {
+const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
     const cookieToken = req.cookies?.access_token;
@@ -225,18 +225,27 @@ const optionalAuth = (req, res, next) => {
 
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-      req.user = {
-        id: decoded.id,
-        email: decoded.email,
-        role: decoded.role
-      };
-      console.log(`[Auth] ✅ Usuario opcional autenticado: ${req.user.email}`);
+      
+      const [rows] = await db.execute(
+        'SELECT id, email, role, is_active FROM users WHERE id = ? LIMIT 1',
+        [decoded.id]
+      );
+
+      if (rows && rows.length > 0 && rows[0].is_active) {
+        req.user = {
+          id: rows[0].id,
+          email: rows[0].email,
+          role: rows[0].role
+        };
+        console.log(`[Auth] ✅ Usuario opcional autenticado: ${req.user.email}`);
+      } else {
+        req.user = null;
+      }
     } else {
       req.user = null;
     }
     next();
   } catch (err) {
-    // Si hay error con el token, simplemente no adjuntamos usuario
     req.user = null;
     next();
   }

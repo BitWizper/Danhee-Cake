@@ -288,7 +288,6 @@ exports.createGuest = async (req, res, next) => {
         finalClientId = authenticatedUserId;
         console.log(`[Appointment] ✅ Usando ID de usuario autenticado: ${finalClientId}`);
       } else {
-        // Reutilizar un único usuario invitado para no llenar la base de datos
         const guestEmail = 'guest_user@local.invalid';
         const [existingGuests] = await db.execute('SELECT id FROM users WHERE email = ? LIMIT 1', [guestEmail]);
         
@@ -296,7 +295,8 @@ exports.createGuest = async (req, res, next) => {
           finalClientId = existingGuests[0].id;
           console.log(`[Appointment] ✅ Reutilizando cliente invitado: ${finalClientId}`);
         } else {
-          const hashedGuestPassword = await bcrypt.hash('GuestDefaultPass1!', 10);
+          const randomPassword = crypto.randomBytes(32).toString('hex');
+          const hashedGuestPassword = await bcrypt.hash(randomPassword, 10);
           const [guestUser] = await db.execute(
             'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
             ['Invitado', guestEmail, hashedGuestPassword, 'cliente']

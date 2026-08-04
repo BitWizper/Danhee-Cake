@@ -32,7 +32,14 @@ const validateAppointmentBody = [
   body('time_slot')
     .trim()
     .notEmpty().withMessage('time_slot requerido')
-    .matches(/^\d{2}:\d{2}$/).withMessage('time_slot debe ser HH:MM'),
+    .matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/).withMessage('time_slot debe ser HH:MM válido (00:00-23:59)')
+    .custom((value) => {
+      const [, minutes] = value.split(':').map(Number);
+      if (minutes % 15 !== 0) {
+        throw new Error('time_slot debe ser en intervalos de 15 minutos (00, 15, 30, 45)');
+      }
+      return true;
+    }),
   body('notes')
     .optional()
     .trim()

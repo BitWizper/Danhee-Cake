@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 // Almacenamiento de tokens CSRF en memoria con TTL
 const csrfTokens = new Map();
-const CSRF_TTL = 24 * 60 * 60 * 1000; // 24 horas
+const CSRF_TTL = 30 * 60 * 1000; // 30 minutos
 
 const cleanExpiredTokens = () => {
   const now = Date.now();
