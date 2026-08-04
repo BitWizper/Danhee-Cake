@@ -89,14 +89,20 @@ const BakerDashboardPage = () => {
       if (!silent) setLoading(true);
       setError(null);
       
-      // Si el token es 'cookie-based', no agregar header Authorization
-      // Las cookies se envían automáticamente con credentials: 'include'
+      // Construir headers con Authorization si tenemos un token real
       const headers = {};
       if (token && token !== 'cookie-based') {
         headers['Authorization'] = `Bearer ${token}`;
         console.log('[BakerDashboard] Usando Bearer token');
       } else {
-        console.log('[BakerDashboard] Usando cookies (cookie-based auth)');
+        // Si el token es 'cookie-based', intentar obtenerlo de localStorage
+        const storedToken = localStorage.getItem('token');
+        if (storedToken && storedToken !== 'cookie-based') {
+          headers['Authorization'] = `Bearer ${storedToken}`;
+          console.log('[BakerDashboard] Usando token de localStorage');
+        } else {
+          console.log('[BakerDashboard] ⚠️ Solo cookie-based, sin Bearer token');
+        }
       }
       
       console.log('[BakerDashboard] Headers:', headers);
@@ -134,7 +140,7 @@ const BakerDashboardPage = () => {
 
       // Verificar si hay errores de autenticación
       if (statsRes.status === 401 || appRes.status === 401 || cakesRes.status === 401) {
-        console.error('[BakerDashboard] ❌ Error de autenticación detectado');
+        console.error('[BakerDashboard]  Error de autenticación detectado');
         console.error('[BakerDashboard] Stats error:', statsData);
         console.error('[BakerDashboard] Appointments error:', appData);
         console.error('[BakerDashboard] Cakes error:', cakesData);
@@ -192,6 +198,11 @@ const BakerDashboardPage = () => {
           const headers = {};
           if (token && token !== 'cookie-based') {
             headers['Authorization'] = `Bearer ${token}`;
+          } else {
+            const storedToken = localStorage.getItem('token');
+            if (storedToken && storedToken !== 'cookie-based') {
+              headers['Authorization'] = `Bearer ${storedToken}`;
+            }
           }
           
           console.log('[BakerDashboard] Profile headers:', headers);
@@ -239,6 +250,11 @@ const BakerDashboardPage = () => {
       const headers = {};
       if (token && token !== 'cookie-based') {
         headers['Authorization'] = `Bearer ${token}`;
+      } else {
+        const storedToken = localStorage.getItem('token');
+        if (storedToken && storedToken !== 'cookie-based') {
+          headers['Authorization'] = `Bearer ${storedToken}`;
+        }
       }
       
       const headersWithCsrf = await addCsrfToHeaders(headers);
@@ -282,6 +298,11 @@ const BakerDashboardPage = () => {
       const headers = {};
       if (token && token !== 'cookie-based') {
         headers['Authorization'] = `Bearer ${token}`;
+      } else {
+        const storedToken = localStorage.getItem('token');
+        if (storedToken && storedToken !== 'cookie-based') {
+          headers['Authorization'] = `Bearer ${storedToken}`;
+        }
       }
       
       const headersWithCsrf = await addCsrfToHeaders(headers);
@@ -319,6 +340,11 @@ const BakerDashboardPage = () => {
       const headers = { 'Content-Type': 'application/json' };
       if (token && token !== 'cookie-based') {
         headers['Authorization'] = `Bearer ${token}`;
+      } else {
+        const storedToken = localStorage.getItem('token');
+        if (storedToken && storedToken !== 'cookie-based') {
+          headers['Authorization'] = `Bearer ${storedToken}`;
+        }
       }
       
       const headersWithCsrf = await addCsrfToHeaders(headers);
@@ -360,6 +386,11 @@ const BakerDashboardPage = () => {
       const headers = { 'Content-Type': 'application/json' };
       if (token && token !== 'cookie-based') {
         headers['Authorization'] = `Bearer ${token}`;
+      } else {
+        const storedToken = localStorage.getItem('token');
+        if (storedToken && storedToken !== 'cookie-based') {
+          headers['Authorization'] = `Bearer ${storedToken}`;
+        }
       }
       
       const headersWithCsrf = await addCsrfToHeaders(headers);

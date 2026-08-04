@@ -352,7 +352,9 @@ exports.login = async (req, res, next) => {
         name: user.name,
         email: user.email,
         role: user.role
-      }
+      },
+      token: token,
+      refresh_token: refreshToken
     });
   } catch (err) {
     console.error('[Login Backend] ❌ ERROR EN LOGIN:', err);
