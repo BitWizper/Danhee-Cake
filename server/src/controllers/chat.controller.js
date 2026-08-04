@@ -2,6 +2,7 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sanitizeString } = require('../middleware/inputValidator');
+const db = require('../config/db');
 
 const SUSPICIOUS_CHAT_PATTERN = /(<script|<\/script|javascript:|on\w+\s*=|data:text\/html|union\s+select|or\s+1\s*=\s*1|sleep\s*\(|benchmark\s*\(|--|\/\*|\*\/|%3c|%3e|&#x|\\x[0-9a-f]{2}|\.\.)/i;
 
@@ -47,6 +48,34 @@ const getAuthenticatedUserId = (req) => {
   }
 };
 
+const saveConversationOwnership = async (conversationId, clientId) => {
+  if (!conversationId || !clientId) return;
+  
+  try {
+    await db.execute(
+      'INSERT INTO chat_sessions (conversation_id, client_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE client_id = VALUES(client_id)',
+      [conversationId, clientId]
+    );
+  } catch (error) {
+    console.error('[Chat] Error guardando ownership de conversación:', error.message);
+  }
+};
+
+const verifyConversationOwnership = async (conversationId, clientId) => {
+  if (!conversationId || !clientId) return false;
+  
+  try {
+    const [rows] = await db.execute(
+      'SELECT conversation_id FROM chat_sessions WHERE conversation_id = ? AND client_id = ?',
+      [conversationId, clientId]
+    );
+    return rows.length > 0;
+  } catch (error) {
+    console.error('[Chat] Error verificando ownership:', error.message);
+    return false;
+  }
+};
+
 const askChatbot = async (req, res) => {
   return res.status(410).json({
     error: "GONE",
@@ -71,7 +100,6 @@ const getChatHistory = async (req, res) => {
 
   if (!sanitizedClientId && authenticatedUserId) {
     sanitizedClientId = authenticatedUserId.toString();
-    console.log(`[Chat History] Usando client_id del usuario autenticado: ${sanitizedClientId}`);
   }
 
   if (!sanitizedConversationId && !sanitizedClientId) {
@@ -83,12 +111,20 @@ const getChatHistory = async (req, res) => {
     return res.status(403).json({ error: "No tienes permiso para ver este historial" });
   }
 
+  if (sanitizedConversationId) {
+    const isOwner = await verifyConversationOwnership(sanitizedConversationId, authenticatedUserId);
+    if (!isOwner) {
+      console.log(`[Chat History] IDOR bloqueado: user ${authenticatedUserId} intentando acceder a conversation_id ${sanitizedConversationId}`);
+      return res.status(403).json({ error: "No tienes permiso para ver este historial" });
+    }
+  }
+
   try {
     const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
     let response;
     
     if (sanitizedConversationId) {
-      response = await fetch(`${ragUrl}/chat/history/${sanitizedConversationId}?client_id=${authenticatedUserId}`, {
+      response = await fetch(`${ragUrl}/chat/history/${sanitizedConversationId}`, {
         headers: { "X-RAG-Secret": process.env.RAG_SERVICE_SECRET }
       });
     } else {
@@ -133,7 +169,6 @@ const getChatHistory = async (req, res) => {
 };
 
 const streamChatbot = async (req, res) => {
-  // Validar RAG_SERVICE_SECRET no sea el placeholder inseguro
   if (!process.env.RAG_SERVICE_SECRET || process.env.RAG_SERVICE_SECRET === 'change-me-in-production') {
     console.error('[Chat Stream] RAG_SERVICE_SECRET no está configurado o usa placeholder inseguro');
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -142,31 +177,22 @@ const streamChatbot = async (req, res) => {
   }
 
   const { message, conversation_id } = req.body;
-  console.log('[Chat Stream] Message received:', message);
-  console.log('[Chat Stream] Conversation ID:', conversation_id);
   
   const messageValidation = validateChatText(message, 5000, 'El mensaje');
   const conversationValidation = validateChatText(conversation_id, 100, 'conversation_id');
 
-  console.log('[Chat Stream] Message validation:', messageValidation);
-  console.log('[Chat Stream] Conversation validation:', conversationValidation);
-
   if (!messageValidation.ok) {
-    console.log('[Chat Stream] Message validation failed:', messageValidation.reason);
     return res.status(400).json({ error: messageValidation.reason });
   }
 
   const sanitizedMessage = messageValidation.sanitized;
   const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
   
-  console.log('[Chat Stream] Sanitized message:', sanitizedMessage);
-
   let client_id = null;
   let role = null;
   const authHeader = req.headers['authorization'];
   const cookieToken = req.cookies?.access_token;
 
-  // Prioridad: header Authorization > cookie
   let token = null;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.slice(7);
@@ -185,23 +211,17 @@ const streamChatbot = async (req, res) => {
           role = null;
         }
       }
-      console.log(`[Chat Stream] Usuario autenticado: ID=${client_id}, Rol=${role}`);
     } catch (error) {
-      console.log(`[Chat Stream] Token inválido o expirado, continuando como invitado`);
       client_id = null;
       role = null;
     }
-  } else {
-    console.log(`[Chat Stream] No hay token, usuario invitado`);
   }
 
-  // Configurar cabeceras de Server-Sent Events (SSE)
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'close');
   res.setHeader('X-Accel-Buffering', 'no');
 
-  // Timeout para detectar conexiones colgadas (5 minutos)
   const timeoutMs = 5 * 60 * 1000;
   const timeoutId = setTimeout(() => {
     console.warn('[Node Stream] Timeout alcanzado, cerrando conexión');
@@ -215,13 +235,12 @@ const streamChatbot = async (req, res) => {
     const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
     const conversationId = sanitizedConversationId || (crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
     
-    if (!process.env.RAG_SERVICE_URL) {
-      console.warn('[Node Stream] RAG_SERVICE_URL no está configurado; usando fallback http://rag-service:5001');
+    if (client_id) {
+      await saveConversationOwnership(conversationId, client_id);
     }
     
-    // Llamar al endpoint de stream del RAG service con timeout
     const controller = new AbortController();
-    const ragTimeoutId = setTimeout(() => controller.abort(), timeoutMs - 10000); // Abortar 10s antes del timeout general
+    const ragTimeoutId = setTimeout(() => controller.abort(), timeoutMs - 10000);
 
     const ragRes = await fetch(`${ragUrl}/chat/stream`, {
       method: "POST",
@@ -250,27 +269,21 @@ const streamChatbot = async (req, res) => {
     const reader = ragRes.body.getReader();
     const decoder = new TextDecoder();
     let streamBuffer = "";
-    let lastDataTime = Date.now();
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          // Si quedó algo en el buffer al finalizar, lo enviamos
           if (streamBuffer.trim()) {
             res.write(streamBuffer);
           }
           break;
         }
 
-        lastDataTime = Date.now();
-
-        // Decodificar usando { stream: true } para evitar fragmentación de caracteres
         streamBuffer += decoder.decode(value, { stream: true });
         
-        // Separamos por bloques de eventos SSE
         const lines = streamBuffer.split("\n\n");
-        streamBuffer = lines.pop(); // Guardar fragmento incompleto para el siguiente ciclo
+        streamBuffer = lines.pop();
 
         for (const line of lines) {
           if (line.trim()) {
@@ -282,7 +295,6 @@ const streamChatbot = async (req, res) => {
       reader.releaseLock();
     }
 
-    // Cierre forzado y limpio de la conexión HTTP hacia React
     clearTimeout(timeoutId);
     res.end();
 
@@ -320,9 +332,17 @@ const deleteChatHistory = async (req, res) => {
     return res.status(403).json({ error: "No tienes permiso para eliminar este historial" });
   }
 
+  if (sanitizedConversationId) {
+    const isOwner = await verifyConversationOwnership(sanitizedConversationId, authenticatedUserId);
+    if (!isOwner) {
+      console.log(`[Chat Delete] IDOR bloqueado: user ${authenticatedUserId} intentando eliminar conversation_id ${sanitizedConversationId}`);
+      return res.status(403).json({ error: "No tienes permiso para eliminar este historial" });
+    }
+  }
+
   try {
     const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
-    const response = await fetch(`${ragUrl}/chat/${sanitizedConversationId}?client_id=${authenticatedUserId}`, {
+    const response = await fetch(`${ragUrl}/chat/${sanitizedConversationId}`, {
       method: "DELETE",
       headers: { 
         "Content-Type": "application/json",
@@ -341,6 +361,13 @@ const deleteChatHistory = async (req, res) => {
     if (!response.ok) {
       console.error("[Chat Delete] Error del servicio RAG:", response.status);
       return res.status(500).json({ error: "Error eliminando historial" });
+    }
+
+    if (sanitizedConversationId) {
+      await db.execute(
+        'DELETE FROM chat_sessions WHERE conversation_id = ? AND client_id = ?',
+        [sanitizedConversationId, authenticatedUserId]
+      );
     }
 
     const data = await response.json();
