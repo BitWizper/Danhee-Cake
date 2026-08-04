@@ -422,7 +422,6 @@ exports.cancelAppointment = async (req, res, next) => {
   }
 
   try {
-    // Verificar que la cita existe y pertenece al cliente
     const [rows] = await db.execute(
       'SELECT id, status FROM appointments WHERE id = ? AND client_id = ?',
       [sanitizedId, client_id]
@@ -435,7 +434,13 @@ exports.cancelAppointment = async (req, res, next) => {
       });
     }
 
-    // Actualizar estado a 'cancelled'
+    if (rows[0].status === 'cancelled') {
+      return res.status(410).json({
+        success: false,
+        message: 'La cita ya está cancelada.'
+      });
+    }
+
     await db.execute(
       'UPDATE appointments SET status = ? WHERE id = ?',
       ['cancelled', sanitizedId]

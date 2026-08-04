@@ -64,7 +64,6 @@ const buildCakeForClient = (cake) => ({
   image_url: normalizeImageUrl(cake.image_url),
   is_featured: cake.is_featured,
   baker_id: cake.baker_id,
-  user_id: cake.user_id,
   business_name: cake.business_name,
   location: cake.location,
   price: cake.price,
@@ -73,8 +72,18 @@ const buildCakeForClient = (cake) => ({
 });
 
 const buildCakeForPrivilegedUser = (cake) => ({
-  ...cake,
-  image_url: normalizeImageUrl(cake.image_url)
+  id: cake.id,
+  name: cake.name,
+  category_name: cake.category_name,
+  image_url: normalizeImageUrl(cake.image_url),
+  is_featured: cake.is_featured,
+  baker_id: cake.baker_id,
+  user_id: cake.user_id,
+  business_name: cake.business_name,
+  location: cake.location,
+  price: cake.price,
+  rating: cake.rating || 0,
+  reviews_count: cake.reviews_count || 0
 });
 
 const buildCakeResponse = (cake, role) => {
