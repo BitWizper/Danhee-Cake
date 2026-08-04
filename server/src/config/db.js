@@ -128,7 +128,19 @@ const detectSuspiciousSQL = (sql) => {
     }
   }
 
-  if (/\b(show|describe|explain|use|set|flush|grant|revoke|analyze|optimize)\b/i.test(sql)) {
+  // Detectar comandos administrativos standalone
+  // Nota: 'set' se excluye porque UPDATE ... SET es una operación DML legítima
+  if (/\b(show|describe|explain|use|flush|grant|revoke|analyze|optimize)\b/i.test(sql)) {
+    return {
+      suspicious: true,
+      pattern: 'administrative_sql',
+      reason: 'Operaciones administrativas de base de datos no permitidas'
+    };
+  }
+  
+  // Detectar SET standalone (comando administrativo, no parte de UPDATE)
+  // Solo bloquear si SET aparece al inicio de la sentencia o después de ;
+  if (/^\s*set\b/i.test(sql) || /;\s*set\b/i.test(sql)) {
     return {
       suspicious: true,
       pattern: 'administrative_sql',

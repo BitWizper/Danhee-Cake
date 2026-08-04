@@ -19,7 +19,7 @@ const sqlInjectionPatterns = {
   // Comment-based bypasses
   comments: /(-{2}|\/\*|\*\/|#|{.*?})/,
   
-  // Common SQLi keywords
+  // Common SQLi keywords (reducir peso de 2 a 1)
   sqlKeywords: /\b(select|insert|update|delete|drop|create|alter|exec|execute|declare|cast|convert)\s+/i,
   
   // Encoded payloads (hex, base64, unicode)
@@ -39,19 +39,19 @@ const isSQLInjection = (value) => {
   let suspiciousCount = 0;
 
   // Buscar patrones sospechosos
-  if (sqlInjectionPatterns.union.test(normalized)) suspiciousCount++;
-  if (sqlInjectionPatterns.booleanBased.test(normalized)) suspiciousCount++;
-  if (sqlInjectionPatterns.timeBased.test(normalized)) suspiciousCount++;
-  if (sqlInjectionPatterns.stackedQueries.test(normalized)) suspiciousCount++;
+  if (sqlInjectionPatterns.union.test(normalized)) suspiciousCount += 3;
+  if (sqlInjectionPatterns.booleanBased.test(normalized)) suspiciousCount += 3;
+  if (sqlInjectionPatterns.timeBased.test(normalized)) suspiciousCount += 3;
+  if (sqlInjectionPatterns.stackedQueries.test(normalized)) suspiciousCount += 3;
   if (sqlInjectionPatterns.encodedPayload.test(value)) suspiciousCount++;
 
-  // Si tiene SQL keywords + otros patrones sospechosos
+  // Reducir peso de SQL keywords de 2 a 1
   if (sqlInjectionPatterns.sqlKeywords.test(normalized)) {
-    suspiciousCount += 2;
+    suspiciousCount += 1;
   }
 
-  // Considerar como SQLi si hay 2 o más patrones sospechosos
-  return suspiciousCount >= 2;
+  // Aumentar threshold de 2 a 3 para reducir falsos positivos
+  return suspiciousCount >= 3;
 };
 
 /**

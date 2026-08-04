@@ -490,10 +490,31 @@ app.use(sanitizeQueryParams);
 app.use('/api', (req, res, next) => {
   const mutatingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
   const suspiciousRedirectParams = ['redirect', 'next', 'url', 'returnUrl', 'return_to'];
+  
   if (mutatingMethods.includes(req.method?.toUpperCase())) {
-    const suspiciousPatterns = [/(select|insert|update|delete|drop|union|exec|script)/i, /<script|javascript:|on\w+=/i, /\$(where|ne|gt|lt|regex|in|nin|or|and)\b/i];
     const rawInput = JSON.stringify(req.body || {}) + JSON.stringify(req.query || {}) + JSON.stringify(req.params || {});
-    if (suspiciousPatterns.some((pattern) => pattern.test(rawInput))) {
+    
+    // Patrones específicos de SQLi (requieren contexto de ataque, no palabras individuales)
+    const sqlInjectionPatterns = [
+      /union\s+(all\s+)?select/i,
+      /or\s+\d+\s*=\s*\d+/i,
+      /'\s*(or|and)\s*'/i,
+      /;\s*(drop|delete|insert|update)\s+(table|from|into)/i,
+      /--\s*$/,
+      /\/\*.*\*\//,
+      /\b(sleep|benchmark|waitfor)\s*\(/i
+    ];
+    
+    // XSS y NoSQL injection (estos patrones son seguros)
+    const otherPatterns = [
+      /<script|javascript:|on\w+=/i,
+      /\$(where|ne|gt|lt|regex|in|nin|or|and)\b/i
+    ];
+    
+    const hasSQLi = sqlInjectionPatterns.some(pattern => pattern.test(rawInput));
+    const hasOtherAttack = otherPatterns.some(pattern => pattern.test(rawInput));
+    
+    if (hasSQLi || hasOtherAttack) {
       console.log(`[SECURITY] Bloqueo preventivo de mutación maliciosa en ${req.originalUrl}`);
       return res.status(400).json({ success: false, error_code: 'INVALID_REQUEST', message: 'Solicitud inválida.' });
     }

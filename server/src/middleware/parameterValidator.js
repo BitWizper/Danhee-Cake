@@ -8,7 +8,7 @@ const { query, param, body, validationResult } = require('express-validator');
 
 // Patrones peligrosos comunes a buscar en cualquier parámetro
 const DANGEROUS_PATTERNS = {
-  // SQL Injection patterns
+  // SQL Injection patterns (específicos, no palabras individuales)
   sqlKeywords: /\b(select|insert|update|delete|drop|create|alter|exec|execute|script)\s+/i,
   sqlComments: /(-{2}|#|\/\*|\*\/)/,
   sqlUnion: /union(\s+all)?\s+select/i,
@@ -43,18 +43,22 @@ const isDangerousValue = (value, fieldName = '') => {
   // Contar patrones peligrosos encontrados
   let threatCount = 0;
   
-  if (DANGEROUS_PATTERNS.sqlKeywords.test(value)) threatCount++;
+  // Reducir peso de palabras SQL individuales (de 2 a 1)
+  if (DANGEROUS_PATTERNS.sqlKeywords.test(value)) threatCount += 1;
   if (DANGEROUS_PATTERNS.sqlComments.test(value)) threatCount++;
-  if (DANGEROUS_PATTERNS.sqlUnion.test(value)) threatCount++;
-  if (DANGEROUS_PATTERNS.sqlOr.test(value)) threatCount++;
-  if (DANGEROUS_PATTERNS.sqlSleep.test(value)) threatCount++;
+  
+  // Aumentar peso de patrones específicos de ataque
+  if (DANGEROUS_PATTERNS.sqlUnion.test(value)) threatCount += 3;
+  if (DANGEROUS_PATTERNS.sqlOr.test(value)) threatCount += 3;
+  if (DANGEROUS_PATTERNS.sqlSleep.test(value)) threatCount += 3;
+  
   if (DANGEROUS_PATTERNS.noSqlOperators.test(value)) threatCount++;
   if (DANGEROUS_PATTERNS.scriptTag.test(value)) threatCount++;
   if (DANGEROUS_PATTERNS.commandSeparators.test(value) && threatCount > 0) threatCount++;
   if (DANGEROUS_PATTERNS.pathTraversal.test(value)) threatCount++;
   
-  // Requerir 2+ patrones para alertar (reduce falsos positivos)
-  return threatCount >= 2;
+  // Aumentar threshold de 2 a 3 para reducir falsos positivos
+  return threatCount >= 3;
 };
 
 /**

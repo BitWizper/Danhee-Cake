@@ -2,11 +2,26 @@ const { isDangerousValue } = require('./parameterValidator');
 
 const MUTATING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 const BLOCKED_REDIRECT_PARAMS = ['redirect', 'next', 'returnUrl', 'return_to', 'url'];
+
+// Patrones específicos de SQLi (requieren contexto de ataque, no palabras individuales)
 const SUSPICIOUS_PATTERNS = [
-  /(select|insert|update|delete|drop|union|exec|script)/i,
-  /<script|javascript:|on\w+=/i,
+  // SQLi específico
+  /union\s+(all\s+)?select/i,
+  /or\s+\d+\s*=\s*\d+/i,
+  /'\s*(or|and)\s*'/i,
+  /;\s*(drop|delete|insert|update)\s+(table|from|into)/i,
+  /--\s*$/,
+  /\/\*.*\*\//,
+  
+  // XSS
+  /<script[^>]*>.*?<\/script>/i,
+  /javascript:/i,
+  /on\w+\s*=/i,
+  
+  // NoSQL injection
   /\$(where|ne|gt|lt|gte|lte|regex|in|nin|or|and|not|nor|exists|type|mod|elemMatch|size)\b/i,
-  /\b(or|and)\b\s+\d+\s*=\s*\d+/i,
+  
+  // Time-based SQLi
   /\b(sleep|benchmark|waitfor|delay)\s*\(/i
 ];
 
