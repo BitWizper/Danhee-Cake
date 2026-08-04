@@ -422,19 +422,28 @@ exports.cancelAppointment = async (req, res, next) => {
   }
 
   try {
-    const [rows] = await db.execute(
-      'SELECT id, status FROM appointments WHERE id = ? AND client_id = ?',
-      [sanitizedId, client_id]
+    // Primero verificar si la cita existe
+    const [appointmentRows] = await db.execute(
+      'SELECT id, client_id, status FROM appointments WHERE id = ?',
+      [sanitizedId]
     );
 
-    if (rows.length === 0) {
+    if (appointmentRows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'Cita no encontrada o no tienes permiso para cancelarla.'
+        message: 'Cita no encontrada.'
       });
     }
 
-    if (rows[0].status === 'cancelled') {
+    // Luego verificar si pertenece al cliente
+    if (appointmentRows[0].client_id !== client_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para cancelar esta cita.'
+      });
+    }
+
+    if (appointmentRows[0].status === 'cancelled') {
       return res.status(410).json({
         success: false,
         message: 'La cita ya está cancelada.'
