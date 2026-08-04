@@ -54,7 +54,6 @@ export const AuthProvider = ({ children }) => {
 
         if (response.ok) {
           const data = JSON.parse(responseText);
-          console.log('[AuthContext] ✅ Sesión válida. Usuario:', data.user?.email, 'Rol:', data.user?.role);
           // Actualizar estado con datos frescos de la BD
           setUser(data.user);
           setToken('cookie-based');
@@ -92,7 +91,6 @@ export const AuthProvider = ({ children }) => {
     
     // Escuchar evento de sesión expirada desde el chatbot
     const handleSessionExpired = (event) => {
-      console.log('[AuthContext] Sesión expirada detectada:', event.detail?.reason);
       clearSession('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
     };
     
