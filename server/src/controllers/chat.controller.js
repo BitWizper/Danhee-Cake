@@ -282,15 +282,6 @@ const streamChatbot = async (req, res) => {
     }
   }, timeoutMs);
 
-  // Heartbeat cada 30 segundos para mantener la conexión viva
-  const heartbeatInterval = setInterval(() => {
-    if (!res.writableEnded) {
-      res.write(`data: ${JSON.stringify({ type: "heartbeat", timestamp: Date.now() })}\n\n`);
-    } else {
-      clearInterval(heartbeatInterval);
-    }
-  }, 30000);
-
   try {
     const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
     const conversationId = sanitizedConversationId || (crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
@@ -324,7 +315,6 @@ const streamChatbot = async (req, res) => {
       console.error("[Node Stream] Error del servicio RAG:", ragRes.statusText);
       res.write(`data: ${JSON.stringify({ type: "error", content: "Error en el servicio RAG" })}\n\n`);
       clearTimeout(timeoutId);
-      clearInterval(heartbeatInterval);
       return res.end();
     }
 
@@ -365,13 +355,11 @@ const streamChatbot = async (req, res) => {
 
     // Cierre forzado y limpio de la conexión HTTP hacia React
     clearTimeout(timeoutId);
-    clearInterval(heartbeatInterval);
     res.end();
 
   } catch (error) {
     console.error("[Node Stream] Error conectando con el servicio RAG:", error.message);
     clearTimeout(timeoutId);
-    clearInterval(heartbeatInterval);
     if (!res.writableEnded) {
       res.write(`data: ${JSON.stringify({ type: "error", content: "El asistente de IA se está iniciando. Por favor, intenta de nuevo." })}\n\n`);
       res.end();

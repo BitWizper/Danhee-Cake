@@ -112,7 +112,7 @@ app.post('/chat', authenticateRAGRequest, async (req, res) => {
         
     } catch (e) {
         console.error(`[app] Error en /chat: ${e.message}`);
-        res.status(500).json({ error: 'Internal server error', message: e.message });
+        res.status(500).json({ error: 'Internal server error', message: 'Ocurrió un error al procesar tu solicitud' });
     }
 });
 
@@ -130,7 +130,7 @@ app.get('/chat/history/:conversationId', authenticateRAGRequest, async (req, res
         
     } catch (e) {
         console.error(`[app] Error en /chat/history: ${e.message}`);
-        res.status(500).json({ error: 'Internal server error', message: e.message });
+        res.status(500).json({ error: 'Internal server error', message: 'Ocurrió un error al obtener el historial' });
     }
 });
 
@@ -162,7 +162,7 @@ app.get('/chat/history', authenticateRAGRequest, async (req, res) => {
         
     } catch (e) {
         console.error(`[app] Error en /chat/history (by client_id): ${e.message}`);
-        res.status(500).json({ error: 'Internal server error', message: e.message });
+        res.status(500).json({ error: 'Internal server error', message: 'Ocurrió un error al obtener el historial' });
     }
 });
 
@@ -181,7 +181,7 @@ app.delete('/chat/:conversationId', authenticateRAGRequest, async (req, res) => 
         
     } catch (e) {
         console.error(`[app] Error en DELETE /chat: ${e.message}`);
-        res.status(500).json({ error: 'Internal server error', message: e.message });
+        res.status(500).json({ error: 'Internal server error', message: 'Ocurrió un error al eliminar la conversación' });
     }
 });
 
@@ -283,7 +283,7 @@ app.post('/chat/stream', authenticateRAGRequest, async (req, res) => {
         console.error(`[app] Error en POST /chat/stream: ${e.stack || e.message}`);
         clearTimeout(streamTimeout);
         clearInterval(heartbeatInterval);
-        res.write(`data: ${JSON.stringify({ type: 'error', content: e.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'error', content: 'Ocurrió un error al procesar tu solicitud' })}\n\n`);
         res.end();
     }
 });
@@ -297,7 +297,7 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
     console.error(`[app] Error no manejado: ${err.message}`);
-    res.status(500).json({ error: 'Internal server error', message: err.message });
+    res.status(500).json({ error: 'Internal server error', message: 'Ocurrió un error interno del servidor' });
 });
 
 async function startServer() {

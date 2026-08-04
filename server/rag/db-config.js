@@ -10,13 +10,14 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 // Pool de conexiones persistente
 let pool = null;
 const CACHE_TTL = 120; // segundos
+const MAX_CACHE_SIZE = 1000; // Límite máximo de entradas en cache
 const cache = new Map();
 
 function getPool() {
     if (pool === null) {
         try {
             pool = mysql.createPool({
-                connectionLimit: 1,
+                connectionLimit: 10,
                 host: process.env.DB_HOST,
                 port: parseInt(process.env.DB_PORT || '3306'),
                 database: process.env.DB_NAME,
@@ -25,7 +26,7 @@ function getPool() {
                 waitForConnections: true,
                 queueLimit: 0
             });
-            console.error('[db-config] ✅ Pool de conexiones MySQL creado (size=1)');
+            console.error('[db-config] ✅ Pool de conexiones MySQL creado (size=10)');
         } catch (e) {
             console.error(`[db-config] ❌ Error creando pool: ${e.message}`);
             pool = null;
@@ -69,6 +70,11 @@ function cacheGet(key) {
 }
 
 function cacheSet(key, data) {
+    // Eviction: si el cache excede el tamaño máximo, eliminar entradas más antiguas
+    if (cache.size >= MAX_CACHE_SIZE) {
+        const oldestKey = cache.keys().next().value;
+        cache.delete(oldestKey);
+    }
     cache.set(key, { data, ts: Date.now() });
 }
 
@@ -86,6 +92,8 @@ async function getCakes() {
             FROM cakes c
             LEFT JOIN categories cat ON c.category_id = cat.id
             LEFT JOIN baker_profiles b ON c.baker_id = b.id
+            ORDER BY c.created_at DESC
+            LIMIT 500
         `);
         cacheSet('cakes', rows);
         return rows;

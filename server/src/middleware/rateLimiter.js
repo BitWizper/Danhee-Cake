@@ -118,21 +118,6 @@ exports.registerLimiter = createLimiter({
 exports.chatLimiter = createLimiter({
   windowMs: 1 * 60 * 1000,
   max: 20,
-  skip: (req) => {
-    // Eximir a reposteros del rate limiting del chat
-    const authHeader = req.headers['authorization'];
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const jwt = require('jsonwebtoken');
-        const token = authHeader.slice(7);
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        return decoded.role === 'repostero';
-      } catch (error) {
-        return false;
-      }
-    }
-    return false;
-  },
   message: {
     success: false,
     message: 'Demasiadas solicitudes al chat. Por favor, espera un momento.'
