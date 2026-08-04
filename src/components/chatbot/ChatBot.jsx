@@ -433,6 +433,10 @@ function ChatBot() {
     setIsSending(true);
     setLoadingState({ status: "thinking", message: "Conectando con el asistente..." });
 
+    let streamFailed = false;
+    let retryCount = 0;
+    const MAX_RETRIES = 2;
+
     try {
       const rawConvId = localStorage.getItem("conversation_id");
       const conversation_id = isValidConversationId(rawConvId) ? rawConvId : null;
@@ -537,66 +541,91 @@ function ChatBot() {
       const decoder = new TextDecoder();
       let buffer = "";
       let fullBotResponse = "";
+      let lastUpdateTime = Date.now();
+      const UPDATE_INTERVAL = 100; // Actualizar cada 100ms en lugar de por cada token
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop();
+        
+        // Dividir por doble salto de línea (separador de eventos SSE)
+        const events = buffer.split("\n\n");
+        buffer = events.pop(); // Mantener el último fragmento incompleto
 
-        for (const line of lines) {
-          const cleanLine = line.trim();
-          if (!cleanLine.startsWith("data: ")) continue;
-
-          const jsonStr = cleanLine.slice(6);
-          try {
-            const data = JSON.parse(jsonStr);
-
-            if (!isValidSSEEvent(data)) {
-              console.warn("[Security] Evento SSE ignorado:", data?.type);
-              continue;
+        for (const event of events) {
+          const lines = event.split("\n");
+          let dataLines = [];
+          
+          // Procesar cada línea del evento
+          for (const line of lines) {
+            const cleanLine = line.trim();
+            
+            // Ignorar líneas vacías o comentarios
+            if (!cleanLine || cleanLine.startsWith(":")) continue;
+            
+            // Acumular líneas data: (el estándar SSE permite múltiples data: por evento)
+            if (cleanLine.startsWith("data: ")) {
+              dataLines.push(cleanLine.slice(6));
+            } else if (cleanLine.startsWith("data:")) {
+              // data: sin espacio (caso edge)
+              dataLines.push(cleanLine.slice(5));
             }
+          }
+          
+          // Si hay líneas data:, concatenarlas y procesar
+          if (dataLines.length > 0) {
+            const jsonStr = dataLines.join("\n"); // Múltiples data: se concatenan con \n
+            
+            try {
+              const data = JSON.parse(jsonStr);
 
-            // Validación adicional de contenido en SSE
-            if (data.type === "token" && data.content) {
-              // Detectar XSS en respuesta del servidor
-              if (detectDOMXSS(data.content)) {
-                console.error("[Security] XSS detectado en respuesta del servidor");
+              if (!isValidSSEEvent(data)) {
+                console.warn("[Security] Evento SSE ignorado:", data?.type);
                 continue;
               }
-            }
 
-            if (data.type === "conversation_id") {
-              if (isValidConversationId(data.conversation_id)) {
-                localStorage.setItem("conversation_id", data.conversation_id);
+              // Validación adicional de contenido en SSE
+              if (data.type === "token" && data.content) {
+                // Detectar XSS en respuesta del servidor
+                if (detectDOMXSS(data.content)) {
+                  console.error("[Security] XSS detectado en respuesta del servidor");
+                  continue;
+                }
               }
-            } else if (data.type === "state") {
-              setLoadingState({
-                status: data.status,
-                message: sanitizeMessageAdvanced(data.message),
-              });
-            } else if (data.type === "token") {
-              setLoadingState({ status: "", message: "" });
-              // Sanitizar antes de concatenar para prevenir acumulación de contenido malicioso
-              fullBotResponse += sanitizeMessageAdvanced(data.content);
-              
-              // Actualizar cada 5 tokens para mejor rendimiento (batching)
-              if (fullBotResponse.length % 20 < 5) {
-                setChat((prev) => {
-                  const updated = [...prev];
-                  const index = updated.findIndex((msg) => msg.id === botMessageId);
-                  if (index !== -1) {
-                    updated[index] = {
-                      ...updated[index],
-                      text: sanitizeMessageAdvanced(fullBotResponse),
-                    };
-                  }
-                  return updated;
+
+              if (data.type === "conversation_id") {
+                if (isValidConversationId(data.conversation_id)) {
+                  localStorage.setItem("conversation_id", data.conversation_id);
+                }
+              } else if (data.type === "state") {
+                setLoadingState({
+                  status: data.status,
+                  message: sanitizeMessageAdvanced(data.message),
                 });
-              }
-            } else if (data.type === "error") {
+              } else if (data.type === "token") {
+                setLoadingState({ status: "", message: "" });
+                // Sanitizar antes de concatenar para prevenir acumulación de contenido malicioso
+                fullBotResponse += sanitizeMessageAdvanced(data.content);
+                
+                // Actualizar basado en tiempo en lugar de cantidad de caracteres
+                const now = Date.now();
+                if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+                  setChat((prev) => {
+                    const updated = [...prev];
+                    const index = updated.findIndex((msg) => msg.id === botMessageId);
+                    if (index !== -1) {
+                      updated[index] = {
+                        ...updated[index],
+                        text: sanitizeMessageAdvanced(fullBotResponse),
+                      };
+                    }
+                    return updated;
+                  });
+                  lastUpdateTime = now;
+                }
+              } else if (data.type === "error") {
               setLoadingState({ status: "", message: "" });
               fullBotResponse = data.content;
               setChat((prev) => {
@@ -654,7 +683,12 @@ function ChatBot() {
         window.dispatchEvent(new CustomEvent("baker-catalog-updated"));
       }
     } catch (error) {
-      console.error(error);
+      console.error("[ChatBot] Error en stream:", error);
+      
+      // Remover el mensaje del usuario si el envío falló
+      setChat((prev) => prev.filter((m) => m.id !== userMessage.id));
+      
+      // Mostrar mensaje de error
       setChat((prev) => [
         ...prev,
         {

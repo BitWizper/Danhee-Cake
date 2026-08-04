@@ -5,7 +5,7 @@ const { sanitizeString } = require('../middleware/inputValidator');
 
 const SUSPICIOUS_CHAT_PATTERN = /(<script|<\/script|javascript:|on\w+\s*=|data:text\/html|union\s+select|or\s+1\s*=\s*1|sleep\s*\(|benchmark\s*\(|--|\/\*|\*\/|%3c|%3e|&#x|\\x[0-9a-f]{2}|\.\.)/i;
 
-const validateChatText = (value, maxLength = 5000, fieldName = 'mensaje') => {
+const validateChatText = (value, maxLength = 2000, fieldName = 'mensaje') => {
   if (value === null || value === undefined) {
     return { ok: true, sanitized: '' };
   }
