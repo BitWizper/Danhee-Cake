@@ -63,8 +63,8 @@ services:
     container_name: chromadb
     restart: always
     # Puerto protegido - solo accesible dentro de red Docker
-    # ports:
-    #   - "8000:8000"
+    ports:
+       - "8000:8000"
     volumes:
       - chroma_data:/chroma/chroma
     networks:
@@ -74,8 +74,8 @@ services:
     build: ./server/rag
     container_name: rag-service
     # Puerto protegido - solo accesible dentro de red Docker
-    # ports:
-    #   - "5001:5001"
+    ports:
+       - "5001:5001"
     environment:
       - RAG_PORT=5001
       - CHROMA_HOST=http://chromadb:8000
