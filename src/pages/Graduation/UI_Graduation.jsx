@@ -18,7 +18,7 @@ const UIGraduation = () => {
     const fetchData = async () => {
       try {
         const [cakesRes, catsRes] = await Promise.all([
-          fetch(getApiUrl('/api/cakes')),
+          fetch(getApiUrl('/api/cakes?category=graduacion')),
           fetch(getApiUrl('/api/categories'))
         ]);
         
@@ -30,10 +30,7 @@ const UIGraduation = () => {
         const catsData = await catsRes.json();
         
         if (cakesData.success) {
-          const graduationCakes = cakesData.data.filter(
-            cake => cake.category_name === 'Graduación' || cake.category_slug === 'graduacion' || cake.category_name === 'Graduacion'
-          );
-          setCakes(graduationCakes);
+          setCakes(cakesData.data);
         }
 
         if (catsData.success) {

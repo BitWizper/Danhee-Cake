@@ -5,24 +5,43 @@ const crypto = require('crypto');
 const normalizeImageUrl = (imageUrl) => {
   if (!imageUrl) return imageUrl;
   
-  // Si ya es una URL completa (http/https), retornarla tal cual
+  if (imageUrl.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//i)) {
+    const urlPath = imageUrl.replace(/^https?:\/\/[^/]+/i, '');
+    let filename = urlPath;
+    if (urlPath.includes('/uploads/')) {
+      filename = urlPath.split('/uploads/').pop();
+    } else if (urlPath.startsWith('/uploads/')) {
+      filename = urlPath.replace('/uploads/', '');
+    } else {
+      return imageUrl;
+    }
+    const timestamp = Date.now() + (3600 * 1000);
+    const tokenData = `${filename}|${timestamp}`;
+    if (!process.env.JWT_SECRET) {
+      console.error('[Security] JWT_SECRET no está definido para generar token de imagen');
+      throw new Error('JWT_SECRET no está definido');
+    }
+    const signature = crypto
+      .createHmac('sha256', process.env.JWT_SECRET)
+      .update(tokenData)
+      .digest('hex');
+    return `/api/images/${filename}?token=${signature}&expires=${timestamp}`;
+  }
+  
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
     return imageUrl;
   }
   
-  // Si es una ruta relativa de uploads (legacy), construir URL segura con token temporal
   let filename = imageUrl;
   if (imageUrl.includes('/uploads/')) {
     filename = imageUrl.split('/uploads/').pop();
   } else if (imageUrl.startsWith('/uploads/')) {
     filename = imageUrl.replace('/uploads/', '');
   } else {
-    // No es URL completa ni ruta de uploads, retornar tal cual
     return imageUrl;
   }
   
-  // Generar token temporal firmado para acceso seguro a la imagen
-  const timestamp = Date.now() + (3600 * 1000); // Token válido por 1 hora
+  const timestamp = Date.now() + (3600 * 1000);
   const tokenData = `${filename}|${timestamp}`;
   
   if (!process.env.JWT_SECRET) {
@@ -35,7 +54,6 @@ const normalizeImageUrl = (imageUrl) => {
     .update(tokenData)
     .digest('hex');
   
-  // Retornar URL relativa que el frontend completará con su API base
   return `/api/images/${filename}?token=${signature}&expires=${timestamp}`;
 };
 

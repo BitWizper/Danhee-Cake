@@ -18,7 +18,7 @@ const BabyShower = () => {
         const fetchData = async () => {
             try {
                 const [cakesRes, catsRes] = await Promise.all([
-                    fetch(getApiUrl('/api/cakes')),
+                    fetch(getApiUrl('/api/cakes?category=baby-shower')),
                     fetch(getApiUrl('/api/categories'))
                 ]);
 
@@ -30,10 +30,7 @@ const BabyShower = () => {
                 const catsData = await catsRes.json();
 
                 if (cakesData.success) {
-                    const babyShowerCakes = cakesData.data.filter(
-                        cake => cake.category_name === 'Baby Shower' || cake.category_slug === 'baby-shower'
-                    );
-                    setCakes(babyShowerCakes);
+                    setCakes(cakesData.data);
                 }
 
                 if (catsData.success) {

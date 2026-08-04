@@ -18,7 +18,7 @@ const Cumpleanos = () => {
         const fetchData = async () => {
             try {
                 const [cakesRes, catsRes] = await Promise.all([
-                    fetch(getApiUrl('/api/cakes')),
+                    fetch(getApiUrl('/api/cakes?category=cumpleanos')),
                     fetch(getApiUrl('/api/categories'))
                 ]);
 
@@ -30,10 +30,7 @@ const Cumpleanos = () => {
                 const catsData = await catsRes.json();
 
                 if (cakesData.success) {
-                    const birthdayCakes = cakesData.data.filter(
-                        cake => cake.category_name === 'Cumpleaños' || cake.category_slug === 'cumpleanos'
-                    );
-                    setCakes(birthdayCakes);
+                    setCakes(cakesData.data);
                 }
 
                 if (catsData.success) {

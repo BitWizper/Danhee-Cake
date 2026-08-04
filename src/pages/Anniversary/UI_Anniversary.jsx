@@ -18,7 +18,7 @@ const UIAnniversary = () => {
     const fetchData = async () => {
       try {
         const [cakesRes, catsRes] = await Promise.all([
-          fetch(getApiUrl('/api/cakes')),
+          fetch(getApiUrl('/api/cakes?category=aniversario')),
           fetch(getApiUrl('/api/categories'))
         ]);
         
@@ -30,10 +30,7 @@ const UIAnniversary = () => {
         const catsData = await catsRes.json();
         
         if (cakesData.success) {
-          const anniversaryCakes = cakesData.data.filter(
-            cake => cake.category_name === 'Aniversario' || cake.category_slug === 'aniversario'
-          );
-          setCakes(anniversaryCakes);
+          setCakes(cakesData.data);
         }
 
         if (catsData.success) {

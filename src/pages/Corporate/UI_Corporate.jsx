@@ -18,7 +18,7 @@ const UICorporate = () => {
     const fetchData = async () => {
       try {
         const [cakesRes, catsRes] = await Promise.all([
-          fetch(getApiUrl('/api/cakes')),
+          fetch(getApiUrl('/api/cakes?category=corporativo')),
           fetch(getApiUrl('/api/categories'))
         ]);
         
@@ -30,10 +30,7 @@ const UICorporate = () => {
         const catsData = await catsRes.json();
         
         if (cakesData.success) {
-          const corporateCakes = cakesData.data.filter(
-            cake => cake.category_name === 'Corporativo' || cake.category_slug === 'corporativo'
-          );
-          setCakes(corporateCakes);
+          setCakes(cakesData.data);
         }
 
         if (catsData.success) {

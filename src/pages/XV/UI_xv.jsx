@@ -18,7 +18,7 @@ const UIXV = () => {
     const fetchData = async () => {
       try {
         const [cakesRes, catsRes] = await Promise.all([
-          fetch(getApiUrl('/api/cakes')),
+          fetch(getApiUrl('/api/cakes?category=xv-anos')),
           fetch(getApiUrl('/api/categories'))
         ]);
         
@@ -30,11 +30,7 @@ const UIXV = () => {
         const catsData = await catsRes.json();
         
         if (cakesData.success) {
-          // Filtrado exacto según tu BD: category_name 'XV Años' o category_slug 'xv-anos'
-          const xvCakes = cakesData.data.filter(
-            cake => cake.category_name === 'XV Años' || cake.category_slug === 'xv-anos'
-          );
-          setCakes(xvCakes);
+          setCakes(cakesData.data);
         }
 
         if (catsData.success) {

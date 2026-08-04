@@ -18,7 +18,7 @@ const UIWedding = () => {
     const fetchData = async () => {
       try {
         const [cakesRes, catsRes] = await Promise.all([
-          fetch(getApiUrl('/api/cakes')),
+          fetch(getApiUrl('/api/cakes?category=boda')),
           fetch(getApiUrl('/api/categories'))
         ]);
         
@@ -30,11 +30,7 @@ const UIWedding = () => {
         const catsData = await catsRes.json();
         
         if (cakesData.success) {
-          // Filtramos directamente desde la API para quedarnos SOLO con los de Bodas
-          const weddingCakes = cakesData.data.filter(
-            cake => cake.category_name === 'Boda' || cake.category_slug === 'boda'
-          );
-          setCakes(weddingCakes);
+          setCakes(cakesData.data);
         }
 
         if (catsData.success) {
