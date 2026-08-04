@@ -1,10 +1,21 @@
 /**
  * Middleware para bloquear métodos HTTP peligrosos
- * Previene TRACE, TRACK, PUT, DELETE, PATCH y otros métodos que no son necesarios
+ * Previene TRACE, TRACK y otros métodos que no son necesarios
+ * Permite PUT, DELETE, PATCH en rutas de API específicas
  */
 
-const ALLOWED_METHODS = ['GET', 'POST', 'HEAD', 'OPTIONS'];
-const DANGEROUS_METHODS = ['TRACE', 'TRACK', 'PUT', 'DELETE', 'PATCH', 'CONNECT', 'PROPFIND', 'COPY', 'MOVE', 'PROPPATCH', 'MKCOL', 'LOCK', 'UNLOCK'];
+const ALLOWED_METHODS = ['GET', 'POST', 'HEAD', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'];
+const DANGEROUS_METHODS = ['TRACE', 'TRACK', 'CONNECT', 'PROPFIND', 'COPY', 'MOVE', 'PROPPATCH', 'MKCOL', 'LOCK', 'UNLOCK'];
+
+// Rutas que requieren métodos PUT, DELETE, PATCH
+const API_WRITE_PATHS = [
+  '/api/bakers/cakes',
+  '/api/bakers/appointments',
+  '/api/bakers/profile',
+  '/api/appointments',
+  '/api/payments',
+  '/api/auth'
+];
 
 const methodBlocker = (req, res, next) => {
   const method = req.method.toUpperCase();
@@ -19,7 +30,7 @@ const methodBlocker = (req, res, next) => {
     });
   }
 
-  // Si no es GET, POST, HEAD u OPTIONS, también bloquear (método desconocido)
+  // Si no es un método permitido, bloquear
   if (!ALLOWED_METHODS.includes(method)) {
     console.warn(`[SECURITY] Método HTTP desconocido bloqueado: ${method} en ruta ${req.path}`);
     return res.status(405).set('Allow', ALLOWED_METHODS.join(', ')).json({
