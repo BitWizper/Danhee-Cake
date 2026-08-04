@@ -26,105 +26,32 @@ const validateChatText = (value, maxLength = 2000, fieldName = 'mensaje') => {
   return { ok: true, sanitized };
 };
 
-const askChatbot = async (req, res) => {
-  // Validar RAG_SERVICE_SECRET no sea el placeholder inseguro
-  if (!process.env.RAG_SERVICE_SECRET || process.env.RAG_SERVICE_SECRET === 'change-me-in-production') {
-    console.error('[Chat] RAG_SERVICE_SECRET no está configurado o usa placeholder inseguro');
-    return res.status(503).json({ error: "El servicio de chat no está configurado correctamente" });
-  }
-
-  const { message } = req.body;
-  const validation = validateChatText(message, 5000, 'El mensaje');
-
-  if (!validation.ok) {
-    return res.status(400).json({ error: validation.reason });
-  }
-
-  const sanitizedMessage = validation.sanitized;
-
-  console.log(`[Chat DEBUG] Recibida solicitud - message: ${sanitizedMessage}`);
-
-  // ── Detectar si el usuario está logueado ──────────────────────────────────
-  // Si hay un JWT válido en el header Authorization o cookie, extraemos el client_id
-  // para que el chatbot pueda agendar citas reales. Si no, client_id = null.
-  let client_id = null;
-  let role = null;
+const getAuthenticatedUserId = (req) => {
   const authHeader = req.headers['authorization'];
   const cookieToken = req.cookies?.access_token;
-
-  // Prioridad: header Authorization > cookie
   let token = null;
+
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.slice(7);
   } else if (cookieToken) {
     token = cookieToken;
   }
 
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      client_id = decoded.id || decoded.userId || null;
-      role = decoded.role || null;
-      if (typeof role === 'string') {
-        role = role.toLowerCase().trim();
-        if (!['cliente', 'repostero'].includes(role)) {
-          role = null;
-        }
-      }
-      console.log(`[Chat] Usuario autenticado: ID=${client_id}, Rol=${role}`);
-    } catch (error) {
-      // Token ausente, expirado o inválido → usuario no autenticado
-      console.log(`[Chat] Token inválido o expirado, continuando como invitado`);
-      client_id = null;
-      role = null;
-    }
-  } else {
-    console.log(`[Chat] No hay token, usuario invitado`);
-  }
+  if (!token) return null;
 
   try {
-    const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
-    const conversationId = req.body.conversation_id || (crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`);
-    
-    if (!process.env.RAG_SERVICE_URL) {
-      console.warn('[Chat DEBUG] RAG_SERVICE_URL no está configurado; usando fallback http://rag-service:5001');
-    }
-    console.log(`[Chat DEBUG] Conectando a RAG service: ${ragUrl}/chat`);
-    const response = await fetch(`${ragUrl}/chat`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "X-RAG-Secret": process.env.RAG_SERVICE_SECRET
-      },
-      body: JSON.stringify({ 
-        conversation_id: conversationId,
-        user_message: sanitizedMessage, 
-        user_role: role || 'cliente', 
-        user_id: client_id 
-      }),
-    });
-
-    console.log(`[Chat DEBUG] Response status: ${response.status}`);
-    
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[Node Server] Error del servicio RAG:", errText);
-      return res.status(500).json({ error: "Error en el servicio RAG" });
-    }
-
-    const data = await response.json();
-    return res.json({
-      response: (data.response || "").trim(),
-      conversation_id: conversationId,
-      tool_calls: data.tool_calls,
-      was_blocked: data.was_blocked
-    });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded.id || decoded.userId || null;
   } catch (error) {
-    console.error("[Node Server] No se pudo conectar con el servicio RAG:", error.message);
-    return res.status(500).json({
-      error: "El asistente de IA se está iniciando. Por favor, intenta de nuevo en unos segundos."
-    });
+    return null;
   }
+};
+
+const askChatbot = async (req, res) => {
+  return res.status(410).json({
+    error: "GONE",
+    message: "Este endpoint ha sido descontinuado. Use POST /api/chat/stream para el chatbot."
+  });
 };
 
 const getChatHistory = async (req, res) => {
@@ -136,22 +63,12 @@ const getChatHistory = async (req, res) => {
   const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
   let sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
 
-  // Extraer client_id del token si el usuario está autenticado
-  let authenticatedUserId = null;
-  const authHeader = req.headers['authorization'];
+  const authenticatedUserId = getAuthenticatedUserId(req);
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    try {
-      const token = authHeader.slice(7);
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      authenticatedUserId = decoded.id || decoded.userId || null;
-    } catch (error) {
-      console.log(`[Chat History] Token inválido o expirado`);
-      return res.status(401).json({ error: "No autorizado" });
-    }
+  if (!authenticatedUserId) {
+    return res.status(401).json({ error: "No autorizado", message: "Token requerido" });
   }
 
-  // Si no se proporcionó client_id pero el usuario está autenticado, usar su ID
   if (!sanitizedClientId && authenticatedUserId) {
     sanitizedClientId = authenticatedUserId.toString();
     console.log(`[Chat History] Usando client_id del usuario autenticado: ${sanitizedClientId}`);
@@ -161,24 +78,17 @@ const getChatHistory = async (req, res) => {
     return res.status(400).json({ error: "Se requiere conversation_id o client_id" });
   }
 
-  // Validar ownership: si se solicita por client_id, verificar que pertenezca al usuario autenticado
-  if (sanitizedClientId && authenticatedUserId) {
-    // Si hay un client_id en la solicitud, verificar que coincida con el usuario autenticado
-    if (sanitizedClientId !== authenticatedUserId.toString()) {
-      console.log(`[Chat History] Intento de acceso no autorizado: user ${authenticatedUserId} intentando acceder a client_id ${sanitizedClientId}`);
-      return res.status(403).json({ error: "No tienes permiso para ver este historial" });
-    }
+  if (sanitizedClientId && sanitizedClientId !== authenticatedUserId.toString()) {
+    console.log(`[Chat History] Intento de acceso no autorizado: user ${authenticatedUserId} intentando acceder a client_id ${sanitizedClientId}`);
+    return res.status(403).json({ error: "No tienes permiso para ver este historial" });
   }
 
   try {
     const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
-    if (!process.env.RAG_SERVICE_URL) {
-      console.warn('[Chat DEBUG] RAG_SERVICE_URL no está configurado; usando fallback http://rag-service:5001');
-    }
     let response;
     
     if (sanitizedConversationId) {
-      response = await fetch(`${ragUrl}/chat/history/${sanitizedConversationId}`, {
+      response = await fetch(`${ragUrl}/chat/history/${sanitizedConversationId}?client_id=${authenticatedUserId}`, {
         headers: { "X-RAG-Secret": process.env.RAG_SERVICE_SECRET }
       });
     } else {
@@ -188,13 +98,32 @@ const getChatHistory = async (req, res) => {
     }
 
     if (!response.ok) {
+      if (response.status === 404) {
+        return res.status(404).json({ error: "Historial no encontrado" });
+      }
+      if (response.status === 403) {
+        return res.status(403).json({ error: "No tienes permiso para ver este historial" });
+      }
       const errText = await response.text();
       console.error("[Node Server] Error del historial RAG:", errText);
-      return res.status(response.status).json({ error: "Error en el servicio RAG" });
+      return res.status(500).json({ error: "Error en el servicio RAG" });
     }
 
     const data = await response.json();
-    return res.json(data);
+    
+    const sanitizedMessages = (data.messages || []).map(msg => ({
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp || msg.created_at,
+      conversation_id: msg.conversation_id
+    }));
+
+    return res.json({
+      conversation_id: data.conversation_id,
+      messages: sanitizedMessages,
+      count: sanitizedMessages.length
+    });
   } catch (error) {
     console.error("[Node Server] No se pudo conectar con el historial RAG:", error.message);
     return res.status(500).json({
@@ -376,38 +305,24 @@ const deleteChatHistory = async (req, res) => {
   const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
   const sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
 
-  // Validar que al menos un parámetro sea proporcionado
   if (!sanitizedConversationId && !sanitizedClientId) {
     return res.status(400).json({ error: "Se requiere conversation_id o client_id para eliminar el historial" });
   }
 
-  // Validar ownership: verificar que el client_id pertenezca al usuario autenticado
-  let authenticatedUserId = null;
-  const authHeader = req.headers['authorization'];
+  const authenticatedUserId = getAuthenticatedUserId(req);
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    try {
-      const token = authHeader.slice(7);
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      authenticatedUserId = decoded.id || decoded.userId || null;
-    } catch (error) {
-      console.log(`[Chat Delete] Token inválido o expirado`);
-      return res.status(401).json({ error: "No autorizado" });
-    }
+  if (!authenticatedUserId) {
+    return res.status(401).json({ error: "No autorizado", message: "Token requerido" });
   }
 
-  // Si hay un client_id en la solicitud, verificar que coincida con el usuario autenticado
-  if (sanitizedClientId && authenticatedUserId && sanitizedClientId !== authenticatedUserId.toString()) {
+  if (sanitizedClientId && sanitizedClientId !== authenticatedUserId.toString()) {
     console.log(`[Chat Delete] Intento de acceso no autorizado: user ${authenticatedUserId} intentando eliminar client_id ${sanitizedClientId}`);
     return res.status(403).json({ error: "No tienes permiso para eliminar este historial" });
   }
 
   try {
     const ragUrl = process.env.RAG_SERVICE_URL || 'http://rag-service:5001';
-    if (!process.env.RAG_SERVICE_URL) {
-      console.warn('[Chat DEBUG] RAG_SERVICE_URL no está configurado; usando fallback http://rag-service:5001');
-    }
-    const response = await fetch(`${ragUrl}/chat/${sanitizedConversationId}?client_id=${sanitizedClientId}`, {
+    const response = await fetch(`${ragUrl}/chat/${sanitizedConversationId}?client_id=${authenticatedUserId}`, {
       method: "DELETE",
       headers: { 
         "Content-Type": "application/json",
@@ -415,14 +330,26 @@ const deleteChatHistory = async (req, res) => {
       },
     });
 
+    if (response.status === 404) {
+      return res.status(404).json({ error: "Conversación no encontrada" });
+    }
+
+    if (response.status === 403) {
+      return res.status(403).json({ error: "No tienes permiso para eliminar este historial" });
+    }
+
     if (!response.ok) {
-      return res.status(500).json({ error: "Error eliminando historial RAG" });
+      console.error("[Chat Delete] Error del servicio RAG:", response.status);
+      return res.status(500).json({ error: "Error eliminando historial" });
     }
 
     const data = await response.json();
-    return res.json(data);
+    return res.json({
+      message: "Historial eliminado exitosamente",
+      deleted: data.deleted !== false
+    });
   } catch (error) {
-    console.error("[Node Server] Error al borrar historial:", error.message);
+    console.error("[Chat Delete] Error al borrar historial:", error.message);
     return res.status(500).json({ error: "No se pudo borrar el historial" });
   }
 };
