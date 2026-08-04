@@ -20,18 +20,14 @@ const LoginPage = () => {
 
   const handleSubmit = async e => {
     e.preventDefault();
-    console.log('[Login] ========== INICIO SUBMIT ==========');
-    console.log('[Login] Form data:', { email: form.email, password: '***' });
     
     if (!form.email || !form.password) {
-      console.log('[Login] ❌ Campos vacíos detectados');
       setError('Por favor completa todos los campos.');
       return;
     }
 
     const rlCheck = checkBeforeSubmit();
     if (!rlCheck.allowed) {
-      console.log('[Login] ⚠️ Rate limit bloqueado:', rlCheck.error);
       setError(rlCheck.error);
       return;
     }
@@ -41,23 +37,16 @@ const LoginPage = () => {
     setError('');
 
     try {
-      console.log('[Login] Obteniendo CSRF token...');
       const csrfToken = await getCsrfToken();
-      console.log('[Login] CSRF token obtenido:', csrfToken ? '✅' : '❌');
       
       const headers = { 'Content-Type': 'application/json' };
       if (csrfToken) {
         headers['X-CSRF-Token'] = csrfToken;
-        console.log('[CSRF Frontend] Token added to headers:', csrfToken.substring(0, 8) + '...');
-      } else {
-        console.log('[CSRF Frontend] No token available, proceeding without CSRF header');
       }
 
       const loginPayload = { ...form, csrf_token: csrfToken || undefined };
 
-      console.log('[Login] Enviando petición POST a /api/auth/login...');
       const apiUrl = getApiUrl('/api/auth/login');
-      console.log('[Login] URL completa:', apiUrl);
       
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -66,55 +55,32 @@ const LoginPage = () => {
         body: JSON.stringify(loginPayload)
       });
 
-      console.log('[Login] Respuesta recibida - Status:', response.status);
-      console.log('[Login] Response headers:', Object.fromEntries(response.headers.entries()));
-
       if (response.status === 429) {
-        console.log('[Login] ⚠️ Rate limit del servidor (429)');
         setError(handleServer429(response));
         return;
       }
 
       const result = await response.json();
-      console.log('[Login] Resultado del servidor:', { 
-        success: result.success, 
-        message: result.message,
-        hasUser: !!result.user,
-        hasToken: !!result.token
-      });
 
       if (response.ok && result.success) {
-        console.log('[Login] ✅ Login exitoso para:', result.user?.email);
-        console.log('[Login] Rol del usuario:', result.user?.role);
         await login(result.user, result.token || 'cookie-based');
 
         // Redirigir a la ruta guardada por PrivateRoute (si existe) o al default por rol
         const fromPath = location.state?.from;
         if (fromPath) {
-          console.log('[Login] Redirigiendo a ruta guardada:', fromPath);
           navigate(fromPath, { replace: true });
         } else if (result.user.role === 'repostero') {
-          console.log('[Login] Redirigiendo a /dashboard (repostero)');
           navigate('/dashboard');
         } else {
-          console.log('[Login] Redirigiendo a / (cliente)');
           navigate('/');
         }
       } else {
-        console.log('[Login] ❌ Login fallido:', result.message);
         setError(result.message || 'Credenciales incorrectas. Por favor intenta de nuevo.');
       }
     } catch (err) {
-      console.error('[Login] ❌ ERROR EN LOGIN:', err);
-      console.error('[Login] Error details:', {
-        name: err.name,
-        message: err.message,
-        stack: err.stack
-      });
       setError('Error de conexión: No se pudo establecer contacto con el servidor. Verifica que el backend esté corriendo.');
     } finally {
       setLoading(false);
-      console.log('[Login] ========== FIN SUBMIT ==========');
     }
   };
 

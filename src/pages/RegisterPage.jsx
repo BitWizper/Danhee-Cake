@@ -27,28 +27,14 @@ const RegisterPage = () => {
 
   const handleSubmit = async e => {
     e.preventDefault();
-    console.log('[Register] ========== INICIO SUBMIT ==========');
-    console.log('[Register] User type:', userType);
-    console.log('[Register] Form data:', { 
-      name: form.name, 
-      email: form.email, 
-      password: '***',
-      address: form.address || '(vacío)',
-      business_name: form.business_name || '(vacío)',
-      location: form.location || '(vacío)',
-      specialty: form.specialty || '(vacío)',
-      bio: form.bio || '(vacío)'
-    });
     
     if (!form.name || !form.email || !form.password) {
-      console.log('[Register] ❌ Campos obligatorios vacíos');
       setError('Por favor completa los campos obligatorios.');
       return;
     }
 
     const rlCheck = checkBeforeSubmit();
     if (!rlCheck.allowed) {
-      console.log('[Register] ⚠️ Rate limit bloqueado:', rlCheck.error);
       setError(rlCheck.error);
       return;
     }
@@ -58,22 +44,16 @@ const RegisterPage = () => {
     setError('');
 
     try {
-      console.log('[Register] Obteniendo CSRF token...');
       const csrfToken = await getCsrfToken();
-      console.log('[Register] CSRF token obtenido:', csrfToken ? '✅' : '❌');
       
       const headers = { 'Content-Type': 'application/json' };
       if (csrfToken) {
         headers['X-CSRF-Token'] = csrfToken;
-        console.log('[Register] CSRF token agregado a headers');
       }
 
       const payload = { ...form, role: userType, csrf_token: csrfToken || undefined };
-      console.log('[Register] Payload a enviar:', { ...payload, password: '***' });
 
-      console.log('[Register] Enviando petición POST a /api/auth/register...');
       const apiUrl = getApiUrl('/api/auth/register');
-      console.log('[Register] URL completa:', apiUrl);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000);
@@ -87,44 +67,24 @@ const RegisterPage = () => {
       });
       clearTimeout(timeoutId);
 
-      console.log('[Register] Respuesta recibida - Status:', response.status);
-      console.log('[Register] Response headers:', Object.fromEntries(response.headers.entries()));
-
       if (response.status === 429) {
-        console.log('[Register] ⚠️ Rate limit del servidor (429)');
         setError(handleServer429(response));
         return;
       }
 
       if (response.status === 524 || response.status === 504) {
-        console.log('[Register] ⚠️ Timeout de servidor/túnel (524/504)');
         setError('El servidor o el túnel tardó demasiado en responder (Timeout 524/504). Reintenta en unos momentos.');
         return;
       }
 
       const result = await response.json();
-      console.log('[Register] Resultado del servidor:', { 
-        success: result.success, 
-        message: result.message
-      });
 
       if (response.ok && result.success) {
-        console.log('[Register] ✅ Registro exitoso');
-        if (userType === 'repostero') {
-          console.log('[Register] Redirigiendo al login para que el repostero inicie sesión');
-        }
         navigate('/login');
       } else {
-        console.log('[Register] ❌ Registro fallido:', result.message);
         setError(result.message || 'Error al crear la cuenta. Revisa los datos ingresados.');
       }
     } catch (err) {
-      console.error('[Register] ❌ ERROR EN REGISTER:', err);
-      console.error('[Register] Error details:', {
-        name: err.name,
-        message: err.message,
-        stack: err.stack
-      });
       if (err.name === 'AbortError') {
         setError('La solicitud de registro excedió el tiempo límite (Timeout). Por favor reintenta.');
       } else {
@@ -132,7 +92,6 @@ const RegisterPage = () => {
       }
     } finally {
       setLoading(false);
-      console.log('[Register] ========== FIN SUBMIT ==========');
     }
   };
 
