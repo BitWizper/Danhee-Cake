@@ -284,7 +284,7 @@ function ChatBot() {
     startListening();
   };
 
-  const loadConversationHistory = async () => {
+  const loadConversationHistory = useCallback(async () => {
     try {
       if (!user?.id) return;
 
@@ -363,7 +363,7 @@ function ChatBot() {
       const welcomeMsg = user?.role === "repostero" ? BAKER_WELCOME_MESSAGE : WELCOME_MESSAGE;
       setChat([welcomeMsg]);
     }
-  };
+  }, [user, token]);
 
   useEffect(() => {
     const initChat = async () => {

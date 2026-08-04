@@ -117,7 +117,7 @@ exports.registerLimiter = createLimiter({
 
 exports.chatLimiter = createLimiter({
   windowMs: 1 * 60 * 1000,
-  max: 20,
+  max: 60,
   message: {
     success: false,
     message: 'Demasiadas solicitudes al chat. Por favor, espera un momento.'
@@ -126,7 +126,7 @@ exports.chatLimiter = createLimiter({
 
 exports.apiLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 100, // Reducido de 30 a 100 (aumentado para UX normal, pero con otros limiters más estrictos)
+  max: 200,
   message: {
     success: false,
     message: 'Demasiadas solicitudes. Por favor, reduce el ritmo.'
