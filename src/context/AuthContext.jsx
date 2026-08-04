@@ -110,6 +110,18 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkSession();
+    
+    // Escuchar evento de sesión expirada desde el chatbot
+    const handleSessionExpired = (event) => {
+      console.log('[AuthContext] Sesión expirada detectada:', event.detail?.reason);
+      clearSession('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
+    };
+    
+    window.addEventListener('session-expired', handleSessionExpired);
+    
+    return () => {
+      window.removeEventListener('session-expired', handleSessionExpired);
+    };
   }, [clearSession]);
 
   const login = (userData, userToken) => {

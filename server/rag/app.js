@@ -25,13 +25,10 @@ const authenticateRAGRequest = (req, res, next) => {
     // Verificamos un header secreto compartido
     const ragSecret = req.headers['x-rag-secret'];
     
-    // VALIDACIÓN CON FALLOBACK: Si no hay secreto configurado, permitir con advertencia
-    // En producción, esto debería ser obligatorio
+    // En producción, el secreto es OBLIGATORIO
     if (!process.env.RAG_SERVICE_SECRET) {
-        console.warn('[RAG Auth] WARNING: RAG_SERVICE_SECRET not configured - running in insecure mode (DEVELOPMENT ONLY)');
-        console.warn('[RAG Auth] Set RAG_SERVICE_SECRET in environment variables for production security');
-        // En desarrollo, permitir continuar pero registrar el intento
-        return next();
+        console.error('[RAG Auth] CRITICAL: RAG_SERVICE_SECRET not configured - REJECTING request');
+        return res.status(500).json({ error: 'Server configuration error', message: 'Authentication secret not configured' });
     }
     
     if (!ragSecret) {
@@ -188,8 +185,25 @@ app.delete('/chat/:conversationId', authenticateRAGRequest, async (req, res) => 
 app.get('/chat/stream', authenticateRAGRequest, async (req, res) => {
     const { conversation_id, user_message, user_role, user_id } = req.query;
     
+    // Validación de parámetros requeridos
     if (!conversation_id || !user_message) {
-        return res.status(400).json({ error: 'Missing required parameters' });
+        return res.status(400).json({ error: 'Missing required parameters: conversation_id and user_message' });
+    }
+    
+    // Validación de longitud para prevenir ataques de denegación de servicio
+    if (typeof user_message !== 'string' || user_message.length > 5000) {
+        return res.status(400).json({ error: 'user_message must be a string with max 5000 characters' });
+    }
+    
+    // Validación de role
+    const validRoles = ['cliente', 'repostero', 'admin'];
+    if (user_role && !validRoles.includes(user_role)) {
+        return res.status(400).json({ error: 'Invalid user_role. Must be one of: cliente, repostero, admin' });
+    }
+    
+    // Validación de user_id (debe ser numérico si se proporciona)
+    if (user_id && !/^\d+$/.test(user_id)) {
+        return res.status(400).json({ error: 'user_id must be a numeric value' });
     }
     
     res.setHeader('Content-Type', 'text/event-stream');

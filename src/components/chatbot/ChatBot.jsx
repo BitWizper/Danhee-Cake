@@ -155,11 +155,26 @@ function ChatBot() {
         fetchOptions.credentials = 'include';
       }
 
-      await fetch(getApiUrl("/api/chat/history"), fetchOptions);
+      const response = await fetch(getApiUrl("/api/chat/history"), fetchOptions);
+      
+      // Verificar que la eliminación fue exitosa
+      if (!response.ok) {
+        console.error("Error al borrar el chat en el servidor:", response.status);
+        // No limpiar localmente si falló en el servidor
+        return;
+      }
+      
+      const data = await response.json();
+      if (data?.error) {
+        console.error("Error del servidor al borrar historial:", data.error);
+        return;
+      }
     } catch (err) {
       console.error("Error al borrar el chat en el servidor:", err);
+      return;
     }
 
+    // Solo limpiar localmente si el servidor confirmó la eliminación
     localStorage.removeItem("conversation_id");
     setMessage("");
     setLoadingState({ status: "", message: "" });
@@ -296,10 +311,24 @@ function ChatBot() {
 
       // Manejar 401 - token expirado
       if (response.status === 401) {
-        console.warn("[Chat] Token expirado (401), limpiando sesión");
+        console.warn("[Chat] Token expirado (401), limpiando sesión completamente");
+        
+        // Limpiar localStorage
         localStorage.removeItem("token");
         localStorage.removeItem("user");
+        localStorage.removeItem("conversation_id");
+        localStorage.removeItem("auth_mode");
+        
+        // Limpiar estado del chat
         setChat([welcomeMsg]);
+        setMessage("");
+        setLoadingState({ status: "", message: "" });
+        
+        // Disparar evento para que el AuthContext también limpie su estado
+        window.dispatchEvent(new CustomEvent('session-expired', { 
+          detail: { reason: 'Token expirado en chat' } 
+        }));
+        
         return;
       }
 

@@ -376,6 +376,11 @@ const deleteChatHistory = async (req, res) => {
   const sanitizedConversationId = conversationValidation.ok ? conversationValidation.sanitized : '';
   const sanitizedClientId = clientValidation.ok ? clientValidation.sanitized : '';
 
+  // Validar que al menos un parámetro sea proporcionado
+  if (!sanitizedConversationId && !sanitizedClientId) {
+    return res.status(400).json({ error: "Se requiere conversation_id o client_id para eliminar el historial" });
+  }
+
   // Validar ownership: verificar que el client_id pertenezca al usuario autenticado
   let authenticatedUserId = null;
   const authHeader = req.headers['authorization'];

@@ -5,6 +5,7 @@
  */
 
 const db = require('./db-config');
+const bcrypt = require('bcryptjs');
 
 // Datos de ejemplo para generación
 const NOMBRES = ['María', 'José', 'Carlos', 'Ana', 'Luis', 'Carmen', 'Miguel', 'Laura', 'Pedro', 'Sofía', 'Alejandro', 'Valentina', 'Diego', 'Camila', 'Fernando', 'Isabella', 'Ricardo', 'Natalia', 'Javier', 'Daniela'];
@@ -47,16 +48,21 @@ async function seedUsers(count) {
     
     let seeded = 0;
     
+    // Generar hash de contraseña una sola vez para todos los usuarios de prueba
+    const testPassword = 'Test1234!';
+    const passwordHash = await bcrypt.hash(testPassword, 10);
+    
     try {
         for (let i = 0; i < count; i++) {
             const nombre = randomElement(NOMBRES);
             const apellido = randomElement(APELLIDOS);
             const email = generateEmail(nombre, apellido);
+            const role = randomInt(0, 1) === 0 ? 'cliente' : 'repostero';
             
             await conn.execute(
-                `INSERT INTO users (name, email, password, role, created_at) 
+                `INSERT INTO users (name, email, password_hash, role, created_at) 
                  VALUES (?, ?, ?, ?, NOW())`,
-                [nombre, apellido, email, 'hashed_password', randomInt(0, 1) === 0 ? 'cliente' : 'repostero']
+                [`${nombre} ${apellido}`, email, passwordHash, role]
             );
             
             seeded++;
@@ -66,6 +72,7 @@ async function seedUsers(count) {
         }
         
         console.log(`✅ Usuarios sembrados: ${seeded}`);
+        console.log(`🔑 Contraseña de prueba para todos los usuarios: ${testPassword}`);
         return seeded;
     } catch (e) {
         console.error(`❌ Error sembrando usuarios: ${e.message}`);

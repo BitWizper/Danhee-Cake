@@ -253,36 +253,29 @@ async function getOrCreateChatSession(conversationId, clientId = null) {
     if (!conn) return false;
     
     try {
-        const [rows] = await conn.execute(
-            'SELECT conversation_id, client_id FROM chat_sessions WHERE conversation_id = ?',
-            [conversationId]
-        );
-        
-        if (rows.length > 0) {
-            const existingClientId = rows[0].client_id;
-            
-            // Si la sesión ya existe y tiene un client_id null pero ahora tenemos uno, actualizarlo
-            if (clientId && existingClientId === null) {
-                await conn.execute(
-                    'UPDATE chat_sessions SET client_id = ? WHERE conversation_id = ?',
-                    [clientId, conversationId]
-                );
-                console.log(`[db-config] Actualizado client_id ${clientId} para sesión existente ${conversationId} (backfill)`);
-            }
-            // Si la sesión ya tiene un client_id diferente al proporcionado, registrar advertencia de seguridad
-            else if (clientId && existingClientId !== null && existingClientId !== clientId) {
-                console.warn(`[Security] Intento de asociar sesión ${conversationId} a client_id diferente. Existente: ${existingClientId}, Intentado: ${clientId}`);
-                // No actualizamos por seguridad - el client_id original tiene prioridad
-            }
-            return true;
-        }
-        
-        // Crear nueva sesión con el client_id proporcionado
+        // Usar INSERT ... ON DUPLICATE KEY UPDATE para prevenir race conditions
+        // Si la sesión ya existe, actualizamos el client_id solo si es null (backfill)
         await conn.execute(
-            'INSERT INTO chat_sessions (conversation_id, client_id) VALUES (?, ?)',
+            `INSERT INTO chat_sessions (conversation_id, client_id) 
+             VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE 
+             client_id = IF(client_id IS NULL, VALUES(client_id), client_id)`,
             [conversationId, clientId]
         );
-        console.log(`[db-config] Creada nueva sesión ${conversationId} con client_id ${clientId}`);
+        
+        // Verificar si hubo intento de sobrescritura de client_id (advertencia de seguridad)
+        if (clientId) {
+            const [rows] = await conn.execute(
+                'SELECT client_id FROM chat_sessions WHERE conversation_id = ?',
+                [conversationId]
+            );
+            
+            if (rows.length > 0 && rows[0].client_id && rows[0].client_id !== clientId) {
+                console.warn(`[Security] Intento de asociar sesión ${conversationId} a client_id diferente. Existente: ${rows[0].client_id}, Intentado: ${clientId}`);
+            }
+        }
+        
+        console.log(`[db-config] Sesión ${conversationId} creada/actualizada con client_id ${clientId}`);
         return true;
     } catch (e) {
         console.error(`[db-config] Error en getOrCreateChatSession: ${e.message}`);
@@ -610,6 +603,9 @@ async function deleteChatConversation(conversationId = null, clientId = null) {
     if (!conn) return false;
     
     try {
+        // Iniciar transacción
+        await conn.beginTransaction();
+        
         if (conversationId) {
             await conn.execute('DELETE FROM chat_messages WHERE conversation_id = ?', [conversationId]);
             await conn.execute('DELETE FROM chat_sessions WHERE conversation_id = ?', [conversationId]);
@@ -617,8 +613,13 @@ async function deleteChatConversation(conversationId = null, clientId = null) {
             await conn.execute('DELETE FROM chat_messages WHERE conversation_id IN (SELECT conversation_id FROM chat_sessions WHERE client_id = ?)', [clientId]);
             await conn.execute('DELETE FROM chat_sessions WHERE client_id = ?', [clientId]);
         }
+        
+        // Confirmar transacción
+        await conn.commit();
         return true;
     } catch (e) {
+        // Revertir transacción en caso de error
+        await conn.rollback();
         console.error(`[db-config] Error en deleteChatConversation: ${e.message}`);
         return false;
     } finally {
