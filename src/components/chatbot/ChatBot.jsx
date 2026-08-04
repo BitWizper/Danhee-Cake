@@ -466,7 +466,6 @@ function ChatBot() {
       }
 
       const fetchUrl = getApiUrl("/api/chat/stream");
-      console.log("[ChatBot] Enviando stream a:", fetchUrl, "client_id:", clientId, "role:", roleToSend);
 
       const headersWithCsrf = await addCsrfToHeaders(headers);
 
@@ -744,7 +743,6 @@ function ChatBot() {
     }
 
     // Validaciones de longitud y spam - Solo para clientes (no afecta función de reposteros)
-    console.log('[ChatBot] User role:', user?.role, 'User:', user);
     if (user?.role !== "repostero") {
       const validation = validateMessage(trimmedMessage);
       if (!validation.valid) {

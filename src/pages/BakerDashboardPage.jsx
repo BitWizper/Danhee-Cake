@@ -75,13 +75,7 @@ const BakerDashboardPage = () => {
   }, [activeTab, portfolioSearch]);
 
   const fetchData = async (silent = false) => {
-    console.log('[BakerDashboard] ========== FETCH DATA ==========');
-    console.log('[BakerDashboard] Token:', token);
-    console.log('[BakerDashboard] User:', user);
-    console.log('[BakerDashboard] Cookies:', document.cookie);
-    
     if (!token) {
-      console.log('[BakerDashboard] ❌ No hay token, abortando fetch');
       return;
     }
     
@@ -93,20 +87,13 @@ const BakerDashboardPage = () => {
       const headers = {};
       if (token && token !== 'cookie-based') {
         headers['Authorization'] = `Bearer ${token}`;
-        console.log('[BakerDashboard] Usando Bearer token');
       } else {
         // Si el token es 'cookie-based', intentar obtenerlo de localStorage
         const storedToken = localStorage.getItem('token');
         if (storedToken && storedToken !== 'cookie-based') {
           headers['Authorization'] = `Bearer ${storedToken}`;
-          console.log('[BakerDashboard] Usando token de localStorage');
-        } else {
-          console.log('[BakerDashboard] ⚠️ Solo cookie-based, sin Bearer token');
         }
       }
-      
-      console.log('[BakerDashboard] Headers:', headers);
-      console.log('[BakerDashboard] Fetching stats...');
       
       const [statsRes, appRes, catRes, cakesRes] = await Promise.all([
         fetch(getApiUrl('/api/bakers/stats'), { 
@@ -124,26 +111,14 @@ const BakerDashboardPage = () => {
         })
       ]);
 
-      console.log('[BakerDashboard] Stats response:', statsRes.status);
-      console.log('[BakerDashboard] Appointments response:', appRes.status);
-      console.log('[BakerDashboard] Categories response:', catRes.status);
-      console.log('[BakerDashboard] Cakes response:', cakesRes.status);
-
       const statsData = await statsRes.json();
       const appData = await appRes.json();
       const catData = await catRes.json();
       const cakesData = await cakesRes.json();
 
-      console.log('[BakerDashboard] Stats data:', statsData);
-      console.log('[BakerDashboard] Appointments data:', appData);
-      console.log('[BakerDashboard] Cakes data:', cakesData);
-
       // Verificar si hay errores de autenticación
       if (statsRes.status === 401 || appRes.status === 401 || cakesRes.status === 401) {
-        console.error('[BakerDashboard]  Error de autenticación detectado');
-        console.error('[BakerDashboard] Stats error:', statsData);
-        console.error('[BakerDashboard] Appointments error:', appData);
-        console.error('[BakerDashboard] Cakes error:', cakesData);
+        // Authentication error detected
       }
 
       if (statsData.success) setStats(statsData.data);
@@ -189,10 +164,6 @@ const BakerDashboardPage = () => {
   // Cargar datos de perfil de empresa al entrar a la pestaña
   useEffect(() => {
     const fetchProfile = async () => {
-      console.log('[BakerDashboard] ========== FETCH PROFILE ==========');
-      console.log('[BakerDashboard] Active tab:', activeTab);
-      console.log('[BakerDashboard] Token:', token);
-      
       if (activeTab === 'profile' && token) {
         try {
           const headers = {};
@@ -205,18 +176,12 @@ const BakerDashboardPage = () => {
             }
           }
           
-          console.log('[BakerDashboard] Profile headers:', headers);
-          console.log('[BakerDashboard] Cookies:', document.cookie);
-          
           const response = await fetch(getApiUrl('/api/bakers/profile/me'), { 
             headers,
             credentials: 'include'
           });
           
-          console.log('[BakerDashboard] Profile response:', response.status);
-          
           const result = await response.json();
-          console.log('[BakerDashboard] Profile data:', result);
           
           if (result.success && result.data) {
             setBakerProfile(prev => ({
@@ -224,11 +189,9 @@ const BakerDashboardPage = () => {
               ...result.data,
               business_hours: result.data.business_hours || 'Lunes a Viernes: 9:00 - 18:00 | Sábado: 10:00 - 14:00'
             }));
-          } else {
-            console.error('[BakerDashboard] ❌ Error fetching profile:', result);
           }
         } catch (err) {
-          console.error('[BakerDashboard] ❌ Error fetching business profile:', err);
+          // Error fetching business profile
         }
       }
     };
@@ -236,10 +199,6 @@ const BakerDashboardPage = () => {
   }, [activeTab, token]);
 
   const handleSaveCake = async (cakeData) => {
-    console.log('[BakerDashboard] ========== SAVE CAKE ==========');
-    console.log('[BakerDashboard] Editing cake:', editingCake);
-    console.log('[BakerDashboard] Token:', token);
-    
     try {
       const url = editingCake
         ? `/api/bakers/cakes/${editingCake.id}`
@@ -258,8 +217,6 @@ const BakerDashboardPage = () => {
       }
       
       const headersWithCsrf = await addCsrfToHeaders(headers);
-      console.log('[BakerDashboard] Save cake headers:', headersWithCsrf);
-      console.log('[BakerDashboard] Cookies:', document.cookie);
 
       const response = await fetch(getApiUrl(url), {
         method,
@@ -268,10 +225,7 @@ const BakerDashboardPage = () => {
         body: cakeData
       });
 
-      console.log('[BakerDashboard] Save cake response:', response.status);
-      
       const result = await response.json();
-      console.log('[BakerDashboard] Save cake result:', result);
       
       if (result.success) {
         setIsModalOpen(false);
@@ -282,16 +236,11 @@ const BakerDashboardPage = () => {
         alert('Error: ' + result.message);
       }
     } catch (err) {
-      console.error('[BakerDashboard] ❌ Error saving cake:', err);
       alert('Error de conexión al guardar el pastel.');
     }
   };
 
   const handleDeleteCake = async (id) => {
-    console.log('[BakerDashboard] ========== DELETE CAKE ==========');
-    console.log('[BakerDashboard] Cake ID:', id);
-    console.log('[BakerDashboard] Token:', token);
-    
     if (!window.confirm('¿Estás seguro de que quieres eliminar este pastel?')) return;
 
     try {
@@ -306,7 +255,6 @@ const BakerDashboardPage = () => {
       }
       
       const headersWithCsrf = await addCsrfToHeaders(headers);
-      console.log('[BakerDashboard] Delete cake headers:', headersWithCsrf);
       
       const response = await fetch(getApiUrl(`/api/bakers/cakes/${id}`), {
         method: 'DELETE',
@@ -314,10 +262,7 @@ const BakerDashboardPage = () => {
         headers: headersWithCsrf
       });
       
-      console.log('[BakerDashboard] Delete cake response:', response.status);
-      
       const result = await response.json();
-      console.log('[BakerDashboard] Delete cake result:', result);
       
       if (result.success) {
         fetchData();
@@ -325,15 +270,11 @@ const BakerDashboardPage = () => {
         alert(result.message);
       }
     } catch (err) {
-      console.error('[BakerDashboard] ❌ Error deleting cake:', err);
       alert('Error al eliminar el pastel.');
     }
   };
 
   const handleUpdateProfile = async (e) => {
-    console.log('[BakerDashboard] ========== UPDATE PROFILE ==========');
-    console.log('[BakerDashboard] Token:', token);
-    
     e.preventDefault();
     setSavingProfile(true);
     try {
@@ -348,7 +289,6 @@ const BakerDashboardPage = () => {
       }
       
       const headersWithCsrf = await addCsrfToHeaders(headers);
-      console.log('[BakerDashboard] Update profile headers:', headersWithCsrf);
       
       const response = await fetch(getApiUrl('/api/bakers/profile'), {
         method: 'PUT',
@@ -357,10 +297,7 @@ const BakerDashboardPage = () => {
         body: JSON.stringify(bakerProfile)
       });
       
-      console.log('[BakerDashboard] Update profile response:', response.status);
-      
       const result = await response.json();
-      console.log('[BakerDashboard] Update profile result:', result);
       
       if (result.success) {
         alert('¡Perfil de empresa actualizado con éxito!');
@@ -368,7 +305,6 @@ const BakerDashboardPage = () => {
         alert('Error: ' + result.message);
       }
     } catch (err) {
-      console.error('[BakerDashboard] ❌ Error updating profile:', err);
       alert('Error de conexión al actualizar el perfil.');
     } finally {
       setSavingProfile(false);
@@ -376,11 +312,6 @@ const BakerDashboardPage = () => {
   };
 
   const handleUpdateAppointmentStatus = async (apptId, newStatus) => {
-    console.log('[BakerDashboard] ========== UPDATE APPOINTMENT STATUS ==========');
-    console.log('[BakerDashboard] Appointment ID:', apptId);
-    console.log('[BakerDashboard] New status:', newStatus);
-    console.log('[BakerDashboard] Token:', token);
-    
     setUpdatingApptId(apptId);
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -394,7 +325,6 @@ const BakerDashboardPage = () => {
       }
       
       const headersWithCsrf = await addCsrfToHeaders(headers);
-      console.log('[BakerDashboard] Update appointment headers:', headersWithCsrf);
       
       const response = await fetch(getApiUrl(`/api/bakers/appointments/${apptId}/status`), {
         method: 'PUT',
@@ -403,10 +333,7 @@ const BakerDashboardPage = () => {
         body: JSON.stringify({ status: newStatus })
       });
       
-      console.log('[BakerDashboard] Update appointment response:', response.status);
-      
       const result = await response.json();
-      console.log('[BakerDashboard] Update appointment result:', result);
       
       if (result.success) {
         setAppointments(prev => prev.map(a => a.id === apptId ? { ...a, status: newStatus } : a));
@@ -414,7 +341,6 @@ const BakerDashboardPage = () => {
         alert(result.message || 'No se pudo actualizar el estado de la cita.');
       }
     } catch (err) {
-      console.error('[BakerDashboard] ❌ Error updating appointment:', err);
       alert('Error de conexión al actualizar la cita.');
     } finally {
       setUpdatingApptId(null);

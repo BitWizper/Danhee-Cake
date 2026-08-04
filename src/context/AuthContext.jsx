@@ -37,37 +37,23 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    console.log('[AuthContext] ========== INICIANDO CHECK SESSION ==========');
-    console.log('[AuthContext] Usuario en localStorage:', getStoredUser());
-    console.log('[AuthContext] Cookies disponibles:', document.cookie);
-    
     const checkSession = async () => {
       try {
-        console.log('[AuthContext] Obteniendo CSRF token inicial...');
         await getCsrfToken();
-        console.log('[AuthContext] CSRF token obtenido ✅');
       } catch (err) {
         console.warn('[AuthContext] ⚠️ No se pudo obtener CSRF token durante init:', err.message);
       }
       try {
         const apiUrl = getApiUrl('/api/auth/me');
-        console.log('[AuthContext] Verificando sesión en:', apiUrl);
-        console.log('[AuthContext] Cookies antes de fetch:', document.cookie);
-        
         const response = await fetch(apiUrl, {
           method: 'GET',
           credentials: 'include',
         });
 
-        console.log('[AuthContext] Response status /api/auth/me:', response.status);
-        console.log('[AuthContext] Response headers:', response.headers);
-        
         const responseText = await response.text();
-        console.log('[AuthContext] Response body:', responseText);
 
         if (response.ok) {
           const data = JSON.parse(responseText);
-          console.log('[AuthContext] ✅ Sesión válida. Usuario:', data.user?.email, 'Rol:', data.user?.role);
           // Actualizar estado con datos frescos de la BD
           setUser(data.user);
           setToken('cookie-based');
@@ -79,13 +65,6 @@ export const AuthProvider = ({ children }) => {
           } catch (e) {
             console.warn('[AuthContext] No se pudo parsear response como JSON');
           }
-          console.log('[AuthContext] ❌ Sesión inválida (status:', response.status, ')', errorData);
-          console.log('[AuthContext] Error details:', {
-            status: response.status,
-            statusText: response.statusText,
-            error: errorData.error,
-            message: errorData.message
-          });
 
           // 403 = cuenta desactivada; 401 = sin sesión / cuenta eliminada
           if (response.status === 403 && errorData.error === 'USER_INACTIVE') {
@@ -105,7 +84,6 @@ export const AuthProvider = ({ children }) => {
         return;
       } finally {
         setLoading(false);
-        console.log('[AuthContext] ========== FIN CHECK SESSION ==========');
       }
     };
 
@@ -113,7 +91,6 @@ export const AuthProvider = ({ children }) => {
     
     // Escuchar evento de sesión expirada desde el chatbot
     const handleSessionExpired = (event) => {
-      console.log('[AuthContext] Sesión expirada detectada:', event.detail?.reason);
       clearSession('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
     };
     
@@ -125,7 +102,6 @@ export const AuthProvider = ({ children }) => {
   }, [clearSession]);
 
   const login = (userData, userToken) => {
-    console.log('[AuthContext] login() llamado con usuario:', userData?.email, 'Rol:', userData?.role);
     const normalizedToken = userToken || 'cookie-based';
     setUser(userData);
     setToken(normalizedToken);
@@ -133,13 +109,10 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('token', normalizedToken);
     localStorage.setItem('auth_mode', normalizedToken);
-    console.log('[AuthContext] ✅ Usuario guardado en estado y localStorage');
   };
 
   const logout = async () => {
-    console.log('[AuthContext] logout() llamado');
     try {
-      console.log('[AuthContext] Llamando a /api/auth/logout...');
       const headers = await addCsrfToHeaders({ 'Content-Type': 'application/json' });
       const response = await fetch(getApiUrl('/api/auth/logout'), {
         method: 'POST',
@@ -147,19 +120,13 @@ export const AuthProvider = ({ children }) => {
         headers,
         body: JSON.stringify({ refresh_token: 'from_cookie' }),
       });
-      console.log('[AuthContext] Logout response status:', response.status);
-      if (response.ok) {
-        console.log('[AuthContext] ✅ Logout exitoso en servidor');
-      } else {
-        const data = await response.json().catch(() => ({}));
-        console.log('[AuthContext] ⚠️ Logout response no-OK:', data);
+      if (!response.ok) {
+        await response.json().catch(() => ({}));
       }
     } catch (error) {
       console.error('[AuthContext] ❌ Error en logout:', error);
     } finally {
-      console.log('[AuthContext] Limpiando estado local y localStorage...');
       clearSession();
-      console.log('[AuthContext] ✅ Logout completado');
     }
   };
 
