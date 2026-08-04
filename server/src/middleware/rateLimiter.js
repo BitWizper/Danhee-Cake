@@ -95,10 +95,10 @@ const createLimiter = (options = {}) => {
   });
 };
 
-// Rate limiters - Ajustados para dar mayor margen a la navegación del usuario
+// Rate limiters - Ajustados para pruebas intensivas
 exports.authLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 20, // Aumentado de 5 a 20 para dar más tolerancia durante el inicio de sesión
+  max: 100, // Aumentado de 20 a 100 para pruebas
   skipSuccessfulRequests: false,
   message: {
     success: false,
@@ -108,7 +108,7 @@ exports.authLimiter = createLimiter({
 
 exports.registerLimiter = createLimiter({
   windowMs: 60 * 60 * 1000,
-  max: 15, // Aumentado de 3 a 15 para dar más margen al formulario de registro
+  max: 50, // Aumentado de 15 a 50 para pruebas
   message: {
     success: false,
     message: 'Demasiados intentos de registro. Por favor, espera 1 hora antes de intentar de nuevo.'
@@ -117,7 +117,7 @@ exports.registerLimiter = createLimiter({
 
 exports.chatLimiter = createLimiter({
   windowMs: 1 * 60 * 1000,
-  max: 60,
+  max: 200, // Aumentado de 60 a 200 para pruebas
   message: {
     success: false,
     message: 'Demasiadas solicitudes al chat. Por favor, espera un momento.'
@@ -126,7 +126,7 @@ exports.chatLimiter = createLimiter({
 
 exports.apiLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 1000, // Aumentado de 200 a 1000 para pruebas
   message: {
     success: false,
     message: 'Demasiadas solicitudes. Por favor, reduce el ritmo.'
@@ -135,7 +135,7 @@ exports.apiLimiter = createLimiter({
 
 exports.methodLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 50, // Reducido de 20 a 50
+  max: 500, // Aumentado de 50 a 500 para pruebas
   keyGenerator: (req) => `${getClientIP(req)}_${req.method}`,
   message: {
     success: false,
@@ -145,7 +145,7 @@ exports.methodLimiter = createLimiter({
 
 exports.writeLimiter = createLimiter({
   windowMs: 10 * 60 * 1000,
-  max: 25,
+  max: 200, // Aumentado de 25 a 200 para pruebas
   skip: (req) => {
     const writeMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
     return !writeMethods.includes(req.method);
@@ -158,7 +158,7 @@ exports.writeLimiter = createLimiter({
 
 exports.readLimiter = createLimiter({
   windowMs: 1 * 60 * 1000,
-  max: 150,
+  max: 500, // Aumentado de 150 a 500 para pruebas
   skip: (req) => {
     const readMethods = ['GET', 'HEAD', 'OPTIONS'];
     return !readMethods.includes(req.method);
@@ -171,7 +171,7 @@ exports.readLimiter = createLimiter({
 
 exports.bakersLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 100, // Aumentado de 20 a 100 para pruebas
   message: {
     success: false,
     message: 'Demasiadas consultas al directorio de reposteros. Por favor, intenta de nuevo más tarde.'
@@ -181,7 +181,7 @@ exports.bakersLimiter = createLimiter({
 // Limitador específico para endpoints públicos (anónimos)
 exports.publicLimiter = createLimiter({
   windowMs: 1 * 60 * 1000,
-  max: 30,
+  max: 100, // Aumentado de 30 a 100 para pruebas
   message: {
     success: false,
     message: 'Demasiadas solicitudes públicas. Por favor, espera un momento.'

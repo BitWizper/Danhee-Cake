@@ -10,7 +10,7 @@ const ipStore = new Map();
 
 // Configuración
 const DEFAULT_WINDOW_MS = 60 * 1000; // 1 minuto
-const DEFAULT_MAX_REQUESTS = 100; // 100 solicitudes por minuto
+const DEFAULT_MAX_REQUESTS = 500; // Aumentado de 100 a 500 para pruebas
 
 /**
  * Limpiar entradas antiguas del store

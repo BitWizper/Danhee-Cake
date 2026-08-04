@@ -6,11 +6,11 @@ const { getClientIP, normalizeIp, isPrivateIp } = require('./clientIp');
 
 // Configuración
 const IP_BLOCKER_CONFIG = {
-  maxFailedAttempts: 5, // Máximo de intentos fallidos antes de bloquear
-  blockDuration: 30 * 60 * 1000, // 30 minutos de bloqueo
-  suspiciousThreshold: 3, // Intentos sospechosos para marcar como sospechosa
-  maxSuspiciousActions: 10, // Acciones sospechosas para bloqueo permanente
-  permanentBlockThreshold: 20, // Intentos totales para bloqueo permanente
+  maxFailedAttempts: 50, // Aumentado de 5 a 50 para pruebas
+  blockDuration: 5 * 60 * 1000, // Reducido de 30 min a 5 min
+  suspiciousThreshold: 30, // Aumentado de 3 a 30
+  maxSuspiciousActions: 100, // Aumentado de 10 a 100
+  permanentBlockThreshold: 200, // Aumentado de 20 a 200
   whitelist: [
     '127.0.0.1',
     '::1',
@@ -229,6 +229,11 @@ const isPublicRoute = (path) => {
 
 // Middleware principal de bloqueo por IP
 const ipBlocker = (req, res, next) => {
+  // Desactivar en desarrollo para facilitar pruebas
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+  
   const ip = getClientIP(req);
   
   // Verificar si es una ruta pública - no aplicar bloqueo por IP
@@ -287,6 +292,11 @@ const ipBlocker = (req, res, next) => {
 
 // Middleware para detectar patrones de ataque y bloquear automáticamente
 const attackDetector = (req, res, next) => {
+  // Desactivar en desarrollo para facilitar pruebas
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+  
   const ip = getClientIP(req);
   
   // Verificar si es una ruta pública - no aplicar detección de ataques
