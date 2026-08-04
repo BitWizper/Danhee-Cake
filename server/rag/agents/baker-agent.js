@@ -85,18 +85,18 @@ class BakerAgent {
         const formality = detectarFormalidad(userMessage);
         const adaptedPrompt = this.adaptPromptByFormality(this.systemPrompt, formality);
 
-        const messages = [...chatHistory, { role: 'user', content: userMessage }];
+        const messages = [...chatHistory];
+        messages.push({ role: 'user', content: userMessage });
         const options = getOllamaOptions();
 
         // Convertir mensajes a formato LangChain
         const langchainMessages = [
             new SystemMessage(adaptedPrompt),
-            ...chatHistory.map(msg => {
+            ...messages.map(msg => {
                 if (msg.role === 'user') return new HumanMessage(msg.content);
                 if (msg.role === 'assistant') return new AIMessage(msg.content);
                 return new HumanMessage(msg.content);
-            }),
-            new HumanMessage(userMessage)
+            })
         ];
 
         let toolResults = [];

@@ -75,14 +75,17 @@ class AdvancedRAGAgent {
     async hybridSearch(query, topK = 5) {
         try {
             if (this.vectorStore) {
-                // Usar LangChain vector store
+                // Búsqueda vectorial con LangChain
                 const results = await this.vectorStore.similaritySearchWithScore(query, topK);
                 
-                const contextDocs = results.map(([doc, score]) => ({
-                    text: doc.pageContent,
-                    metadata: doc.metadata,
-                    distance: score
-                }));
+                const contextDocs = results
+                    .filter(([doc, score]) => score >= 0.3) // Umbral mínimo de relevancia
+                    .map(([doc, score]) => ({
+                        text: doc.pageContent,
+                        metadata: doc.metadata,
+                        distance: score,
+                        source: doc.metadata?.source || 'unknown'
+                    }));
 
                 return contextDocs;
             } else {
@@ -99,11 +102,14 @@ class AdvancedRAGAgent {
 
                 if (!results.documents || results.documents.length === 0) return [];
 
-                const contextDocs = results.documents[0].map((doc, i) => ({
-                    text: doc,
-                    metadata: results.metadatas ? results.metadatas[0][i] : {},
-                    distance: results.distances ? results.distances[0][i] : 0
-                }));
+                const contextDocs = results.documents[0]
+                    .map((doc, i) => ({
+                        text: doc,
+                        metadata: results.metadatas ? results.metadatas[0][i] : {},
+                        distance: results.distances ? results.distances[0][i] : 0,
+                        source: results.metadatas ? results.metadatas[0][i]?.source || 'unknown' : 'unknown'
+                    }))
+                    .filter(doc => doc.distance >= 0.3); // Umbral mínimo de relevancia
 
                 return contextDocs;
             }
@@ -120,16 +126,17 @@ class AdvancedRAGAgent {
             const queryEmbedding = await this.getEmbedding(query);
             if (!queryEmbedding) return documents;
 
-            const docsWithScores = await Promise.all(
-                documents.map(async (doc) => {
-                    const docEmbedding = await this.getEmbedding(doc.text);
-                    if (!docEmbedding) return { ...doc, rerankScore: 0 };
+            // Usar scores existentes de ChromaDB si están disponibles
+            // Solo recalcular si no hay score previo
+            const docsWithScores = documents.map(doc => {
+                // Si ya tiene un score de distancia de ChromaDB, usarlo
+                if (doc.distance !== undefined) {
+                    return { ...doc, rerankScore: doc.distance };
+                }
+                return { ...doc, rerankScore: 0 };
+            });
 
-                    const similarity = this.cosineSimilarity(queryEmbedding, docEmbedding);
-                    return { ...doc, rerankScore: similarity };
-                })
-            );
-
+            // Ordenar por score (mayor es mejor)
             return docsWithScores.sort((a, b) => b.rerankScore - a.rerankScore);
         } catch (e) {
             console.error(`[AdvancedRAGAgent] Error en rerankResults: ${e.message}`);
@@ -155,10 +162,25 @@ class AdvancedRAGAgent {
     }
 
     async retrieveContext(query, topK = 5) {
-        const docs = await this.hybridSearch(query, topK);
+        const docs = await this.hybridSearch(query, topK * 2); // Obtener más documentos para diversificar
         const reranked = await this.rerankResults(query, docs);
         
-        return reranked.slice(0, topK);
+        // Diversificar fuentes: máximo 2 documentos de la misma fuente
+        const diversified = [];
+        const sourceCount = {};
+        
+        for (const doc of reranked) {
+            const source = doc.source || 'unknown';
+            sourceCount[source] = (sourceCount[source] || 0) + 1;
+            
+            if (sourceCount[source] <= 2) {
+                diversified.push(doc);
+            }
+            
+            if (diversified.length >= topK) break;
+        }
+        
+        return diversified;
     }
 
     formatContextForLLM(contextDocs) {

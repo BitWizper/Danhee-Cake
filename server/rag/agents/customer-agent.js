@@ -121,20 +121,27 @@ class CustomerAgent {
             }
         }
 
-        const messages = [...chatHistory, { role: 'user', content: userMessage }];
+        const messages = [...chatHistory];
+        
+        // Agregar contexto como mensaje de sistema separado, no en el mensaje del usuario
         if (context) {
-            messages[messages.length - 1].content = `Contexto relevante:\n${context}\n\nPregunta del usuario: ${userMessage}`;
+            messages.unshift({ 
+                role: 'system', 
+                content: `Información relevante de la base de conocimiento:\n\n${context}\n\nUsa esta información para responder la pregunta del usuario de manera precisa.` 
+            });
         }
+        
+        messages.push({ role: 'user', content: userMessage });
 
         // Convertir mensajes a formato LangChain
         const langchainMessages = [
             new SystemMessage(this.systemPrompt),
-            ...chatHistory.map(msg => {
+            ...messages.map(msg => {
                 if (msg.role === 'user') return new HumanMessage(msg.content);
                 if (msg.role === 'assistant') return new AIMessage(msg.content);
+                if (msg.role === 'system') return new SystemMessage(msg.content);
                 return new HumanMessage(msg.content);
-            }),
-            new HumanMessage(context ? `Contexto relevante:\n${context}\n\nPregunta del usuario: ${userMessage}` : userMessage)
+            })
         ];
 
         let responseText = '';

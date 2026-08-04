@@ -17,8 +17,8 @@ const EMBEDDING_MODEL = 'nomic-embed-text';
 const COLLECTION_NAME = 'danhee_knowledge';
 
 // Configuración de chunking
-const CHUNK_SIZE = 500;
-const CHUNK_OVERLAP = 50;
+const CHUNK_SIZE = 1500; // Aumentado de 500 a 1500 para preservar contexto semántico
+const CHUNK_OVERLAP = 150; // 10% del chunk size
 
 // Configuración de TextSplitter
 const textSplitter = new RecursiveCharacterTextSplitter({
@@ -75,16 +75,23 @@ async function chunkText(text, metadata = {}) {
     }
 }
 
-// Función para generar embeddings
-async function generateEmbeddings(texts) {
+// Función para generar embeddings con límite de concurrencia
+async function generateEmbeddings(texts, concurrencyLimit = 5) {
     try {
         const embeddings = new OllamaEmbeddings({
             model: EMBEDDING_MODEL
         });
         
-        const embeddingVectors = await Promise.all(
-            texts.map(text => embeddings.embedQuery(text))
-        );
+        const embeddingVectors = [];
+        
+        // Procesar en lotes para evitar saturar Ollama
+        for (let i = 0; i < texts.length; i += concurrencyLimit) {
+            const batch = texts.slice(i, i + concurrencyLimit);
+            const batchEmbeddings = await Promise.all(
+                batch.map(text => embeddings.embedQuery(text))
+            );
+            embeddingVectors.push(...batchEmbeddings);
+        }
         
         return embeddingVectors;
     } catch (error) {
@@ -157,8 +164,13 @@ async function ingestDocuments() {
                 continue;
             }
             
-            // Preparar datos para ChromaDB
-            const ids = chunks.map((_, i) => `${file}_${Date.now()}_${i}`);
+            // Preparar datos para ChromaDB con IDs únicos basados en hash
+            const ids = chunks.map((chunk, i) => {
+                // Usar hash del contenido + nombre del archivo para evitar colisiones
+                const crypto = require('crypto');
+                const hash = crypto.createHash('md5').update(chunk.text).digest('hex').substring(0, 8);
+                return `${file.replace('.pdf', '')}_${hash}_${i}`;
+            });
             const documents = chunks.map(c => c.text);
             const metadatas = chunks.map(c => c.metadata);
             
