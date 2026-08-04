@@ -10,7 +10,10 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 // Pool de conexiones persistente
 let pool = null;
 const CACHE_TTL = 120; // segundos
+const CACHE_TTL_LONG = 600; // 10 minutos para datos que cambian poco (categorías)
 const MAX_CACHE_SIZE = 1000; // Límite máximo de entradas en cache
+const MAX_DIRECT_CONNECTIONS = 5; // Límite de conexiones directas fallback
+let directConnectionCount = 0;
 const cache = new Map();
 
 function getPool() {
@@ -44,9 +47,16 @@ async function getConnection() {
             console.error(`[db-config] Pool error, fallback a conexión directa: ${e.message}`);
         }
     }
-    // Fallback a conexión directa
+    
+    // Fallback a conexión directa con límite
+    if (directConnectionCount >= MAX_DIRECT_CONNECTIONS) {
+        console.error(`[db-config] Límite de conexiones directas alcanzado (${MAX_DIRECT_CONNECTIONS})`);
+        return null;
+    }
+    
     try {
-        return await mysql.createConnection({
+        directConnectionCount++;
+        const conn = await mysql.createConnection({
             host: process.env.DB_HOST,
             port: parseInt(process.env.DB_PORT || '3306'),
             database: process.env.DB_NAME,
@@ -54,7 +64,17 @@ async function getConnection() {
             password: process.env.DB_PASSWORD,
             waitForConnections: true
         });
+        
+        // Liberar conexión automáticamente después de 30 segundos de inactividad
+        const originalRelease = conn.release.bind(conn);
+        conn.release = () => {
+            directConnectionCount--;
+            return originalRelease();
+        };
+        
+        return conn;
     } catch (e) {
+        directConnectionCount--;
         console.error(`[db-config] Error conectando a MySQL: ${e.message}`);
         return null;
     }
@@ -63,19 +83,25 @@ async function getConnection() {
 // Cache en memoria
 function cacheGet(key) {
     const entry = cache.get(key);
-    if (entry && (Date.now() - entry.ts) < (CACHE_TTL * 1000)) {
+    if (!entry) return null;
+    
+    const ttl = entry.ttl || (CACHE_TTL * 1000);
+    if ((Date.now() - entry.ts) < ttl) {
         return entry.data;
     }
+    
+    // Cache expirado, eliminar
+    cache.delete(key);
     return null;
 }
 
-function cacheSet(key, data) {
+function cacheSet(key, data, ttl = CACHE_TTL) {
     // Eviction: si el cache excede el tamaño máximo, eliminar entradas más antiguas
     if (cache.size >= MAX_CACHE_SIZE) {
         const oldestKey = cache.keys().next().value;
         cache.delete(oldestKey);
     }
-    cache.set(key, { data, ts: Date.now() });
+    cache.set(key, { data, ts: Date.now(), ttl: ttl * 1000 });
 }
 
 // Funciones de acceso a datos
@@ -113,8 +139,8 @@ async function getBakers() {
     if (!conn) return [];
     
     try {
-        const [rows] = await conn.execute('SELECT * FROM baker_profiles');
-        cacheSet('bakers', rows);
+        const [rows] = await conn.execute('SELECT * FROM baker_profiles ORDER BY rating_avg DESC LIMIT 100');
+        cacheSet('bakers', rows, CACHE_TTL_LONG); // 10 minutos TTL
         return rows;
     } catch (e) {
         console.error(`[db-config] Error en getBakers: ${e.message}`);
@@ -173,6 +199,17 @@ async function insertAppointment(clientId, bakerId, dateStr, timeSlot, notes, st
     if (!conn) return false;
     
     try {
+        // Verificar disponibilidad antes de insertar
+        const [existing] = await conn.execute(
+            'SELECT id FROM appointments WHERE baker_id = ? AND date = ? AND time_slot = ?',
+            [bakerId, dateStr, timeSlot]
+        );
+        
+        if (existing.length > 0) {
+            console.warn(`[db-config] Horario no disponible: baker ${bakerId} en ${dateStr} a las ${timeSlot}`);
+            return false;
+        }
+        
         await conn.execute(`
             INSERT INTO appointments (client_id, baker_id, date, time_slot, notes, status)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -212,8 +249,8 @@ async function getCategories() {
     if (!conn) return [];
     
     try {
-        const [rows] = await conn.execute('SELECT * FROM categories WHERE is_active = 1');
-        cacheSet('categories', rows);
+        const [rows] = await conn.execute('SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order ASC');
+        cacheSet('categories', rows, CACHE_TTL_LONG); // 10 minutos TTL
         return rows;
     } catch (e) {
         console.error(`[db-config] Error en getCategories: ${e.message}`);
@@ -291,21 +328,26 @@ async function getChatHistory(conversationId, systemPrompt, maxTurns = 12) {
     
     try {
         const limitValue = parseInt(maxTurns * 2);
+        
+        // Usar subquery para obtener los últimos mensajes en orden ascendente
+        // sin necesidad de reverse() en memoria
         const [rows] = await conn.execute(`
-            SELECT role, content
-            FROM chat_messages
-            WHERE conversation_id = ?
-              AND role IN ('user', 'assistant')
-              AND content IS NOT NULL
-              AND TRIM(content) != ''
-            ORDER BY id DESC
-            LIMIT ?
+            SELECT role, content FROM (
+                SELECT role, content, id
+                FROM chat_messages
+                WHERE conversation_id = ?
+                  AND role IN ('user', 'assistant')
+                  AND content IS NOT NULL
+                  AND TRIM(content) != ''
+                ORDER BY id DESC
+                LIMIT ?
+            ) AS recent_messages
+            ORDER BY id ASC
         `, [conversationId, limitValue]);
         
-        const reversedRows = rows.reverse();
         const messages = [{ role: 'system', content: systemPrompt }];
         
-        for (const row of reversedRows) {
+        for (const row of rows) {
             const content = String(row.content || '').trim();
             if (content) {
                 messages.push({ role: row.role, content });
