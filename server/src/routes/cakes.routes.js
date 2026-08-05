@@ -31,6 +31,26 @@ const validateCakesQuery = [
   query('featured')
     .optional()
     .isIn(['true', 'false', '0', '1']).withMessage('featured debe ser true o false'),
+  query('search')
+    .optional()
+    .trim()
+    .isLength({ max: 200 }).withMessage('search máximo 200 caracteres')
+    .custom((value) => {
+      if (typeof value === 'string' && isDangerousValue(value, 'query.search')) {
+        throw new Error('search contiene contenido sospechoso');
+      }
+      return true;
+    }),
+  query('location')
+    .optional()
+    .trim()
+    .isLength({ max: 200 }).withMessage('location máximo 200 caracteres')
+    .custom((value) => {
+      if (typeof value === 'string' && isDangerousValue(value, 'query.location')) {
+        throw new Error('location contiene contenido sospechoso');
+      }
+      return true;
+    }),
   query('limit')
     .optional()
     .isInt({ min: 1, max: 500 }).withMessage('limit entre 1-500')

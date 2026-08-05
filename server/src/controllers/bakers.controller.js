@@ -223,7 +223,8 @@ exports.getAppointments = async (req, res, next) => {
 
     res.json({ success: true, data: masked });
   } catch (err) {
-    next(err);
+    console.error('[Bakers] Error en getAppointments:', err.message);
+    return res.status(503).json({ success: false, message: 'No se pudieron obtener las citas. Intenta de nuevo más tarde.' });
   }
 };
 

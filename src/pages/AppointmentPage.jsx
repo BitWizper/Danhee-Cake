@@ -57,8 +57,8 @@ const getBakerSlotsForDate = (businessHoursStr, dateStr) => {
     const icon = h < 12 ? '🌅' : (h === 12 ? '☀️' : (h < 17 ? '🌇' : '🌆'));
 
     const minuteSlots = [];
-    // Intervalos de 10 minutos
-    for (let m = 0; m < 60; m += 10) {
+    // Intervalos de 15 minutos
+    for (let m = 0; m < 60; m += 15) {
       const timeValue = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
       const label = `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
       minuteSlots.push({ value: timeValue, label, icon });

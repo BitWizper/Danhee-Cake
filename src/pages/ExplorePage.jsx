@@ -35,8 +35,16 @@ const ExplorePage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const params = new URLSearchParams();
+        if (search) params.append('search', search);
+        if (location) params.append('location', location);
+        if (specialty && specialty !== 'Todas') params.append('category', specialty.toLowerCase());
+        
+        const queryString = params.toString();
+        const cakesUrl = queryString ? `/api/cakes?${queryString}` : '/api/cakes';
+        
         const [cakesRes, catsRes] = await Promise.all([
-          fetch(getApiUrl('/api/cakes')),
+          fetch(getApiUrl(cakesUrl)),
           fetch(getApiUrl('/api/categories'))
         ]);
 
@@ -57,7 +65,7 @@ const ExplorePage = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [search, location, specialty]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -94,14 +102,7 @@ const ExplorePage = () => {
     }
   };
 
-  const filtered = cakes.filter(cake => {
-    const matchSearch = cake.name.toLowerCase().includes(search.toLowerCase()) ||
-      cake.business_name.toLowerCase().includes(search.toLowerCase());
-    const matchLocation = !location || cake.location.toLowerCase().includes(location.toLowerCase());
-    const matchSpecialty = specialty === 'Todas' || cake.category_name === specialty || cake.category_slug === specialty;
-    return matchSearch && matchLocation && matchSpecialty;
-  });
-
+  const filtered = cakes;
   const totalPages = Math.max(1, Math.ceil(filtered.length / cakesPerPage));
   const indexOfLastCake = currentPage * cakesPerPage;
   const indexOfFirstCake = indexOfLastCake - cakesPerPage;
@@ -126,7 +127,7 @@ const ExplorePage = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, location, specialty]);
+  }, [cakes]);
 
   useEffect(() => {
     if (currentPage > totalPages) {

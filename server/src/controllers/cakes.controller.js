@@ -98,11 +98,10 @@ const buildCakeResponse = (cake, role) => {
  * Obtener todos los pasteles, opcionalmente filtrados por categoría o repostero.
  */
 exports.getAll = async (req, res, next) => {
-  const { category, baker, featured } = req.query;
+  const { category, baker, featured, search, location } = req.query;
   let { limit, offset } = req.query;
   limit = parseInt(limit, 10);
   offset = parseInt(offset, 10);
-  // Soporte `page` además de `offset`
   const pageParam = parseInt(req.query.page, 10);
   if (pageParam && pageParam > 0) {
     if (!limit || limit <= 0) limit = 20;
@@ -113,10 +112,11 @@ exports.getAll = async (req, res, next) => {
   if (limit > 100) limit = 100;
   if (!offset || offset < 0) offset = 0;
   
-  // Validar y sanitizar inputs
   const sanitizedCategory = sanitizeString(category, 100);
   const sanitizedBaker = sanitizeString(baker, 50);
   const sanitizedFeatured = sanitizeString(featured, 10);
+  const sanitizedSearch = sanitizeString(search, 200);
+  const sanitizedLocation = sanitizeString(location, 200);
   
   let query = `
     SELECT c.*, b.business_name, b.location, b.user_id, cat.name as category_name 
@@ -144,12 +144,21 @@ exports.getAll = async (req, res, next) => {
     query += ' AND c.is_featured = 1';
   }
 
+  if (sanitizedSearch) {
+    query += ' AND (c.name LIKE ? OR b.business_name LIKE ?)';
+    const searchPattern = `%${sanitizedSearch}%`;
+    params.push(searchPattern, searchPattern);
+  }
+
+  if (sanitizedLocation) {
+    query += ' AND b.location LIKE ?';
+    params.push(`%${sanitizedLocation}%`);
+  }
+
   try {
     query += ' LIMIT ? OFFSET ?';
     params.push(limit, offset);
-    // console.log('[Cakes] Ejecutando query:', query, 'con params:', params);
     const [cakes] = await db.execute(query, params);
-    // console.log('[Cakes] Query exitoso, pasteles encontrados:', cakes.length);
     const normalizedCakes = cakes.map((cake) => buildCakeResponse(cake, req.user?.role));
     res.json({
       success: true,
@@ -157,8 +166,6 @@ exports.getAll = async (req, res, next) => {
     });
   } catch (err) {
     console.error('[Cakes] Error en getAll:', err && err.message ? err.message : err);
-    console.error('[Cakes] Stack:', err.stack);
-    // Responder amigablemente para evitar que el frontend reciba un 500 HTML
     return res.status(503).json({ success: false, message: 'No se pudieron obtener los pasteles. Intenta de nuevo más tarde.' });
   }
 };
